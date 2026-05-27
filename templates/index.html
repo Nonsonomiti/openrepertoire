@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>openrepertoire</title>
+    <title>openrepertoire — Vortichess</title>
     
     <link rel="stylesheet" href="/static/css/chessboard.min.css">
     <script src="/static/js/jquery.min.js"></script>
@@ -10,91 +10,230 @@
     <script src="/static/js/chess.min.js"></script>
     
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: flex; margin: 0; height: 100vh; background-color: #f4f4f5; }
-        #sidebar { width: 340px; background: white; padding: 20px; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
-        #main { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 40px; overflow-y: auto; }
+        /* Palette Premium Dark Mode */
+        :root {
+            --bg-main: #161512;
+            --bg-sidebar: #262421;
+            --bg-card: #312e2b;
+            --text-main: #bababa;
+            --text-bright: #ffffff;
+            --accent-blue: #3692e7;
+            --accent-green: #45a049;
+            --accent-red: #b33939;
+            --border-color: #3d3a35;
+        }
+
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            display: flex; 
+            margin: 0; 
+            height: 100vh; 
+            background-color: var(--bg-main); 
+            color: var(--text-main);
+            overflow: hidden;
+        }
         
-        .btn { background: #007aff; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; margin-top: 10px; width: 100%; font-weight: bold; font-size: 14px; }
-        .btn:hover { background: #005bb5; }
-        .btn-success { background: #34c759; margin-top: 15px; }
-        .btn-success:hover { background: #28a745; }
-        .btn-read { background: #555; width: 48%; margin-top: 0; }
+        #sidebar { 
+            width: 340px; 
+            background: var(--bg-sidebar); 
+            padding: 20px; 
+            border-right: 1px solid var(--border-color); 
+            display: flex; 
+            flex-direction: column; 
+            box-shadow: 4px 0 10px rgba(0,0,0,0.3);
+        }
+        
+        #main { 
+            flex: 1; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            padding: 30px; 
+            overflow-y: auto; 
+        }
+        
+        h1#title { 
+            font-size: 22px; 
+            text-align: center; 
+            margin-top: 0; 
+            margin-bottom: 20px;
+            color: var(--text-bright);
+            font-style: italic;
+            font-weight: 400;
+            letter-spacing: 0.5px;
+        }
+        
+        /* Contenitore Logo */
+        .sponsor-container {
+            text-align: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px dashed var(--border-color);
+        }
+        .sponsor-brand {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #888;
+            margin-bottom: 8px;
+        }
+        .sponsor-logo-img {
+            max-width: 140px;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease;
+        }
+        .sponsor-container:hover .sponsor-logo-img {
+            transform: scale(1.05);
+        }
+
+        /* Bottoni */
+        .btn { 
+            background: var(--accent-blue); 
+            color: white; 
+            border: none; 
+            padding: 12px 15px; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            margin-top: 10px; 
+            width: 100%; 
+            font-weight: bold; 
+            font-size: 14px; 
+            transition: all 0.2s;
+        }
+        .btn:hover { background: #2575c0; }
+        .btn-success { background: var(--accent-green); margin-top: 15px; }
+        .btn-success:hover { background: #357a38; }
+        .btn-read { background: #4f4b45; width: 48%; margin-top: 0; color: var(--text-bright); }
+        .btn-read:hover { background: #635e56; }
         
         .sidebar-scroll { flex: 1; overflow-y: auto; padding-right: 5px; margin-bottom: 15px; }
         
-        h2 { font-size: 18px; margin: 15px 0 10px 0; border-bottom: 2px solid #eee; padding-bottom: 5px; cursor: pointer; user-select: none; display: flex; justify-content: space-between; }
-        h2:hover { color: #007aff; }
-        h2:first-child { margin-top: 0; }
+        h2 { 
+            font-size: 14px; 
+            margin: 15px 0 10px 0; 
+            border-bottom: 1px solid var(--border-color); 
+            padding-bottom: 8px; 
+            cursor: pointer; 
+            user-select: none; 
+            display: flex; 
+            justify-content: space-between; 
+            color: var(--text-bright);
+            text-transform: uppercase;
+        }
+        h2:hover { color: var(--accent-blue); }
         
-        .course-header { font-size: 14px; font-weight: 700; color: #fff; background: #888; padding: 8px 12px; border-radius: 4px; margin: 10px 0 5px 0; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer; user-select: none; display: flex; justify-content: space-between; }
-        .course-header:hover { background: #666; }
-        .course-content { display: block; }
+        .course-header { 
+            font-size: 13px; 
+            font-weight: 700; 
+            color: #fff; 
+            background: #4a453f; 
+            padding: 8px 12px; 
+            border-radius: 4px; 
+            margin: 10px 0 5px 0; 
+            text-transform: uppercase; 
+            cursor: pointer; 
+            display: flex; 
+            justify-content: space-between; 
+        }
         
-        .var-container { display: flex; justify-content: space-between; align-items: center; background: #f9f9f9; margin-bottom: 8px; border-radius: 6px; border: 1px solid #ddd; padding: 8px 12px; }
-        .var-item { flex: 1; cursor: pointer; font-weight: 500; font-size: 13px; padding-right: 10px; color: #333; line-height: 1.3; }
-        .var-item:hover { color: #007aff; }
-        .btn-delete { background: #ff3b30; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold; }
-        .btn-delete:hover { background: #c72c24; }
-        .empty-msg { color: #888; font-size: 13px; font-style: italic; }
+        .var-container { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            background: var(--bg-card); 
+            margin-bottom: 6px; 
+            border-radius: 6px; 
+            border: 1px solid var(--border-color); 
+            padding: 8px 12px; 
+        }
+        .var-item { flex: 1; cursor: pointer; font-size: 13px; color: #dfdfdf; }
+        .var-item:hover { color: var(--accent-blue); }
         
-        /* Layout a due colonne per l'area principale */
-        #workspace { display: flex; flex-direction: row; justify-content: center; align-items: flex-start; gap: 40px; width: 100%; max-width: 1100px; margin-top: 20px; }
+        .btn-delete { background: transparent; color: #888; border: none; cursor: pointer; font-size: 12px; }
+        .btn-delete:hover { color: var(--accent-red); }
+        .empty-msg { color: #666; font-size: 13px; font-style: italic; }
+        
+        /* Layout Scacchiera */
+        #workspace { display: flex; flex-direction: row; justify-content: center; align-items: flex-start; gap: 40px; width: 100%; max-width: 1150px; }
         #left-col { display: flex; flex-direction: column; align-items: center; width: 500px; }
-        #right-col { width: 400px; display: flex; flex-direction: column; }
+        #right-col { width: 420px; display: flex; flex-direction: column; gap: 15px; }
         
-        #board { width: 500px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); cursor: pointer; }
-        #status { margin-top: 20px; font-size: 18px; font-weight: bold; min-height: 24px; text-align: center; }
+        #board { width: 500px; box-shadow: 0 8px 24px rgba(0,0,0,0.6); border-radius: 4px; overflow: hidden; }
+        #status { margin-top: 15px; font-size: 16px; font-weight: bold; min-height: 24px; text-align: center; color: var(--text-bright); }
         
-        #read-controls { display: flex; justify-content: space-between; width: 100%; display: none; margin-bottom: 15px; }
-        #annotation-box { padding: 20px; background-color: #e6f2ff; border-left: 5px solid #007aff; border-radius: 6px; font-size: 16px; color: #004085; width: 100%; box-sizing: border-box; display: none; line-height: 1.5; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        #read-controls { display: flex; justify-content: space-between; width: 100%; display: none; }
+        #annotation-box { padding: 20px; background-color: var(--bg-card); border-left: 4px solid var(--accent-blue); border-radius: 6px; font-size: 15px; color: #e2e2e2; display: none; }
         
-        .import-box { background: #f4f4f5; padding: 15px; border-radius: 8px; border: 1px dashed #ccc; }
-        .import-select { width: 100%; padding: 6px; margin-bottom: 10px; border-radius: 4px; border: 1px solid #ccc; font-family: inherit; font-size: 13px; }
-        input[type="file"] { margin-top: 5px; width: 100%; font-size: 12px; }
+        .panel-box { background: var(--bg-card); padding: 15px; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 15px; }
+        .panel-title { margin-top: 0; margin-bottom: 12px; font-size: 13px; text-transform: uppercase; color: var(--text-bright); border-bottom: 1px solid var(--border-color); padding-bottom: 5px;}
         
-        .highlight-square { background-color: rgba(255, 255, 51, 0.6) !important; border: 2px solid #ccc; box-sizing: border-box; }
+        .import-select { width: 100%; padding: 8px; margin-bottom: 10px; border-radius: 4px; background: var(--bg-sidebar); color: white; border: 1px solid var(--border-color); font-size: 13px; }
+        
+        /* Classi CSS per sovrascrivere dinamicamente i colori della scacchiera */
+        .theme-wood .white-1e1d7 { background-color: #d18b47 !important; color: #704010 !important; }
+        .theme-wood .black-3c85d { background-color: #704010 !important; color: #d18b47 !important; }
+        
+        .theme-green .white-1e1d7 { background-color: #eeeeee !important; color: #5c8766 !important; }
+        .theme-green .black-3c85d { background-color: #5c8766 !important; color: #eeeeee !important; }
+        
+        .theme-dark .white-1e1d7 { background-color: #e2e4e6 !important; color: #4a4e52 !important; }
+        .theme-dark .black-3c85d { background-color: #4a4e52 !important; color: #e2e4e6 !important; }
+
+        .highlight-square { box-shadow: inset 0 0 0 3px #ff9f43 !important; }
     </style>
 </head>
 <body>
 
     <div id="sidebar">
-        <div class="sidebar-scroll">
-            <h2 onclick="$('#learn-wrapper').slideToggle()">Da Imparare (<span id="learn-count">0</span>) <span>▼</span></h2>
-            <div id="learn-wrapper">
-                <div id="learn-list"></div>
-            </div>
-            
-            <h2 onclick="$('#review-wrapper').slideToggle()">Da Ripassare (<span id="review-count">0</span>) <span>▼</span></h2>
-            <div id="review-wrapper">
-                <div id="review-list"></div>
-            </div>
+        <div class="sponsor-container">
+            <div class="sponsor-brand">Sponsored by</div>
+            <img src="/static/vortichess_logo.png" class="sponsor-logo-img" alt="Vortichess Logo" onerror="this.style.display='none'; document.getElementById('sponsor-fallback').style.display='block';">
+            <div id="sponsor-fallback" style="display:none; font-size:18px; font-weight:bold; color: #3692e7; font-style:italic; letter-spacing: 1px;">🌀 VORTICHESS</div>
+        </div>
 
-            <h2 onclick="$('#repertoire-wrapper').slideToggle()">Repertorio (<span id="rep-count">0</span>) <span>▼</span></h2>
-            <div id="repertoire-wrapper" style="display: none;">
-                <div id="repertoire-list"></div>
-            </div>
+        <div class="sidebar-scroll">
+            <h2 onclick="$('#learn-wrapper').slideToggle(200)">Da Imparare (<span id="learn-count">0</span>) <span>▼</span></h2>
+            <div id="learn-wrapper"><div id="learn-list"></div></div>
+            
+            <h2 onclick="$('#review-wrapper').slideToggle(200)">Da Ripassare (<span id="review-count">0</span>) <span>▼</span></h2>
+            <div id="review-wrapper"><div id="review-list"></div></div>
+
+            <h2 onclick="$('#repertoire-wrapper').slideToggle(200)">Repertorio (<span id="rep-count">0</span>) <span>▼</span></h2>
+            <div id="repertoire-wrapper" style="display: none;"><div id="repertoire-list"></div></div>
         </div>
         
-        <div class="import-box">
-            <h3 style="margin-top:0; margin-bottom:10px; font-size:15px;">Importa Corso (PGN)</h3>
-            <label style="font-size:11px; font-weight:bold; color:#555; display:block; margin-bottom:3px;">Giochi dal lato del:</label>
+        <div class="panel-box">
+            <div class="panel-title">Personalizza Grafica</div>
+            <label style="font-size: 11px; color: #888; display: block; margin-bottom: 4px;">STILE CASE:</label>
+            <select id="board-theme-select" class="import-select" onchange="changeBoardTheme()">
+                <option value="classic">Classico (Standard Marrone)</option>
+                <option value="wood">Legno Noce</option>
+                <option value="green">Verde Lichess / Torneo</option>
+                <option value="dark">Grigio Contrasto</option>
+            </select>
+        </div>
+        
+        <div class="panel-box" style="background:transparent; border:none; padding:0; margin-bottom:0;">
+            <div class="panel-title">Importa Corso (PGN)</div>
             <select id="pgn-perspective" class="import-select">
                 <option value="white">Bianco ⚪</option>
                 <option value="black">Nero ⚫</option>
             </select>
-            <input type="file" id="pgn-file" accept=".pgn">
+            <input type="file" id="pgn-file" accept=".pgn" style="color:#888;">
             <button class="btn" onclick="importPGNFile()">Carica File</button>
         </div>
     </div>
 
     <div id="main">
-        <h1 id="title" style="font-size: 24px; text-align: center; margin-top: 0;">Seleziona una variante per iniziare</h1>
+        <h1 id="title">Seleziona una variante per iniziare</h1>
         
         <div id="workspace">
             <div id="left-col">
                 <div id="board"></div>
-                <div style="display: flex; justify-content: center; width: 100%; margin-top: 10px;">
-                <button class="btn" onclick="analyzeOnLichess()" style="background: #e0e0e0; color: #333; border: 1px solid #ccc; width: auto; font-size: 12px; margin-top: 0; padding: 5px 15px;">🔍 Analizza su Lichess</button>
+                <div style="display: flex; justify-content: center; width: 100%; margin-top: 12px;">
+                    <button class="btn" onclick="analyzeOnLichess()" style="background: #312e2b; color: #bababa; border: 1px solid var(--border-color); width: auto; font-size: 12px; margin-top: 0; padding: 6px 16px;">🔍 Analizza su Lichess</button>
                 </div>
                 <div id="status"></div>
             </div>
@@ -129,6 +268,14 @@
     let cachedLists = { learn: [], review: [], repertoire: [] };
     let currentListMode = ''; 
 
+    function changeBoardTheme() {
+        let theme = $('#board-theme-select').val();
+        $('#board').removeClass('theme-wood theme-green theme-dark');
+        if (theme !== 'classic') {
+            $('#board').addClass('theme-' + theme);
+        }
+    }
+
     function initBoard() {
         var config = {
             draggable: true,
@@ -139,6 +286,7 @@
             pieceTheme: '/static/img/chesspieces/wikipedia/{piece}.png'
         };
         board = Chessboard('board', config);
+        changeBoardTheme();
     }
 
     function toggleCourse(id) {
@@ -171,7 +319,7 @@
         dataArray.forEach(v => {
             globalVariantsMap[v.id] = v; 
             let courseName = v.course || 'Varie';
-            let sideTag = v.perspective === 'black' ? '🔴 ' : '⚪ ';
+            let sideTag = v.perspective === 'black' ? '⚫ ' : '⚪ ';
             v.displayTitle = sideTag + v.title;
             
             if (!grouped[courseName]) grouped[courseName] = [];
@@ -194,7 +342,7 @@
                 courseDiv.append(`
                     <div class="var-container">
                         <div class="var-item" onclick="${onClickAction}">${v.displayTitle}</div>
-                        <button class="btn-delete" onclick="deleteVariation('${v.id}', event)">X</button>
+                        <button class="btn-delete" onclick="deleteVariation('${v.id}', event)">✕</button>
                     </div>
                 `);
             });
@@ -321,16 +469,16 @@
         } else {
             let move = currentVariation.moves[moveIndex-1];
             let sidePlayed = ((moveIndex-1) % 2 === 0) ? "Bianco" : "Nero";
-            let text = `<div style="font-size:18px;">Mossa del <strong>${sidePlayed}</strong>: <strong style="color:#007aff;">${move.san}</strong></div>`;
-            if (move.comment) text += `<div style="margin-top:10px;">${move.comment.replace(/\n/g, '<br>')}</div>`;
+            let text = `<div style="font-size:16px;">Mossa del <strong>${sidePlayed}</strong>: <strong style="color:var(--accent-blue); font-size: 18px;">${move.san}</strong></div>`;
+            if (move.comment) text += `<div style="margin-top:10px; color: #cdcdcd;">${move.comment.replace(/\n/g, '<br>')}</div>`;
             
             if (moveIndex === currentVariation.moves.length) {
-                text += `<hr><div style="color: green; font-weight:bold; margin-bottom:10px;">Variante terminata.</div>`;
+                text += `<hr style="border-color: var(--border-color);"><div style="color: var(--accent-green); font-weight:bold; margin-bottom:10px;">Variante terminata.</div>`;
                 let nextVar = getNextVariation();
                 if (nextVar) {
                     text += `<button class="btn btn-success" id="btn-next-var">Prossima Variante (Spazio)</button>`;
                 } else {
-                    text += `<div style="font-style:italic;">Hai concluso questo elenco.</div>`;
+                    text += `<div style="font-style:italic; color: #888;">Hai concluso questo elenco.</div>`;
                 }
             }
             $('#annotation-box').html(text).show();
@@ -383,12 +531,12 @@
         removeHighlights();
         if (moveIndex >= currentVariation.moves.length) {
             if (isLearningMode && !isConsolidating) {
-                $('#status').text("Spiegazione terminata! Ora fissa le idee.").css('color', '#007aff');
+                $('#status').text("Spiegazione terminata! Ora fissa le idee.").css('color', 'var(--accent-blue)');
                 isConsolidating = true;
                 waitingForAck = true; 
                 
                 $('#annotation-box').html(`
-                    <strong>Ottimo lavoro!</strong><br><br>
+                    <strong style="color: var(--text-bright);">Ottimo lavoro!</strong><br><br>
                     Hai letto e compreso le idee dietro questa linea.<br>
                     Ora la giocherai una volta di fila a memoria.<br>
                     <button class="btn btn-success" id="btn-start-consolidation">Inizia Consolidamento (Spazio)</button>
@@ -418,11 +566,11 @@
         let oppColorName = currentVariation.perspective === 'white' ? 'Nero' : 'Bianco';
 
         if (isUserTurn) {
-            $('#status').text(`Tocca a te (${myColorName})`).css('color', 'black');
+            $('#status').text(`Tocca a te (${myColorName})`).css('color', 'var(--text-bright)');
             if (isLearningMode && !isConsolidating && penaltyCount === 0) {
                 waitingForAck = true; 
-                let targetMoveHTML = `<div style="font-size: 18px; color: #000; margin-bottom: 10px;">Cosa giocare ora: <strong style="font-size: 24px; color: #007aff;">${expectedMove.san}</strong></div>`;
-                let commentHTML = hasComment ? `<div style="margin-bottom: 15px; color: #333;">${expectedMove.comment.replace(/\n/g, '<br>')}</div>` : '';
+                let targetMoveHTML = `<div style="font-size: 16px; color: var(--text-bright); margin-bottom: 10px;">Cosa giocare ora: <strong style="font-size: 22px; color: var(--accent-blue);">${expectedMove.san}</strong></div>`;
+                let commentHTML = hasComment ? `<div style="margin-bottom: 15px; color: #bbb;">${expectedMove.comment.replace(/\n/g, '<br>')}</div>` : '';
                 $('#annotation-box').html(`${targetMoveHTML}${commentHTML}<button class="btn" id="btn-avanti">Ho capito, fammi muovere (Spazio)</button>`).show();
                 $('#btn-avanti').click(function() {
                     waitingForAck = false; 
@@ -433,12 +581,12 @@
                 $('#annotation-box').hide(); 
             }
         } else {
-            $('#status').text(`Mossa del computer (${oppColorName})...`).css('color', 'gray');
+            $('#status').text(`Mossa del computer (${oppColorName})...`).css('color', '#888');
             if (isLearningMode && !isConsolidating && hasComment) {
                 waitingForAck = true;
                 $('#annotation-box').html(`
-                    <div style="font-size: 18px; color: #000; margin-bottom: 10px;">Il computer gioca: <strong style="font-size: 20px;">${expectedMove.san}</strong></div>
-                    <div style="margin-bottom: 15px; color: #333;">${expectedMove.comment.replace(/\n/g, '<br>')}</div>
+                    <div style="font-size: 16px; color: var(--text-bright); margin-bottom: 10px;">Il computer gioca: <strong style="font-size: 18px; color: #ff9f43;">${expectedMove.san}</strong></div>
+                    <div style="margin-bottom: 15px; color: #bbb;">${expectedMove.comment.replace(/\n/g, '<br>')}</div>
                     <button class="btn" id="btn-avanti">Avanti (Spazio)</button>
                 `).show();
                 $('#btn-avanti').click(function() {
@@ -476,9 +624,9 @@
             madeMistake = true;
             penaltyCount = 1; 
             
-            $('#status').text(`Sbagliato! La mossa era ${expectedMove.san}. Ripetila 2 volte.`).css('color', '#ff3b30');
-            let targetMoveHTML = `<div style="font-size: 18px; color: #ff3b30; margin-bottom: 10px;">Devi giocare: <strong style="font-size: 24px;">${expectedMove.san}</strong></div>`;
-            let commentHTML = expectedMove.comment ? `<div style="margin-bottom: 10px;"><strong>Suggerimento:</strong><br>${expectedMove.comment.replace(/\n/g, '<br>')}</div>` : '';
+            $('#status').text(`Sbagliato! La mossa era ${expectedMove.san}. Ripetila 2 volte.`).css('color', 'var(--accent-red)');
+            let targetMoveHTML = `<div style="font-size: 16px; color: var(--accent-red); margin-bottom: 10px;">Devi giocare: <strong style="font-size: 22px;">${expectedMove.san}</strong></div>`;
+            let commentHTML = expectedMove.comment ? `<div style="margin-top: 10px; color: #bbb;"><strong>Suggerimento:</strong><br>${expectedMove.comment.replace(/\n/g, '<br>')}</div>` : '';
             $('#annotation-box').html(targetMoveHTML + commentHTML).show();
             
             board.position(game.fen()); 
@@ -488,13 +636,13 @@
         if (penaltyCount > 0) {
             game.undo(); 
             penaltyCount--;
-            $('#status').text("Bene, ora ripetila ancora 1 volta per fissarla.").css('color', '#ff9500');
+            $('#status').text("Bene, ora ripetila ancora 1 volta per fissarla.").css('color', '#ff9f43');
             $('#annotation-box').hide();
             board.position(game.fen());
             return false;
         }
 
-        $('#status').text("Corretto!").css('color', '#34c759');
+        $('#status').text("Corretto!").css('color', 'var(--accent-green)');
         $('#annotation-box').hide();
         moveIndex++;
         board.position(game.fen());
@@ -517,17 +665,15 @@
     }
 
     function onSnapEnd () { board.position(game.fen()); }
-        function analyzeOnLichess() {
+    
+    function analyzeOnLichess() {
         if (game) {
-            // Prende il FEN esatto del momento attuale
             let currentFen = game.fen();
-            // Lichess richiede che gli spazi del FEN siano sostituiti con dei trattini bassi (_)
             let formattedFen = currentFen.replace(/ /g, '_');
-            // Apre una nuova scheda direttamente sulla board di analisi!
             window.open("https://lichess.org/analysis/standard/" + formattedFen, '_blank');
         }
     }
-    // GESTIONE CLICK-TO-MOVE
+
     $('#board').on('click', '.square-55d63', function() {
         if (isReadMode || waitingForAck || !currentVariation || game.game_over()) return;
         
@@ -562,14 +708,14 @@
             url: '/api/review', type: 'POST', contentType: 'application/json',
             data: JSON.stringify({id: currentVariation.id, quality: quality}),
             success: function() {
-                loadDueVariations(); // Ricarica le liste con i nuovi valori
+                loadDueVariations();
 
                 let msg = madeMistake ? "Variante conclusa con errori. Andata in ripasso!" : "Perfetto! Programmazione aggiornata.";
-                $('#status').text(msg).css('color', madeMistake ? 'orange' : '#34c759');
+                $('#status').text(msg).css('color', madeMistake ? '#ff9f43' : 'var(--accent-green)');
 
                 if (nextVar) {
                     $('#annotation-box').html(`
-                        <div style="font-size:18px; color: green; margin-bottom:15px;">Hai terminato questa variante.</div>
+                        <div style="font-size:16px; color: var(--accent-green); margin-bottom:15px;">Hai terminato questa variante.</div>
                         <button class="btn btn-success" id="btn-next-var">Prossima Variante (Spazio)</button>
                     `).show();
                     waitingForAck = true;
@@ -577,7 +723,7 @@
                         startTraining(nextVar.id, currentListMode);
                     });
                 } else {
-                    $('#annotation-box').html(`<div style="font-size:18px; color: green;">🎉 Hai completato tutte le varianti in questa sezione!</div>`).show();
+                    $('#annotation-box').html(`<div style="font-size:18px; color: var(--accent-green); text-align:center;">🎉 Hai completato tutte le varianti in questa sezione!</div>`).show();
                     waitingForAck = false;
                     currentVariation = null;
                 }
