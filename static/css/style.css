@@ -1,0 +1,4 @@
+
+/* Centramento sicuro scacchiera */
+#board { margin: 0 auto !important; display: block; }
+.sponsor-section { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; text-align: center; }
