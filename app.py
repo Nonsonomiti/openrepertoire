@@ -6,8 +6,18 @@ import os
 import hashlib
 from datetime import datetime, timedelta
 
-app = Flask(__name__)
-DATA_FILE = "repertoire.json"
+# --- BLINDATURA DEI PERCORSI ---
+# Calcola la cartella esatta in cui si trova questo script, 
+# a prescindere da come si chiama o da dove viene lanciato.
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+
+app = Flask(__name__, 
+            template_folder=os.path.join(BASE_DIR, 'templates'),
+            static_folder=os.path.join(BASE_DIR, 'static'))
+
+# Salva il database sempre nella cartella del programma
+DATA_FILE = os.path.join(BASE_DIR, "repertoire.json")
+# -------------------------------
 
 def load_data():
     if os.path.exists(DATA_FILE):
@@ -23,7 +33,6 @@ def update_srs(srs, quality):
     rep, interval, ease = srs.get('rep', 0), srs.get('interval', 0), srs.get('ease', 2.5)
     
     if quality < 3:
-        # FIX LOGICA: Se sbagli, esce da Imparare (rep=1) e passa a Ripassare con urgenza immediata (interval=0).
         rep = 1
         interval = 0
     else:
