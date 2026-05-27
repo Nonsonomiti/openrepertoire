@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>openrepertoire</title>
+    
+    <link rel="stylesheet" href="/static/css/chessboard.min.css">
+    <script src="/static/js/jquery.min.js"></script>
+    <script src="/static/js/chessboard.min.js"></script>
+    <script src="/static/js/chess.min.js"></script>
+    
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: flex; margin: 0; height: 100vh; background-color: #f4f4f5; }
+        #sidebar { width: 340px; background: white; padding: 20px; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
+        #main { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 40px; overflow-y: auto; }
+        
+        .btn { background: #007aff; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; margin-top: 10px; width: 100%; font-weight: bold; font-size: 14px; }
+        .btn:hover { background: #005bb5; }
+        .btn-success { background: #34c759; margin-top: 15px; }
+        .btn-success:hover { background: #28a745; }
+        .btn-read { background: #555; width: 48%; margin-top: 0; }
+        
+        .sidebar-scroll { flex: 1; overflow-y: auto; padding-right: 5px; margin-bottom: 15px; }
+        
+        h2 { font-size: 18px; margin: 15px 0 10px 0; border-bottom: 2px solid #eee; padding-bottom: 5px; cursor: pointer; user-select: none; display: flex; justify-content: space-between; }
+        h2:hover { color: #007aff; }
+        h2:first-child { margin-top: 0; }
+        
+        .course-header { font-size: 14px; font-weight: 700; color: #fff; background: #888; padding: 8px 12px; border-radius: 4px; margin: 10px 0 5px 0; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer; user-select: none; display: flex; justify-content: space-between; }
+        .course-header:hover { background: #666; }
+        .course-content { display: block; }
+        
+        .var-container { display: flex; justify-content: space-between; align-items: center; background: #f9f9f9; margin-bottom: 8px; border-radius: 6px; border: 1px solid #ddd; padding: 8px 12px; }
+        .var-item { flex: 1; cursor: pointer; font-weight: 500; font-size: 13px; padding-right: 10px; color: #333; line-height: 1.3; }
+        .var-item:hover { color: #007aff; }
+        .btn-delete { background: #ff3b30; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold; }
+        .btn-delete:hover { background: #c72c24; }
+        .empty-msg { color: #888; font-size: 13px; font-style: italic; }
+        
+        /* Layout a due colonne per l'area principale */
+        #workspace { display: flex; flex-direction: row; justify-content: center; align-items: flex-start; gap: 40px; width: 100%; max-width: 1100px; margin-top: 20px; }
+        #left-col { display: flex; flex-direction: column; align-items: center; width: 500px; }
+        #right-col { width: 400px; display: flex; flex-direction: column; }
+        
+        #board { width: 500px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); cursor: pointer; }
+        #status { margin-top: 20px; font-size: 18px; font-weight: bold; min-height: 24px; text-align: center; }
+        
+        #read-controls { display: flex; justify-content: space-between; width: 100%; display: none; margin-bottom: 15px; }
+        #annotation-box { padding: 20px; background-color: #e6f2ff; border-left: 5px solid #007aff; border-radius: 6px; font-size: 16px; color: #004085; width: 100%; box-sizing: border-box; display: none; line-height: 1.5; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        
+        .import-box { background: #f4f4f5; padding: 15px; border-radius: 8px; border: 1px dashed #ccc; }
+        .import-select { width: 100%; padding: 6px; margin-bottom: 10px; border-radius: 4px; border: 1px solid #ccc; font-family: inherit; font-size: 13px; }
+        input[type="file"] { margin-top: 5px; width: 100%; font-size: 12px; }
+        
+        .highlight-square { background-color: rgba(255, 255, 51, 0.6) !important; border: 2px solid #ccc; box-sizing: border-box; }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar">
+        <div class="sidebar-scroll">
+            <h2 onclick="$('#learn-wrapper').slideToggle()">Da Imparare (<span id="learn-count">0</span>) <span>▼</span></h2>
+            <div id="learn-wrapper">
+                <div id="learn-list"></div>
+            </div>
+            
+            <h2 onclick="$('#review-wrapper').slideToggle()">Da Ripassare (<span id="review-count">0</span>) <span>▼</span></h2>
+            <div id="review-wrapper">
+                <div id="review-list"></div>
+            </div>
+
+            <h2 onclick="$('#repertoire-wrapper').slideToggle()">Repertorio (<span id="rep-count">0</span>) <span>▼</span></h2>
+            <div id="repertoire-wrapper" style="display: none;">
+                <div id="repertoire-list"></div>
+            </div>
+        </div>
+        
+        <div class="import-box">
+            <h3 style="margin-top:0; margin-bottom:10px; font-size:15px;">Importa Corso (PGN)</h3>
+            <label style="font-size:11px; font-weight:bold; color:#555; display:block; margin-bottom:3px;">Giochi dal lato del:</label>
+            <select id="pgn-perspective" class="import-select">
+                <option value="white">Bianco ⚪</option>
+                <option value="black">Nero ⚫</option>
+            </select>
+            <input type="file" id="pgn-file" accept=".pgn">
+            <button class="btn" onclick="importPGNFile()">Carica File</button>
+        </div>
+    </div>
+
+    <div id="main">
+        <h1 id="title" style="font-size: 24px; text-align: center; margin-top: 0;">Seleziona una variante per iniziare</h1>
+        
+        <div id="workspace">
+            <div id="left-col">
+                <div id="board"></div>
+                <div style="display: flex; justify-content: center; width: 100%; margin-top: 10px;">
+                <button class="btn" onclick="analyzeOnLichess()" style="background: #e0e0e0; color: #333; border: 1px solid #ccc; width: auto; font-size: 12px; margin-top: 0; padding: 5px 15px;">🔍 Analizza su Lichess</button>
+                </div>
+                <div id="status"></div>
+            </div>
+            
+            <div id="right-col">
+                <div id="read-controls">
+                    <button class="btn btn-read" onclick="prevMoveRead()">⬅️ Indietro</button>
+                    <button class="btn btn-read" onclick="nextMoveRead()">Avanti (Spazio) ➡️</button>
+                </div>
+                <div id="annotation-box"></div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    let board = null;
+    let game = new Chess();
+    let currentVariation = null;
+    let moveIndex = 0;
+    
+    let madeMistake = false;
+    let isLearningMode = false;
+    let isConsolidating = false; 
+    let waitingForAck = false;   
+    let penaltyCount = 0;
+    let isReadMode = false; 
+    
+    let globalVariantsMap = {};
+    let expandedCourses = {}; 
+    let selectedSquare = null; 
+    
+    let cachedLists = { learn: [], review: [], repertoire: [] };
+    let currentListMode = ''; 
+
+    function initBoard() {
+        var config = {
+            draggable: true,
+            position: 'start',
+            onDragStart: onDragStart,
+            onDrop: onDrop,
+            onSnapEnd: onSnapEnd,
+            pieceTheme: '/static/img/chesspieces/wikipedia/{piece}.png'
+        };
+        board = Chessboard('board', config);
+    }
+
+    function toggleCourse(id) {
+        $('#' + id).slideToggle(200, function() {
+            expandedCourses[id] = $(this).is(':visible');
+        });
+    }
+
+    function removeHighlights() {
+        $('#board .square-55d63').removeClass('highlight-square');
+        selectedSquare = null;
+    }
+
+    function highlightSquare(square) {
+        removeHighlights();
+        $('#board .square-' + square).addClass('highlight-square');
+        selectedSquare = square;
+    }
+
+    function renderList(dataArray, listId, mode) {
+        let list = $(`#${listId}`);
+        list.empty();
+        
+        if (dataArray.length === 0) {
+            list.append('<p class="empty-msg">Nessuna variante presente.</p>');
+            return;
+        }
+
+        let grouped = {};
+        dataArray.forEach(v => {
+            globalVariantsMap[v.id] = v; 
+            let courseName = v.course || 'Varie';
+            let sideTag = v.perspective === 'black' ? '🔴 ' : '⚪ ';
+            v.displayTitle = sideTag + v.title;
+            
+            if (!grouped[courseName]) grouped[courseName] = [];
+            grouped[courseName].push(v);
+        });
+
+        for (let course in grouped) {
+            let safeId = course.replace(/[^a-zA-Z0-9]/g, '_') + '_' + listId;
+            let isExpanded = expandedCourses[safeId];
+            if (isExpanded === undefined) {
+                isExpanded = (listId === 'repertoire-list') ? false : true;
+            }
+            let displayStyle = isExpanded ? 'block' : 'none';
+
+            list.append(`<div class="course-header" onclick="toggleCourse('${safeId}')">${course} <span>▼</span></div>`);
+            
+            let courseDiv = $(`<div id="${safeId}" class="course-content" style="display: ${displayStyle};"></div>`);
+            grouped[course].forEach(v => {
+                let onClickAction = mode === 'read' ? `startReadMode('${v.id}', 'repertoire')` : `startTraining('${v.id}', '${mode}')`;
+                courseDiv.append(`
+                    <div class="var-container">
+                        <div class="var-item" onclick="${onClickAction}">${v.displayTitle}</div>
+                        <button class="btn-delete" onclick="deleteVariation('${v.id}', event)">X</button>
+                    </div>
+                `);
+            });
+            list.append(courseDiv);
+        }
+    }
+
+    function loadDueVariations() {
+        $.get('/api/due', function(data) {
+            cachedLists = { learn: data.learn, review: data.review, repertoire: data.repertoire };
+            
+            $('#learn-count').text(data.learn.length);
+            $('#review-count').text(data.review.length);
+            $('#rep-count').text(data.repertoire.length);
+            
+            globalVariantsMap = {}; 
+            renderList(data.learn, 'learn-list', 'learn');
+            renderList(data.review, 'review-list', 'review');
+            renderList(data.repertoire, 'repertoire-list', 'read');
+        });
+    }
+
+    function importPGNFile() {
+        let fileInput = document.getElementById('pgn-file');
+        let perspectiveInput = document.getElementById('pgn-perspective');
+        if (fileInput.files.length === 0) return alert("Seleziona un file!");
+        
+        let file = fileInput.files[0];
+        let courseName = file.name.replace(/\.[^/.]+$/, ""); 
+        let selectedPerspective = perspectiveInput.value;
+        
+        let reader = new FileReader();
+        reader.onload = function(e) {
+            $.ajax({
+                url: '/api/import', type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ pgn: e.target.result, course: courseName, perspective: selectedPerspective }),
+                success: function(res) {
+                    alert(`Corso importato per il lato ${selectedPerspective === 'white' ? 'BIANCO' : 'NERO'}!\n${res.imported} varianti aggiunte.`);
+                    fileInput.value = ""; 
+                    loadDueVariations();
+                }
+            });
+        };
+        reader.readAsText(file);
+    }
+
+    function deleteVariation(id, event) {
+        event.stopPropagation();
+        if (confirm("Eliminare definitivamente?")) {
+            $.ajax({
+                url: '/api/delete', type: 'POST', contentType: 'application/json',
+                data: JSON.stringify({id: id}),
+                success: function(res) {
+                    if (res.success) {
+                        loadDueVariations();
+                        if (currentVariation && currentVariation.id === id) {
+                            currentVariation = null;
+                            board.start();
+                            $('#title').text("Seleziona una variante");
+                            $('#status').text("");
+                            $('#annotation-box').hide();
+                            $('#read-controls').hide();
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    function getNextVariation() {
+        let list = cachedLists[currentListMode] || [];
+        let idx = list.findIndex(v => v.id === currentVariation.id);
+        if (idx !== -1 && idx + 1 < list.length) {
+            return list[idx + 1];
+        }
+        return null;
+    }
+
+    function startReadMode(id, modeContext) {
+        removeHighlights();
+        currentListMode = modeContext;
+        currentVariation = globalVariantsMap[id];
+        moveIndex = 0;
+        isReadMode = true;
+        isLearningMode = false;
+        isConsolidating = false;
+        waitingForAck = false;
+
+        game.reset();
+        board.orientation(currentVariation.perspective); 
+        board.start();
+        $('#title').text("Lettura: " + currentVariation.title);
+        
+        $('#status').hide(); 
+        $('#read-controls').show(); 
+        
+        updateReadModeUI();
+    }
+
+    function nextMoveRead() {
+        if (moveIndex < currentVariation.moves.length) {
+            let move = currentVariation.moves[moveIndex];
+            game.move({from: move.uci.substring(0,2), to: move.uci.substring(2,4), promotion: 'q'});
+            board.position(game.fen());
+            moveIndex++;
+            updateReadModeUI();
+        }
+    }
+
+    function prevMoveRead() {
+        if (moveIndex > 0) {
+            game.undo();
+            board.position(game.fen());
+            moveIndex--;
+            updateReadModeUI();
+        }
+    }
+
+    function updateReadModeUI() {
+        removeHighlights();
+        if (moveIndex === 0) {
+            $('#annotation-box').html("<em>Inizio variante. Usa lo Spazio o le frecce della tastiera per scorrere. Tasto F per girare.</em>").show();
+        } else {
+            let move = currentVariation.moves[moveIndex-1];
+            let sidePlayed = ((moveIndex-1) % 2 === 0) ? "Bianco" : "Nero";
+            let text = `<div style="font-size:18px;">Mossa del <strong>${sidePlayed}</strong>: <strong style="color:#007aff;">${move.san}</strong></div>`;
+            if (move.comment) text += `<div style="margin-top:10px;">${move.comment.replace(/\n/g, '<br>')}</div>`;
+            
+            if (moveIndex === currentVariation.moves.length) {
+                text += `<hr><div style="color: green; font-weight:bold; margin-bottom:10px;">Variante terminata.</div>`;
+                let nextVar = getNextVariation();
+                if (nextVar) {
+                    text += `<button class="btn btn-success" id="btn-next-var">Prossima Variante (Spazio)</button>`;
+                } else {
+                    text += `<div style="font-style:italic;">Hai concluso questo elenco.</div>`;
+                }
+            }
+            $('#annotation-box').html(text).show();
+
+            if (moveIndex === currentVariation.moves.length && $('#btn-next-var').length) {
+                waitingForAck = true; 
+                $('#btn-next-var').click(function() { startReadMode(nextVar.id, currentListMode); });
+            } else {
+                waitingForAck = false;
+            }
+        }
+    }
+
+    function startTraining(id, modeContext) {
+        removeHighlights();
+        currentListMode = modeContext;
+        currentVariation = globalVariantsMap[id];
+        moveIndex = 0;
+        madeMistake = false;
+        isLearningMode = (currentVariation.srs.rep === 0);
+        isConsolidating = false;
+        penaltyCount = 0;
+        waitingForAck = false;
+        isReadMode = false; 
+
+        game.reset();
+        board.orientation(currentVariation.perspective); 
+        board.start();
+        
+        $('#status').show();
+        $('#status').text("");
+        $('#read-controls').hide();
+        
+        updateTitle();
+        handleStep();
+    }
+
+    function updateTitle() {
+        let sideText = currentVariation.perspective === 'white' ? " (Lato Bianco)" : " (Lato Nero)";
+        if (isConsolidating) $('#title').text("Fase 2: " + currentVariation.title + sideText);
+        else $('#title').text((isLearningMode ? "Fase 1: " : "Ripasso: ") + currentVariation.title + sideText);
+    }
+
+    function checkUserTurn() {
+        let isWhiteTurn = (moveIndex % 2 === 0);
+        return currentVariation.perspective === 'white' ? isWhiteTurn : !isWhiteTurn;
+    }
+
+    function handleStep() {
+        removeHighlights();
+        if (moveIndex >= currentVariation.moves.length) {
+            if (isLearningMode && !isConsolidating) {
+                $('#status').text("Spiegazione terminata! Ora fissa le idee.").css('color', '#007aff');
+                isConsolidating = true;
+                waitingForAck = true; 
+                
+                $('#annotation-box').html(`
+                    <strong>Ottimo lavoro!</strong><br><br>
+                    Hai letto e compreso le idee dietro questa linea.<br>
+                    Ora la giocherai una volta di fila a memoria.<br>
+                    <button class="btn btn-success" id="btn-start-consolidation">Inizia Consolidamento (Spazio)</button>
+                `).show();
+                
+                $('#btn-start-consolidation').click(function() {
+                    $('#annotation-box').hide();
+                    waitingForAck = false;
+                    moveIndex = 0;
+                    penaltyCount = 0;
+                    game.reset();
+                    board.start();
+                    updateTitle();
+                    handleStep(); 
+                });
+                return;
+            } else {
+                finishTraining();
+                return;
+            }
+        }
+
+        let expectedMove = currentVariation.moves[moveIndex];
+        let isUserTurn = checkUserTurn(); 
+        let hasComment = expectedMove.comment && expectedMove.comment.trim() !== "";
+        let myColorName = currentVariation.perspective === 'white' ? 'Bianco' : 'Nero';
+        let oppColorName = currentVariation.perspective === 'white' ? 'Nero' : 'Bianco';
+
+        if (isUserTurn) {
+            $('#status').text(`Tocca a te (${myColorName})`).css('color', 'black');
+            if (isLearningMode && !isConsolidating && penaltyCount === 0) {
+                waitingForAck = true; 
+                let targetMoveHTML = `<div style="font-size: 18px; color: #000; margin-bottom: 10px;">Cosa giocare ora: <strong style="font-size: 24px; color: #007aff;">${expectedMove.san}</strong></div>`;
+                let commentHTML = hasComment ? `<div style="margin-bottom: 15px; color: #333;">${expectedMove.comment.replace(/\n/g, '<br>')}</div>` : '';
+                $('#annotation-box').html(`${targetMoveHTML}${commentHTML}<button class="btn" id="btn-avanti">Ho capito, fammi muovere (Spazio)</button>`).show();
+                $('#btn-avanti').click(function() {
+                    waitingForAck = false; 
+                    $('#annotation-box').hide();
+                });
+            } else {
+                waitingForAck = false;
+                $('#annotation-box').hide(); 
+            }
+        } else {
+            $('#status').text(`Mossa del computer (${oppColorName})...`).css('color', 'gray');
+            if (isLearningMode && !isConsolidating && hasComment) {
+                waitingForAck = true;
+                $('#annotation-box').html(`
+                    <div style="font-size: 18px; color: #000; margin-bottom: 10px;">Il computer gioca: <strong style="font-size: 20px;">${expectedMove.san}</strong></div>
+                    <div style="margin-bottom: 15px; color: #333;">${expectedMove.comment.replace(/\n/g, '<br>')}</div>
+                    <button class="btn" id="btn-avanti">Avanti (Spazio)</button>
+                `).show();
+                $('#btn-avanti').click(function() {
+                    waitingForAck = false;
+                    $('#annotation-box').hide();
+                    executeComputerMove();
+                });
+            } else {
+                waitingForAck = false;
+                $('#annotation-box').hide();
+                window.setTimeout(executeComputerMove, 400);
+            }
+        }
+    }
+
+    function executeComputerMove() {
+        let expectedMove = currentVariation.moves[moveIndex];
+        game.move({from: expectedMove.uci.substring(0,2), to: expectedMove.uci.substring(2,4), promotion: 'q'});
+        board.position(game.fen());
+        moveIndex++;
+        handleStep();
+    }
+
+    function evaluateUserMove(source, target) {
+        removeHighlights();
+        if (source === target) return false; 
+
+        let attemptedMove = source + target; 
+        let expectedMove = currentVariation.moves[moveIndex]; 
+        let move = game.move({ from: source, to: target, promotion: 'q' });
+
+        if (move === null || attemptedMove !== expectedMove.uci.substring(0,4)) {
+            if (move !== null) game.undo(); 
+            
+            madeMistake = true;
+            penaltyCount = 1; 
+            
+            $('#status').text(`Sbagliato! La mossa era ${expectedMove.san}. Ripetila 2 volte.`).css('color', '#ff3b30');
+            let targetMoveHTML = `<div style="font-size: 18px; color: #ff3b30; margin-bottom: 10px;">Devi giocare: <strong style="font-size: 24px;">${expectedMove.san}</strong></div>`;
+            let commentHTML = expectedMove.comment ? `<div style="margin-bottom: 10px;"><strong>Suggerimento:</strong><br>${expectedMove.comment.replace(/\n/g, '<br>')}</div>` : '';
+            $('#annotation-box').html(targetMoveHTML + commentHTML).show();
+            
+            board.position(game.fen()); 
+            return false; 
+        }
+
+        if (penaltyCount > 0) {
+            game.undo(); 
+            penaltyCount--;
+            $('#status').text("Bene, ora ripetila ancora 1 volta per fissarla.").css('color', '#ff9500');
+            $('#annotation-box').hide();
+            board.position(game.fen());
+            return false;
+        }
+
+        $('#status').text("Corretto!").css('color', '#34c759');
+        $('#annotation-box').hide();
+        moveIndex++;
+        board.position(game.fen());
+        handleStep();
+        return true;
+    }
+
+    function onDragStart (source, piece, position, orientation) {
+        removeHighlights();
+        if (isReadMode || waitingForAck || game.game_over() || !currentVariation) return false;
+        
+        let requiredColorPrefix = currentVariation.perspective === 'white' ? '^w' : '^b';
+        if (piece.search(requiredColorPrefix) === -1) return false; 
+    }
+
+    function onDrop (source, target) {
+        if (!currentVariation || waitingForAck || source === target) return 'snapback';
+        let success = evaluateUserMove(source, target);
+        if (!success) return 'snapback'; 
+    }
+
+    function onSnapEnd () { board.position(game.fen()); }
+        function analyzeOnLichess() {
+        if (game) {
+            // Prende il FEN esatto del momento attuale
+            let currentFen = game.fen();
+            // Lichess richiede che gli spazi del FEN siano sostituiti con dei trattini bassi (_)
+            let formattedFen = currentFen.replace(/ /g, '_');
+            // Apre una nuova scheda direttamente sulla board di analisi!
+            window.open("https://lichess.org/analysis/standard/" + formattedFen, '_blank');
+        }
+    }
+    // GESTIONE CLICK-TO-MOVE
+    $('#board').on('click', '.square-55d63', function() {
+        if (isReadMode || waitingForAck || !currentVariation || game.game_over()) return;
+        
+        let isUserTurn = checkUserTurn();
+        if (!isUserTurn) return;
+
+        let square = $(this).attr('data-square');
+        let piece = game.get(square);
+        let userColor = currentVariation.perspective === 'white' ? 'w' : 'b';
+
+        if (selectedSquare === null) {
+            if (piece && piece.color === userColor) highlightSquare(square);
+        } else {
+            if (selectedSquare === square) {
+                removeHighlights();
+            } else if (piece && piece.color === userColor) {
+                highlightSquare(square);
+            } else {
+                let source = selectedSquare;
+                let target = square;
+                let success = evaluateUserMove(source, target);
+                if (success || madeMistake) removeHighlights(); 
+            }
+        }
+    });
+
+    function finishTraining() {
+        let quality = madeMistake ? 1 : 5;
+        let nextVar = getNextVariation();
+
+        $.ajax({
+            url: '/api/review', type: 'POST', contentType: 'application/json',
+            data: JSON.stringify({id: currentVariation.id, quality: quality}),
+            success: function() {
+                loadDueVariations(); // Ricarica le liste con i nuovi valori
+
+                let msg = madeMistake ? "Variante conclusa con errori. Andata in ripasso!" : "Perfetto! Programmazione aggiornata.";
+                $('#status').text(msg).css('color', madeMistake ? 'orange' : '#34c759');
+
+                if (nextVar) {
+                    $('#annotation-box').html(`
+                        <div style="font-size:18px; color: green; margin-bottom:15px;">Hai terminato questa variante.</div>
+                        <button class="btn btn-success" id="btn-next-var">Prossima Variante (Spazio)</button>
+                    `).show();
+                    waitingForAck = true;
+                    $('#btn-next-var').click(function() {
+                        startTraining(nextVar.id, currentListMode);
+                    });
+                } else {
+                    $('#annotation-box').html(`<div style="font-size:18px; color: green;">🎉 Hai completato tutte le varianti in questa sezione!</div>`).show();
+                    waitingForAck = false;
+                    currentVariation = null;
+                }
+            }
+        });
+    }
+
+    $(document).on('keydown', function(event) {
+        if (event.key === 'f' || event.key === 'F') {
+            if (board) { event.preventDefault(); board.flip(); }
+            return;
+        }
+
+        if (isReadMode) {
+            if (event.code === 'ArrowRight' || event.code === 'Space') { event.preventDefault(); nextMoveRead(); }
+            else if (event.code === 'ArrowLeft') { event.preventDefault(); prevMoveRead(); }
+        } else {
+            if (event.code === 'Space' || event.key === ' ') {
+                let btnAvanti = $('#btn-avanti');
+                let btnConsolidamento = $('#btn-start-consolidation');
+                let btnNext = $('#btn-next-var');
+                
+                if (btnAvanti.length && btnAvanti.is(':visible')) { event.preventDefault(); btnAvanti.click(); } 
+                else if (btnConsolidamento.length && btnConsolidamento.is(':visible')) { event.preventDefault(); btnConsolidamento.click(); }
+                else if (btnNext.length && btnNext.is(':visible')) { event.preventDefault(); btnNext.click(); }
+            }
+        }
+    });
+
+    $(document).ready(function() { initBoard(); loadDueVariations(); });
+</script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+# Ignora i salvataggi e i progressi personali
+repertoire.json
+
+# Ignora i file di sistema del Mac
+.DS_Store
+
+# Ignora le cache di Python
+__pycache__/
+*.pyc
