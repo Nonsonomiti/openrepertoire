@@ -7,15 +7,12 @@ import hashlib
 from datetime import datetime, timedelta
 
 # --- BLINDATURA DEI PERCORSI ---
-# Calcola la cartella esatta in cui si trova questo script, 
-# a prescindere da come si chiama o da dove viene lanciato.
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 app = Flask(__name__, 
             template_folder=os.path.join(BASE_DIR, 'templates'),
             static_folder=os.path.join(BASE_DIR, 'static'))
 
-# Salva il database sempre nella cartella del programma
 DATA_FILE = os.path.join(BASE_DIR, "repertoire.json")
 # -------------------------------
 
@@ -75,15 +72,35 @@ def import_pgn():
             
         moves_data = []
         node = game
-        while node.variations:
-            next_node = node.variations[0]
-            moves_data.append({
-                "uci": next_node.move.uci(),
-                "san": next_node.san(),
-                "comment": next_node.comment if next_node.comment else ""
-            })
-            node = next_node
         
+        # Scorre SOLO la linea principale (variazioni[0])
+        while node.variations:
+            main_node = node.variations[0]
+            
+            combined_comment = main_node.comment if main_node.comment else ""
+            
+            # Se ci sono diramazioni, le esporta come TESTO e le accoda ai commenti
+            if len(node.variations) > 1:
+                alt_lines = []
+                for alt_node in node.variations[1:]:
+                    exporter = chess.pgn.StringExporter(headers=False, variations=False, comments=False)
+                    alt_text = alt_node.accept(exporter)
+                    alt_text = alt_text.replace('\n', ' ') # Rimuove a capo per pulizia
+                    alt_lines.append(f"Altra opzione: {alt_text}")
+                    
+                if alt_lines:
+                    if combined_comment:
+                        combined_comment += "\n\n" + "\n".join(alt_lines)
+                    else:
+                        combined_comment = "\n".join(alt_lines)
+            
+            moves_data.append({
+                "uci": main_node.move.uci(),
+                "san": main_node.san(),
+                "comment": combined_comment
+            })
+            node = main_node
+            
         if moves_data:
             moves_str = "".join([m["uci"] for m in moves_data])
             moves_hash = hashlib.md5(moves_str.encode()).hexdigest()[:10]
