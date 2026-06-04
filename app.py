@@ -69,7 +69,20 @@ def import_pgn():
             white = game.headers.get("White", "")
             black = game.headers.get("Black", "")
             title = f"{white} vs {black}" if white or black else f"Linea {count}"
-            
+
+        # Posizione di partenza: se il PGN ha un FEN (tattica/strategia) la salva
+        start_fen = None
+        if game.headers.get("SetUp") == "1" or "FEN" in game.headers:
+            start_fen = game.headers.get("FEN")
+
+        # Colore flessibile: 'auto' deduce il lato dal tratto nel FEN, per variante
+        var_perspective = perspective
+        if perspective == 'auto':
+            if start_fen:
+                var_perspective = 'white' if start_fen.split(' ')[1] == 'w' else 'black'
+            else:
+                var_perspective = 'white'
+
         moves_data = []
         node = game
         
@@ -102,16 +115,17 @@ def import_pgn():
             node = main_node
             
         if moves_data:
-            moves_str = "".join([m["uci"] for m in moves_data])
+            moves_str = (start_fen or "") + "".join([m["uci"] for m in moves_data])
             moves_hash = hashlib.md5(moves_str.encode()).hexdigest()[:10]
             var_id = f"var_{moves_hash}"
-            
+
             if var_id not in data:
                 data[var_id] = {
-                    "course": course_name, 
+                    "course": course_name,
                     "title": title,
                     "moves": moves_data,
-                    "perspective": perspective, 
+                    "perspective": var_perspective,
+                    "startFen": start_fen,
                     "srs": {'rep': 0, 'interval': 0, 'ease': 2.5, 'next_review': datetime.now().isoformat()}
                 }
                 imported += 1
@@ -162,6 +176,19 @@ def delete_variation():
         save_data(data)
         return jsonify({"success": True})
     return jsonify({"success": False, "error": "Variante non trovata"})
+
+@app.route('/api/delete_course', methods=['POST'])
+def delete_course():
+    req = request.json
+    data = load_data()
+    course = req.get('course')
+
+    to_del = [vid for vid, vdata in data.items() if (vdata.get('course') or 'Varie') == course]
+    for vid in to_del:
+        del data[vid]
+
+    save_data(data)
+    return jsonify({"success": True, "deleted": len(to_del)})
 
 if __name__ == '__main__':
     app.run(port=5001, debug=True)
