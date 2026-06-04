@@ -27,9 +27,9 @@
         #sidebar { width: 340px; background: var(--bg-sidebar); padding: 20px; border-right: 1px solid var(--border-color); display: flex; flex-direction: column; box-shadow: 4px 0 10px rgba(0,0,0,0.3); flex-shrink: 0; }
         #resizer { width: 6px; flex-shrink: 0; cursor: col-resize; background: transparent; transition: background 0.2s; }
         #resizer:hover, #resizer.dragging { background: var(--accent-blue); }
-        #main { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 30px; overflow-y: auto; }
-        
-        h1#title { font-size: 22px; text-align: center; margin-top: 0; margin-bottom: 20px; color: var(--text-bright); font-style: italic; font-weight: 400; letter-spacing: 0.5px; }
+        #main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px; overflow-y: auto; background: radial-gradient(circle at 50% 0%, #1d1c19 0%, var(--bg-main) 70%); }
+
+        h1#title { font-size: 19px; text-align: center; margin: 0 0 18px 0; color: var(--text-bright); font-weight: 600; letter-spacing: 0.3px; width: 100%; line-height: 1.3; }
         
         .sponsor-container { text-align: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px dashed var(--border-color); }
         .sponsor-brand { font-size: 10px; text-transform: uppercase; letter-spacing: 2px; color: #888; margin-bottom: 8px; }
@@ -40,7 +40,7 @@
         .btn:hover { background: #2575c0; }
         .btn-success { background: var(--accent-green); margin-top: 15px; }
         .btn-success:hover { background: #357a38; }
-        .btn-read { background: #4f4b45; width: 48%; margin-top: 0; color: var(--text-bright); }
+        .btn-read { background: #4f4b45; flex: 1; width: auto; margin-top: 0; color: var(--text-bright); }
         .btn-read:hover { background: #635e56; }
         
         .sidebar-scroll { flex: 1; overflow-y: auto; padding-right: 5px; margin-bottom: 15px; }
@@ -56,15 +56,24 @@
         .btn-delete:hover { color: var(--accent-red); }
         .empty-msg { color: #666; font-size: 13px; font-style: italic; }
         
-        #workspace { display: flex; flex-direction: row; justify-content: center; align-items: flex-start; gap: 40px; width: 100%; max-width: 1150px; }
-        #left-col { display: flex; flex-direction: column; align-items: center; width: 500px; }
-        #right-col { width: 420px; display: flex; flex-direction: column; gap: 15px; }
-        
-        #board { width: 500px; box-shadow: 0 8px 24px rgba(0,0,0,0.6); border-radius: 4px; overflow: hidden; }
-        #status { margin-top: 15px; font-size: 16px; font-weight: bold; min-height: 24px; text-align: center; color: var(--text-bright); }
-        
-        #read-controls { display: none; justify-content: space-between; width: 100%; }
-        #annotation-box { padding: 20px; background-color: var(--bg-card); border-left: 4px solid var(--accent-blue); border-radius: 6px; font-size: 15px; color: #e2e2e2; display: none; }
+        /* Larghezze fisse: la scacchiera NON si sposta mai, anche quando il dialogo compare/scompare */
+        #workspace { display: flex; flex-direction: row; justify-content: center; align-items: flex-start; gap: 40px; width: 100%; max-width: 1200px; }
+        #left-col { display: flex; flex-direction: column; align-items: center; width: 500px; flex-shrink: 0; }
+        #right-col { width: 420px; flex-shrink: 0; display: flex; flex-direction: column; gap: 15px; }
+
+        #board-card { width: 100%; box-sizing: border-box; padding: 14px; background: linear-gradient(145deg, #2c2926, #201e1b); border: 1px solid var(--border-color); border-radius: 14px; box-shadow: 0 16px 40px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.04); }
+        #board { width: 100%; border-radius: 5px; overflow: hidden; box-shadow: 0 3px 14px rgba(0,0,0,0.45); }
+
+        .lichess-btn { margin-top: 18px; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 22px; padding: 9px 22px; font-size: 12px; font-weight: 600; letter-spacing: 0.4px; cursor: pointer; transition: all 0.2s; }
+        .lichess-btn:hover { background: #3c3936; color: var(--text-bright); border-color: var(--accent-blue); transform: translateY(-1px); }
+
+        #status { margin-top: 14px; font-size: 15px; font-weight: 600; min-height: 22px; text-align: center; color: var(--text-bright); }
+
+        /* Dialogo: stesso linguaggio visivo della scacchiera (gradiente, bordo, raggio, ombra) */
+        #read-controls { display: none; justify-content: space-between; gap: 12px; width: 100%; box-sizing: border-box; padding: 12px; background: linear-gradient(145deg, #2c2926, #201e1b); border: 1px solid var(--border-color); border-radius: 14px; box-shadow: 0 16px 40px rgba(0,0,0,0.5); }
+        #annotation-box { width: 100%; box-sizing: border-box; padding: 22px; background: linear-gradient(145deg, #2c2926, #201e1b); border: 1px solid var(--border-color); border-top: 3px solid var(--accent-blue); border-radius: 14px; font-size: 15px; color: #e2e2e2; display: none; box-shadow: 0 16px 40px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.04); height: calc(100vh - 150px); min-height: 200px; overflow-y: auto; resize: vertical; }
+        #annotation-box::-webkit-scrollbar { width: 8px; }
+        #annotation-box::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
         
         .panel-box { background: var(--bg-card); padding: 15px; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 15px; }
         .panel-title { margin-top: 0; font-size: 13px; text-transform: uppercase; color: var(--text-bright); display: flex; justify-content: space-between; cursor: pointer;}
@@ -113,6 +122,8 @@
                     <option value="green">Verde Lichess / Torneo</option>
                     <option value="dark">Grigio Contrasto</option>
                 </select>
+                <label style="font-size: 11px; color: #888; display: block; margin-top: 14px;">DIMENSIONE SCACCHIERA:</label>
+                <input type="range" id="board-size-slider" min="320" max="700" step="20" value="500" oninput="changeBoardSize()" style="width: 100%; margin-top: 6px; accent-color: var(--accent-blue);">
             </div>
         </div>
         
@@ -133,14 +144,11 @@
     <div id="resizer"></div>
 
     <div id="main">
-        <h1 id="title">Seleziona una variante per iniziare</h1>
-        
         <div id="workspace">
             <div id="left-col">
-                <div id="board"></div>
-                <div style="display: flex; justify-content: center; width: 100%; margin-top: 12px;">
-                    <button class="btn" onclick="analyzeOnLichess()" style="background: #312e2b; color: #bababa; border: 1px solid var(--border-color); width: auto; font-size: 12px; margin-top: 0; padding: 6px 16px;">🔍 Analizza su Lichess</button>
-                </div>
+                <h1 id="title">Seleziona una variante per iniziare</h1>
+                <div id="board-card"><div id="board"></div></div>
+                <button class="lichess-btn" onclick="analyzeOnLichess()">🔍 Analizza su Lichess</button>
                 <div id="status"></div>
             </div>
             
@@ -217,6 +225,32 @@
         let abs = baseHalf + i;
         let fullmove = Math.floor(abs / 2) + 1;
         return (abs % 2 === 0) ? `${fullmove}.` : `${fullmove}...`;
+    }
+
+    function changeBoardSize() {
+        let w = parseInt($('#board-size-slider').val());
+        document.getElementById('left-col').style.width = w + 'px';
+        if (board) board.resize();
+        localStorage.setItem('boardSize', w);
+    }
+
+    function initAnnotationResize() {
+        let box = document.getElementById('annotation-box');
+        let saved = localStorage.getItem('annotationHeight');
+        if (saved) box.style.height = saved + 'px';
+        // Salva l'altezza quando l'utente trascina la maniglia di ridimensionamento
+        new ResizeObserver(function() {
+            if (box.style.display !== 'none') localStorage.setItem('annotationHeight', box.offsetHeight);
+        }).observe(box);
+    }
+
+    function initBoardSize() {
+        let saved = localStorage.getItem('boardSize');
+        if (saved) {
+            $('#board-size-slider').val(saved);
+            document.getElementById('left-col').style.width = saved + 'px';
+            if (board) board.resize();
+        }
     }
 
     function changeBoardTheme() {
@@ -413,7 +447,7 @@
             $('#board .square-' + cur.uci.substring(2,4)).addClass('highlight-square');
         }
 
-        let html = `<div id="read-text" style="line-height: 1.7; font-size: 14px; text-align: left; color: #ddd; max-height: 340px; overflow-y: auto; padding-right: 10px;">`;
+        let html = `<div id="read-text" style="line-height: 1.7; font-size: 14px; text-align: left; color: #ddd; padding-right: 4px;">`;
         if (moveIndex === 0) {
             html += `<div style="color:#888; font-style:italic; margin-bottom:12px;">Inizio variante. Usa lo Spazio o le frecce della tastiera per scorrere. Tasto F per girare.</div>`;
         }
@@ -697,7 +731,7 @@
         $('#status').show().text("Riepilogo Variante").css('color', 'var(--accent-blue)');
         
         let html = `<div style="font-size: 15px; margin-bottom: 15px; color: var(--accent-green); font-weight: bold;">Variante Completata!</div>`;
-        html += `<div style="line-height: 1.8; font-size: 14px; text-align: left; color: #ddd; max-height: 250px; overflow-y: auto; padding-right: 10px; background: #262421; padding: 10px; border-radius: 6px;">`;
+        html += `<div style="line-height: 1.8; font-size: 14px; text-align: left; color: #ddd; padding-right: 4px; background: #262421; padding: 10px; border-radius: 6px;">`;
         
         for(let i=0; i<currentVariation.moves.length; i++) {
             let m = currentVariation.moves[i];
@@ -829,7 +863,7 @@
         });
     }
 
-    $(document).ready(function() { initBoard(); initResizer(); loadDueVariations(); });
+    $(document).ready(function() { initBoard(); initResizer(); initBoardSize(); initAnnotationResize(); loadDueVariations(); });
 </script>
 </body>
 </html>
