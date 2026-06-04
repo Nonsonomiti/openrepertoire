@@ -7,3 +7,6 @@ repertoire.json
 # Ignora le cache di Python
 __pycache__/
 *.pyc
+
+# Ignora le istruzioni locali di Claude
+CLAUDE.md
