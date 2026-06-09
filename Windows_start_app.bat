@@ -5,7 +5,7 @@ echo Avvio del server Local Chessable...
 cd /d "%~dp0"
 
 :: Controlla e installa le dipendenze in modo silenzioso
-pip install flask chess >nul 2>&1
+python -m pip install flask chess >nul 2>&1
 
 :: Avvia l'app in background (non blocca la finestra)
 start /B python app.py
