@@ -90,6 +90,39 @@
         .highlight-square { box-shadow: inset 0 0 0 3px #ff9f43 !important; }
         .san-link { color: #ff9f43; cursor: pointer; font-weight: bold; padding: 0 2px; }
         .san-link:hover { text-decoration: underline; background: rgba(255, 159, 67, 0.2); border-radius: 3px; }
+
+        /* Sottocapitoli (albero unificato) */
+        .chapter-header { font-size: 12px; font-weight: 600; color: #d9c4a0; background: #38332d; padding: 6px 10px; margin: 6px 0 4px 10px; border-radius: 4px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .chapter-header:hover { color: #ffd9a0; }
+        .chapter-content { margin-left: 10px; }
+        .mini-opt { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #999; margin: 4px 0 8px 2px; cursor: pointer; user-select: none; }
+        .mini-opt input { accent-color: var(--accent-blue); }
+
+        /* Pulsanti qualità (SRS manuale) */
+        .qbtn { margin-top: 0 !important; font-size: 13px; padding: 12px 8px; }
+        .qbtn small { display:block; opacity:0.7; font-weight: normal; font-size: 10px; }
+
+        /* Modale statistiche */
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 1000; align-items: center; justify-content: center; }
+        .modal-card { width: 640px; max-width: 92vw; max-height: 86vh; overflow-y: auto; background: linear-gradient(145deg, #2c2926, #201e1b); border: 1px solid var(--border-color); border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,0.6); padding: 22px; }
+        .modal-head { display: flex; justify-content: space-between; align-items: center; font-size: 17px; font-weight: 700; color: var(--text-bright); margin-bottom: 18px; }
+        .modal-x { background: transparent; border: none; color: #999; font-size: 18px; cursor: pointer; }
+        .modal-x:hover { color: var(--accent-red); }
+        .stats-h { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #888; margin: 20px 0 10px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 6px; }
+        .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .kpi { background: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; text-align: center; }
+        .kpi-val { font-size: 24px; font-weight: 800; color: var(--accent-blue); }
+        .kpi-lab { font-size: 11px; color: #999; margin-top: 4px; }
+        .bar-chart { display: flex; align-items: flex-end; gap: 5px; height: 130px; padding: 6px 4px; background: var(--bg-sidebar); border-radius: 8px; border: 1px solid var(--border-color); }
+        .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+        .bar-val { font-size: 10px; color: #aaa; margin-bottom: 2px; min-height: 12px; }
+        .bar { width: 70%; background: linear-gradient(180deg, var(--accent-blue), #245a8a); border-radius: 3px 3px 0 0; }
+        .bar-col:first-child .bar { background: linear-gradient(180deg, var(--accent-green), #2c6e30); }
+        .bar-lab { font-size: 9px; color: #888; margin-top: 4px; }
+        .hard-row { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; padding: 6px 8px; border-bottom: 1px solid var(--border-color); }
+        .hard-row span:first-child { color: #ddd; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .search-hit { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; padding: 7px 9px; margin-bottom: 5px; cursor: pointer; }
+        .search-hit:hover { border-color: var(--accent-blue); }
     </style>
 </head>
 <body>
@@ -106,12 +139,28 @@
             <div id="learn-wrapper"><div id="learn-list"></div></div>
             
             <h2 onclick="$('#review-wrapper').slideToggle(200)">Da Ripassare (<span id="review-count">0</span>) <span>▼</span></h2>
-            <div id="review-wrapper"><div id="review-list"></div></div>
+            <div id="review-wrapper">
+                <label class="mini-opt"><input type="checkbox" id="shuffle-review" onchange="toggleShuffle()"> 🔀 Ordine casuale</label>
+                <div id="review-list"></div>
+            </div>
 
             <h2 onclick="$('#repertoire-wrapper').slideToggle(200)">Repertorio (<span id="rep-count">0</span>) <span>▼</span></h2>
             <div id="repertoire-wrapper" style="display: none;"><div id="repertoire-list"></div></div>
         </div>
-        
+
+        <button class="btn" style="background:#4f4b45; margin-bottom: 12px;" onclick="openStats()">📊 Statistiche & Scadenze</button>
+
+        <div class="panel-box">
+            <div class="panel-title" onclick="$('#search-content').slideToggle(200)">Cerca Posizione <span>▼</span></div>
+            <div id="search-content" style="display:none; margin-top: 10px; border-top: 1px solid var(--border-color); padding-top: 10px;">
+                <textarea id="search-fen" placeholder="Incolla un FEN..." class="import-select" style="height: 50px; resize: vertical; font-family: monospace; font-size: 11px;"></textarea>
+                <button class="btn" style="background:#4f4b45; margin-top: 6px;" onclick="useBoardFen()">Usa posizione scacchiera</button>
+                <select id="search-course" class="import-select" style="margin-top: 6px;"><option value="">Tutti i corsi</option></select>
+                <button class="btn" onclick="searchPosition()">Cerca</button>
+                <div id="search-results" style="margin-top: 8px;"></div>
+            </div>
+        </div>
+
         <div class="panel-box">
             <div class="panel-title" onclick="$('#theme-content').slideToggle(200)">Personalizza Grafica <span>▼</span></div>
             <div id="theme-content" style="display:none; margin-top: 10px; border-top: 1px solid var(--border-color); padding-top: 10px;">
@@ -159,6 +208,13 @@
                 </div>
                 <div id="annotation-box"></div>
             </div>
+        </div>
+    </div>
+
+    <div id="stats-modal" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-head"><span>📊 Statistiche & Scadenze</span><button class="modal-x" onclick="closeStats()">✕</button></div>
+            <div id="stats-body"></div>
         </div>
     </div>
 
@@ -272,56 +328,199 @@
     function removeHighlights() { $('#board .square-55d63').removeClass('highlight-square'); selectedSquare = null; }
     function highlightSquare(square) { removeHighlights(); $('#board .square-' + square).addClass('highlight-square'); selectedSquare = square; }
 
+    function esc(s) { return String(s == null ? '' : s).replace(/'/g, "\\'"); }
+
     function renderList(dataArray, listId, mode) {
         let list = $(`#${listId}`);
         list.empty();
         if (dataArray.length === 0) { list.append('<p class="empty-msg">Nessuna variante presente.</p>'); return; }
 
+        let isRep = (listId === 'repertoire-list');
+
+        // Raggruppa: corso -> capitolo -> [varianti]
         let grouped = {};
         dataArray.forEach(v => {
-            globalVariantsMap[v.id] = v; 
+            globalVariantsMap[v.id] = v;
             let courseName = v.course || 'Varie';
+            let chapterName = v.chapter || 'Generale';
             let sideTag = v.perspective === 'black' ? '⚫ ' : '⚪ ';
             v.displayTitle = sideTag + v.title;
-            if (!grouped[courseName]) grouped[courseName] = [];
-            grouped[courseName].push(v);
+            grouped[courseName] = grouped[courseName] || {};
+            (grouped[courseName][chapterName] = grouped[courseName][chapterName] || []).push(v);
         });
 
         for (let course in grouped) {
-            let safeId = course.replace(/[^a-zA-Z0-9]/g, '_') + '_' + listId;
-            let isExpanded = expandedCourses[safeId];
-            if (isExpanded === undefined) isExpanded = (listId === 'repertoire-list') ? false : true;
-            let displayStyle = isExpanded ? 'block' : 'none';
+            let safeCourse = course.replace(/[^a-zA-Z0-9]/g, '_') + '_' + listId;
+            let cExpanded = expandedCourses[safeCourse];
+            if (cExpanded === undefined) cExpanded = !isRep;
 
-            let delBtn = (listId === 'repertoire-list') ? `<button class="btn-delete" onclick="deleteCourse('${course.replace(/'/g, "\\'")}', event)" title="Elimina corso">🗑</button> ` : '';
-            list.append(`<div class="course-header" onclick="toggleCourse('${safeId}')"><span>${course}</span><span>${delBtn}▼</span></div>`);
-            let courseDiv = $(`<div id="${safeId}" class="course-content" style="display: ${displayStyle};"></div>`);
-            
-            grouped[course].forEach(v => {
-                let onClickAction = mode === 'read' ? `startReadMode('${v.id}', 'repertoire')` : `startTraining('${v.id}', '${mode}')`;
-                courseDiv.append(`
-                    <div class="var-container" data-var-id="${v.id}">
-                        <div class="var-item" onclick="${onClickAction}">${v.displayTitle}</div>
-                        <button class="btn-delete" onclick="deleteVariation('${v.id}', event)">✕</button>
-                    </div>
-                `);
+            let delBtn = isRep ? `<button class="btn-delete" onclick="deleteCourse('${esc(course)}', event)" title="Elimina corso">🗑</button> ` : '';
+            list.append(`<div class="course-header" onclick="toggleCourse('${safeCourse}')"><span>${course}</span><span>${delBtn}▼</span></div>`);
+            let courseDiv = $(`<div id="${safeCourse}" class="course-content" style="display: ${cExpanded ? 'block' : 'none'};"></div>`);
+
+            let chapters = grouped[course];
+            let chapterKeys = Object.keys(chapters);
+            let showChapters = isRep || chapterKeys.length > 1;
+
+            chapterKeys.forEach(chap => {
+                let target = courseDiv;
+                if (showChapters) {
+                    let safeChap = (course + '__' + chap).replace(/[^a-zA-Z0-9]/g, '_') + '_' + listId;
+                    let chExpanded = expandedCourses[safeChap];
+                    if (chExpanded === undefined) chExpanded = !isRep;
+                    let editBtn = isRep ? `<button class="btn-delete" onclick="renameChapter('${esc(course)}', '${esc(chap)}', event)" title="Rinomina capitolo">✎</button> ` : '';
+                    courseDiv.append(`<div class="chapter-header" onclick="toggleCourse('${safeChap}')"><span>${chap}</span><span>${editBtn}▾</span></div>`);
+                    target = $(`<div id="${safeChap}" class="chapter-content" style="display: ${chExpanded ? 'block' : 'none'};"></div>`);
+                }
+
+                chapters[chap].forEach(v => {
+                    let onClickAction = mode === 'read' ? `startReadMode('${v.id}', 'repertoire')` : `startTraining('${v.id}', '${mode}')`;
+                    let moveBtn = isRep ? `<button class="btn-delete" onclick="editVarChapter('${v.id}', event)" title="Sposta in capitolo">📂</button>` : '';
+                    target.append(`
+                        <div class="var-container" data-var-id="${v.id}">
+                            <div class="var-item" onclick="${onClickAction}">${v.displayTitle}</div>
+                            ${moveBtn}
+                            <button class="btn-delete" onclick="deleteVariation('${v.id}', event)">✕</button>
+                        </div>
+                    `);
+                });
+
+                if (showChapters) courseDiv.append(target);
             });
+
             list.append(courseDiv);
         }
     }
 
+    function shuffleArray(a) {
+        for (let i = a.length - 1; i > 0; i--) {
+            let j = Math.floor(Math.random() * (i + 1));
+            [a[i], a[j]] = [a[j], a[i]];
+        }
+        return a;
+    }
+
+    function toggleShuffle() {
+        localStorage.setItem('shuffleReview', $('#shuffle-review').is(':checked') ? '1' : '0');
+        loadDueVariations();
+    }
+
+    function populateSearchCourses(repertoire) {
+        let courses = [...new Set(repertoire.map(v => v.course || 'Varie'))].sort();
+        let sel = $('#search-course');
+        let cur = sel.val();
+        sel.html('<option value="">Tutti i corsi</option>' + courses.map(c => `<option value="${c}">${c}</option>`).join(''));
+        sel.val(cur);
+    }
+
     function loadDueVariations() {
         $.get('/api/due', function(data) {
+            if (localStorage.getItem('shuffleReview') === '1') shuffleArray(data.review);
             cachedLists = { learn: data.learn, review: data.review, repertoire: data.repertoire };
             $('#learn-count').text(data.learn.length);
             $('#review-count').text(data.review.length);
             $('#rep-count').text(data.repertoire.length);
-            globalVariantsMap = {}; 
+            globalVariantsMap = {};
             renderList(data.learn, 'learn-list', 'learn');
             renderList(data.review, 'review-list', 'review');
             renderList(data.repertoire, 'repertoire-list', 'read');
+            populateSearchCourses(data.repertoire);
             highlightActiveVar();
         });
+    }
+
+    // --- GESTIONE CAPITOLI ---
+    function renameChapter(course, chap, event) {
+        event.stopPropagation();
+        let nuovo = prompt(`Rinomina capitolo "${chap}":`, chap);
+        if (!nuovo || nuovo === chap) return;
+        $.ajax({
+            url: '/api/rename_chapter', type: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ course: course, old: chap, new: nuovo }),
+            success: function() { loadDueVariations(); }
+        });
+    }
+
+    function editVarChapter(id, event) {
+        event.stopPropagation();
+        let v = globalVariantsMap[id];
+        let cur = v ? (v.chapter || 'Generale') : 'Generale';
+        let nuovo = prompt('Sposta la variante nel capitolo:', cur);
+        if (nuovo === null || nuovo.trim() === '' || nuovo === cur) return;
+        $.ajax({
+            url: '/api/set_chapter', type: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ id: id, chapter: nuovo }),
+            success: function() { loadDueVariations(); }
+        });
+    }
+
+    // --- STATISTICHE & SCADENZE ---
+    function openStats() {
+        $.get('/api/stats', function(s) { renderStats(s); $('#stats-modal').css('display', 'flex'); });
+    }
+    function closeStats() { $('#stats-modal').hide(); }
+
+    function renderStats(s) {
+        let kpis = [
+            ['Totale varianti', s.total], ['Da imparare', s.learn], ['Da ripassare oggi', s.due_today],
+            ['Ripassi totali', s.reviews_total], ['Precisione', s.accuracy + '%'], ['Errori totali', s.lapses_total]
+        ];
+        let kpiHtml = kpis.map(k => `<div class="kpi"><div class="kpi-val">${k[1]}</div><div class="kpi-lab">${k[0]}</div></div>`).join('');
+
+        let today = new Date(); today.setHours(0, 0, 0, 0);
+        let days = [], max = 1;
+        for (let i = 0; i < 14; i++) {
+            let d = new Date(today.getTime() + i * 86400000);
+            let key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+            let cnt = (i === 0 ? s.due_today : 0) + (s.upcoming[key] || 0);
+            max = Math.max(max, cnt);
+            days.push({ d: d, cnt: cnt, i: i });
+        }
+        let barsHtml = days.map(o => {
+            let h = o.cnt ? Math.round(6 + 96 * o.cnt / max) : 2;
+            let lab = o.i === 0 ? 'Oggi' : (o.d.getDate() + '/' + (o.d.getMonth() + 1));
+            return `<div class="bar-col"><div class="bar-val">${o.cnt || ''}</div><div class="bar" style="height:${h}px"></div><div class="bar-lab">${lab}</div></div>`;
+        }).join('');
+
+        let hardestHtml = s.hardest.length
+            ? s.hardest.map(h => `<div class="hard-row"><span>${h.title}</span><span style="color:var(--accent-red); white-space:nowrap;">${h.lapses} err / ${h.reviews}</span></div>`).join('')
+            : '<div class="empty-msg">Nessun errore registrato.</div>';
+
+        $('#stats-body').html(`
+            <div class="kpi-grid">${kpiHtml}</div>
+            <h3 class="stats-h">Ripassi in arrivo (14 giorni)</h3>
+            <div class="bar-chart">${barsHtml}</div>
+            <h3 class="stats-h">Varianti più difficili</h3>
+            <div class="hard-list">${hardestHtml}</div>
+        `);
+    }
+
+    // --- CERCA POSIZIONE ---
+    function useBoardFen() { $('#search-fen').val(game.fen()); }
+
+    function searchPosition() {
+        let fen = $('#search-fen').val().trim();
+        if (!fen) return alert('Inserisci un FEN o usa la posizione della scacchiera.');
+        $.ajax({
+            url: '/api/search_position', type: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ fen: fen, course: $('#search-course').val() || null }),
+            success: function(res) { renderSearchResults(res.matches); }
+        });
+    }
+
+    function renderSearchResults(matches) {
+        if (!matches || !matches.length) { $('#search-results').html('<div class="empty-msg">Posizione non coperta nel repertorio.</div>'); return; }
+        let html = matches.map(m => `<div class="search-hit" onclick="openSearchHit('${m.id}', ${m.moveIndex})">
+            <div style="font-size:12px; color:#dfdfdf;">${m.title}</div>
+            <div style="font-size:10px; color:#888;">${m.course || ''}${m.chapter ? ' › ' + m.chapter : ''} — mossa ${m.moveIndex}</div>
+        </div>`).join('');
+        $('#search-results').html(`<div style="font-size:11px; color:#888; margin-bottom:5px;">${matches.length} variante/i coprono la posizione:</div>` + html);
+    }
+
+    function openSearchHit(id, moveIndex) {
+        if (!globalVariantsMap[id]) return alert('Variante non disponibile.');
+        startReadMode(id, 'repertoire');
+        jumpToReadMove(moveIndex);
     }
 
     function importPGNFile() {
@@ -741,32 +940,64 @@
             if (m.comment) { html += `<span style="color: #999; font-style: italic;">{ ${parseCommentMoves(m.comment, i)} }</span> `; }
         }
         html += `</div><hr style="border-color: var(--border-color); margin: 15px 0;">`;
-        
+
+        let isTraining = (phase !== 'READ');
+
+        if (isTraining && !currentVariation.reviewedFlag) {
+            let suggerito = !madeMistake ? 'Facile/Bene' : 'Di nuovo';
+            html += `<div style="font-size:12px; color:#888; margin-bottom:8px;">Quanto è andata? <span style="color:#aaa;">(suggerito: ${suggerito})</span></div>`;
+            html += `<div id="quality-buttons" style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                <button class="btn qbtn" style="background:var(--accent-red);" onclick="submitQuality(1)">Di nuovo<small>tasto 1</small></button>
+                <button class="btn qbtn" style="background:#b3732b;" onclick="submitQuality(3)">Difficile<small>tasto 2</small></button>
+                <button class="btn qbtn" style="background:var(--accent-green);" onclick="submitQuality(4)">Bene<small>tasto 3</small></button>
+                <button class="btn qbtn" style="background:#2f8fd6;" onclick="submitQuality(5)">Facile<small>tasto 4</small></button>
+            </div>
+            <div id="post-review" style="margin-top:12px;"></div>`;
+            $('#annotation-box').html(html).show();
+            $('#read-controls').hide();
+            waitingForAck = true;
+            return;
+        }
+
+        // READ mode (o già recensita): solo navigazione
         let nextVar = getNextVariation();
         if (nextVar) html += `<button class="btn btn-success" id="btn-next-var">Prossima Variante (Spazio)</button>`;
         else html += `<div style="font-style:italic; color: #888; text-align:center;">Hai concluso questo elenco.</div>`;
-        
+
         $('#annotation-box').html(html).show();
-        $('#read-controls').hide(); 
-        
-        if (phase !== 'READ' && !currentVariation.reviewedFlag) {
-            currentVariation.reviewedFlag = true;
-            let quality = !madeMistake ? 5 : (phase === 'REVIEW_ERRORS' ? 3 : 1);
-            $.ajax({
-                url: '/api/review', type: 'POST', contentType: 'application/json',
-                data: JSON.stringify({id: currentVariation.id, quality: quality}),
-                success: function() { loadDueVariations(); }
-            });
-        }
+        $('#read-controls').hide();
 
         if (nextVar) {
             waitingForAck = true;
             $('#btn-next-var').click(function() {
-                clearPreview(); 
-                if(phase === 'READ') startReadMode(nextVar.id, currentListMode);
+                clearPreview();
+                if (phase === 'READ') startReadMode(nextVar.id, currentListMode);
                 else startTraining(nextVar.id, currentListMode);
             });
         } else { waitingForAck = false; }
+    }
+
+    function submitQuality(q) {
+        if (!currentVariation || currentVariation.reviewedFlag) return;
+        currentVariation.reviewedFlag = true;
+        let nextVar = getNextVariation();   // catturata prima del reload delle liste
+        $('#quality-buttons').hide();
+
+        $.ajax({
+            url: '/api/review', type: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ id: currentVariation.id, quality: q }),
+            success: function() { loadDueVariations(); }
+        });
+
+        let pr = $('#post-review');
+        if (nextVar) {
+            pr.html(`<button class="btn btn-success" id="btn-next-var">Prossima Variante (Spazio)</button>`);
+            $('#btn-next-var').click(function() { clearPreview(); startTraining(nextVar.id, currentListMode); });
+            waitingForAck = true;
+        } else {
+            pr.html(`<div style="font-style:italic; color:#888; text-align:center;">Hai concluso questo elenco.</div>`);
+            waitingForAck = false;
+        }
     }
 
     // --- DRAG E DROP SULLA SCACCHIERA ---
@@ -827,12 +1058,18 @@
             }
             else if (event.code === 'ArrowLeft') { event.preventDefault(); prevMoveRead(); }
         } else {
+            // Pulsanti qualità: tasti 1-4
+            let qb = $('#quality-buttons');
+            if (qb.length && qb.is(':visible')) {
+                let map = { Digit1: 1, Digit2: 3, Digit3: 4, Digit4: 5 };
+                if (map[event.code]) { event.preventDefault(); submitQuality(map[event.code]); return; }
+            }
             if (event.code === 'Space' || event.key === ' ') {
                 let btnAvanti = $('#btn-avanti');
                 let btnConsolidamento = $('#btn-start-consolidation');
                 let btnNext = $('#btn-next-var');
-                
-                if (btnAvanti.length && btnAvanti.is(':visible')) { event.preventDefault(); btnAvanti.click(); } 
+
+                if (btnAvanti.length && btnAvanti.is(':visible')) { event.preventDefault(); btnAvanti.click(); }
                 else if (btnConsolidamento.length && btnConsolidamento.is(':visible')) { event.preventDefault(); btnConsolidamento.click(); }
                 else if (btnNext.length && btnNext.is(':visible')) { event.preventDefault(); btnNext.click(); }
             }
@@ -863,7 +1100,14 @@
         });
     }
 
-    $(document).ready(function() { initBoard(); initResizer(); initBoardSize(); initAnnotationResize(); loadDueVariations(); });
+    function initShuffle() {
+        if (localStorage.getItem('shuffleReview') === '1') $('#shuffle-review').prop('checked', true);
+    }
+
+    // Chiudi la modale cliccando sullo sfondo scuro
+    $('#stats-modal').on('click', function(e) { if (e.target === this) closeStats(); });
+
+    $(document).ready(function() { initBoard(); initResizer(); initBoardSize(); initAnnotationResize(); initShuffle(); loadDueVariations(); });
 </script>
 </body>
 </html>

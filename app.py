@@ -1,8 +1,10 @@
 from flask import Flask, render_template, request, jsonify
+import chess
 import chess.pgn
 import io
 import json
 import os
+import re
 import hashlib
 from datetime import datetime, timedelta
 
@@ -25,6 +27,19 @@ def load_data():
 def save_data(data):
     with open(DATA_FILE, 'w') as f:
         json.dump(data, f, indent=4)
+
+def derive_chapter(title):
+    # Deduce un sottocapitolo dal titolo grezzo del PGN (Chessable-style)
+    t = title or ""
+    t = re.sub(r'\s*#\d+\s*$', '', t)          # rimuove numerazione finale "#4"
+    if ' vs ' in t:
+        t = t.split(' vs ')[0]                  # "A vs B" -> "A"
+    t = t.replace('-----', '-')
+    t = re.sub(r'\s+', ' ', t).strip(' -')
+    return t if t else 'Generale'
+
+def default_stats():
+    return {'reviews': 0, 'correct': 0, 'lapses': 0, 'last_quality': None}
 
 def update_srs(srs, quality):
     rep, interval, ease = srs.get('rep', 0), srs.get('interval', 0), srs.get('ease', 2.5)
@@ -122,10 +137,12 @@ def import_pgn():
             if var_id not in data:
                 data[var_id] = {
                     "course": course_name,
+                    "chapter": derive_chapter(title),
                     "title": title,
                     "moves": moves_data,
                     "perspective": var_perspective,
                     "startFen": start_fen,
+                    "stats": default_stats(),
                     "srs": {'rep': 0, 'interval': 0, 'ease': 2.5, 'next_review': datetime.now().isoformat()}
                 }
                 imported += 1
@@ -137,10 +154,23 @@ def import_pgn():
 def get_due():
     data = load_data()
     now = datetime.now()
+
+    # Migrazione lazy: aggiunge campi mancanti ai dati esistenti
+    dirty = False
+    for vdata in data.values():
+        if 'chapter' not in vdata:
+            vdata['chapter'] = derive_chapter(vdata.get('title', ''))
+            dirty = True
+        if 'stats' not in vdata:
+            vdata['stats'] = default_stats()
+            dirty = True
+    if dirty:
+        save_data(data)
+
     learn = []
     review = []
-    repertoire = [] 
-    
+    repertoire = []
+
     for vid, vdata in data.items():
         vdata['id'] = vid
         repertoire.append(vdata)
@@ -161,8 +191,16 @@ def review():
     
     if vid in data:
         data[vid]['srs'] = update_srs(data[vid]['srs'], quality)
+        st = data[vid].get('stats') or default_stats()
+        st['reviews'] = st.get('reviews', 0) + 1
+        if quality >= 3:
+            st['correct'] = st.get('correct', 0) + 1
+        else:
+            st['lapses'] = st.get('lapses', 0) + 1
+        st['last_quality'] = quality
+        data[vid]['stats'] = st
         save_data(data)
-        
+
     return jsonify({"success": True})
 
 @app.route('/api/delete', methods=['POST'])
@@ -189,6 +227,131 @@ def delete_course():
 
     save_data(data)
     return jsonify({"success": True, "deleted": len(to_del)})
+
+@app.route('/api/stats', methods=['GET'])
+def stats():
+    data = load_data()
+    now = datetime.now()
+    today = now.date()
+
+    total = len(data)
+    learn = 0
+    due_today = 0
+    reviews_total = 0
+    correct_total = 0
+    lapses_total = 0
+    upcoming = {}      # 'YYYY-MM-DD' -> conteggio (prossimi 30 gg)
+    hardest = []
+
+    for v in data.values():
+        srs = v.get('srs', {})
+        st = v.get('stats') or {}
+        reviews_total += st.get('reviews', 0)
+        correct_total += st.get('correct', 0)
+        lapses_total += st.get('lapses', 0)
+        if st.get('lapses', 0) > 0:
+            hardest.append({
+                'title': v.get('title', ''),
+                'course': v.get('course', ''),
+                'lapses': st.get('lapses', 0),
+                'reviews': st.get('reviews', 0)
+            })
+
+        if srs.get('rep', 0) == 0:
+            learn += 1
+            continue
+        try:
+            nr = datetime.fromisoformat(srs['next_review'])
+        except Exception:
+            continue
+        if nr <= now:
+            due_today += 1
+        else:
+            delta = (nr.date() - today).days
+            if 0 <= delta <= 30:
+                key = nr.date().isoformat()
+                upcoming[key] = upcoming.get(key, 0) + 1
+
+    hardest.sort(key=lambda x: x['lapses'], reverse=True)
+    accuracy = round(100 * correct_total / reviews_total) if reviews_total else 0
+
+    return jsonify({
+        'total': total, 'learn': learn, 'due_today': due_today,
+        'reviews_total': reviews_total, 'accuracy': accuracy, 'lapses_total': lapses_total,
+        'upcoming': upcoming, 'hardest': hardest[:10]
+    })
+
+@app.route('/api/set_chapter', methods=['POST'])
+def set_chapter():
+    req = request.json
+    data = load_data()
+    vid = req.get('id')
+    chapter = (req.get('chapter') or '').strip() or 'Generale'
+    if vid in data:
+        data[vid]['chapter'] = chapter
+        save_data(data)
+        return jsonify({"success": True})
+    return jsonify({"success": False})
+
+@app.route('/api/rename_chapter', methods=['POST'])
+def rename_chapter():
+    req = request.json
+    data = load_data()
+    course = req.get('course')
+    old = req.get('old')
+    new = (req.get('new') or '').strip()
+    if not new:
+        return jsonify({"success": False, "error": "Nome non valido"})
+    n = 0
+    for v in data.values():
+        if (v.get('course') or 'Varie') == course and (v.get('chapter') or 'Generale') == old:
+            v['chapter'] = new
+            n += 1
+    save_data(data)
+    return jsonify({"success": True, "updated": n})
+
+@app.route('/api/search_position', methods=['POST'])
+def search_position():
+    req = request.json
+    fen = (req.get('fen') or '').strip()
+    course = req.get('course')
+    if not fen:
+        return jsonify({"matches": []})
+    target = fen.split(' ')[0]   # solo disposizione pezzi
+
+    data = load_data()
+    matches = []
+    for vid, v in data.items():
+        if course and (v.get('course') or 'Varie') != course:
+            continue
+        try:
+            board = chess.Board(v['startFen']) if v.get('startFen') else chess.Board()
+        except Exception:
+            board = chess.Board()
+
+        found_idx = None
+        if board.fen().split(' ')[0] == target:
+            found_idx = 0
+        else:
+            for i, m in enumerate(v.get('moves', [])):
+                try:
+                    board.push_uci(m['uci'])
+                except Exception:
+                    break
+                if board.fen().split(' ')[0] == target:
+                    found_idx = i + 1
+                    break
+
+        if found_idx is not None:
+            matches.append({
+                'id': vid,
+                'title': v.get('title', ''),
+                'course': v.get('course', ''),
+                'chapter': v.get('chapter', ''),
+                'moveIndex': found_idx
+            })
+
+    return jsonify({"matches": matches})
 
 if __name__ == '__main__':
     app.run(port=5001, debug=True)
