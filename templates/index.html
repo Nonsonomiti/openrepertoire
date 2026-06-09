@@ -228,6 +228,7 @@
     // Gestione Stati e Chessable Errors
     let phase = 'NONE';
     let madeMistake = false;
+    let reviewSession = false;   // true solo quando si RIPASSA (rep>0), non quando si impara
     let mistakeReviewQueue = []; 
     let mistakeReviewRound = 0;        // NUOVO: Conta 0, 1, 2 (i tre cicli)
     let currentMistakeIdxInQueue = 0;  // NUOVO: A che errore siamo nel ciclo corrente
@@ -281,6 +282,14 @@
         let abs = baseHalf + i;
         let fullmove = Math.floor(abs / 2) + 1;
         return (abs % 2 === 0) ? `${fullmove}.` : `${fullmove}...`;
+    }
+
+    // Etichette/colori dell'autovalutazione (Opzione A: incentrata sul ricordo)
+    function qualityLabel(q) {
+        return {1:'Dimenticata', 2:'Dimenticata', 3:'A fatica', 4:'Ricordata', 5:'Facile'}[q] || '—';
+    }
+    function qualityColor(q) {
+        return {1:'var(--accent-red)', 2:'var(--accent-red)', 3:'#c07d2e', 4:'var(--accent-green)', 5:'#3692e7'}[q] || '#888';
     }
 
     function changeBoardSize() {
@@ -701,6 +710,7 @@
         currentVariation = globalVariantsMap[id];
         moveIndex = 0;
         phase = (currentVariation.srs.rep === 0) ? 'LEARN' : 'REVIEW';
+        reviewSession = (currentVariation.srs.rep !== 0);
         madeMistake = false;
         mistakeReviewQueue = [];
         mistakeReviewRound = 0;
@@ -943,14 +953,21 @@
 
         let isTraining = (phase !== 'READ');
 
-        if (isTraining && !currentVariation.reviewedFlag) {
-            let suggerito = !madeMistake ? 'Facile/Bene' : 'Di nuovo';
-            html += `<div style="font-size:12px; color:#888; margin-bottom:8px;">Quanto è andata? <span style="color:#aaa;">(suggerito: ${suggerito})</span></div>`;
+        // RIPASSO: autovalutazione manuale, preceduta dallo storico per confronto
+        if (isTraining && reviewSession && !currentVariation.reviewedFlag) {
+            let st = currentVariation.stats || {};
+            if (st.history && st.history.length) {
+                let recent = st.history.slice(-8).map(h => `<span style="color:${qualityColor(h.q)}">${qualityLabel(h.q)}</span>`).join(' · ');
+                html += `<div style="font-size:12px; color:#aaa; margin-bottom:8px;">Le tue valutazioni passate: ${recent}</div>`;
+            } else if (st.last_quality) {
+                html += `<div style="font-size:12px; color:#aaa; margin-bottom:8px;">Valutazione precedente: <strong style="color:${qualityColor(st.last_quality)}">${qualityLabel(st.last_quality)}</strong></div>`;
+            }
+            html += `<div style="font-size:13px; color:#bbb; margin-bottom:8px;">Quanto la ricordavi?</div>`;
             html += `<div id="quality-buttons" style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-                <button class="btn qbtn" style="background:var(--accent-red);" onclick="submitQuality(1)">Di nuovo<small>tasto 1</small></button>
-                <button class="btn qbtn" style="background:#b3732b;" onclick="submitQuality(3)">Difficile<small>tasto 2</small></button>
-                <button class="btn qbtn" style="background:var(--accent-green);" onclick="submitQuality(4)">Bene<small>tasto 3</small></button>
-                <button class="btn qbtn" style="background:#2f8fd6;" onclick="submitQuality(5)">Facile<small>tasto 4</small></button>
+                <button class="btn qbtn" style="background:var(--accent-red);" onclick="submitQuality(1)">Dimenticata<small>tasto 1</small></button>
+                <button class="btn qbtn" style="background:#c07d2e;" onclick="submitQuality(3)">A fatica<small>tasto 2</small></button>
+                <button class="btn qbtn" style="background:var(--accent-green);" onclick="submitQuality(4)">Ricordata<small>tasto 3</small></button>
+                <button class="btn qbtn" style="background:#3692e7;" onclick="submitQuality(5)">Facile<small>tasto 4</small></button>
             </div>
             <div id="post-review" style="margin-top:12px;"></div>`;
             $('#annotation-box').html(html).show();
@@ -959,7 +976,18 @@
             return;
         }
 
-        // READ mode (o già recensita): solo navigazione
+        // APPRENDIMENTO (prima volta): niente autovalutazione, registra e prosegui
+        if (isTraining && !reviewSession && !currentVariation.reviewedFlag) {
+            currentVariation.reviewedFlag = true;
+            let q = madeMistake ? 4 : 5;   // entra comunque nel programma di ripasso
+            $.ajax({
+                url: '/api/review', type: 'POST', contentType: 'application/json',
+                data: JSON.stringify({ id: currentVariation.id, quality: q }),
+                success: function() { loadDueVariations(); }
+            });
+        }
+
+        // READ, fine apprendimento o già valutata: solo navigazione
         let nextVar = getNextVariation();
         if (nextVar) html += `<button class="btn btn-success" id="btn-next-var">Prossima Variante (Spazio)</button>`;
         else html += `<div style="font-style:italic; color: #888; text-align:center;">Hai concluso questo elenco.</div>`;

@@ -39,7 +39,7 @@ def derive_chapter(title):
     return t if t else 'Generale'
 
 def default_stats():
-    return {'reviews': 0, 'correct': 0, 'lapses': 0, 'last_quality': None}
+    return {'reviews': 0, 'correct': 0, 'lapses': 0, 'last_quality': None, 'history': []}
 
 def update_srs(srs, quality):
     rep, interval, ease = srs.get('rep', 0), srs.get('interval', 0), srs.get('ease', 2.5)
@@ -198,6 +198,9 @@ def review():
         else:
             st['lapses'] = st.get('lapses', 0) + 1
         st['last_quality'] = quality
+        hist = st.get('history') or []
+        hist.append({'date': datetime.now().isoformat(), 'q': quality})
+        st['history'] = hist[-20:]   # mantiene le ultime 20 valutazioni
         data[vid]['stats'] = st
         save_data(data)
 
