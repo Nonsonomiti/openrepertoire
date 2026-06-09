@@ -3,6 +3,10 @@
 # Si sposta nella cartella dello script
 cd "$(dirname "$0")"
 
+# Installa le dipendenze se mancanti
+python3 -m pip install --user --quiet flask chess 2>/dev/null \
+  || python3 -m pip install --user --quiet --break-system-packages flask chess
+
 # Avvia il server Python in background
 python3 app.py &
 
