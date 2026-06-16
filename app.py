@@ -19,14 +19,26 @@ DATA_FILE = os.path.join(BASE_DIR, "repertoire.json")
 # -------------------------------
 
 def load_data():
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, 'r') as f:
-            return json.load(f)
+    # Prova il file principale, poi il backup .bak se corrotto/mancante
+    for path in (DATA_FILE, DATA_FILE + ".bak"):
+        if os.path.exists(path):
+            try:
+                with open(path, 'r') as f:
+                    return json.load(f)
+            except (ValueError, OSError):
+                continue
     return {}
 
 def save_data(data):
-    with open(DATA_FILE, 'w') as f:
-        json.dump(data, f, indent=4)
+    # Scrittura atomica: tmp + fsync + rename, con backup del precedente in .bak
+    tmp = DATA_FILE + ".tmp"
+    with open(tmp, 'w') as f:
+        json.dump(data, f, separators=(',', ':'))
+        f.flush()
+        os.fsync(f.fileno())
+    if os.path.exists(DATA_FILE):
+        os.replace(DATA_FILE, DATA_FILE + ".bak")
+    os.replace(tmp, DATA_FILE)
 
 def derive_chapter(title):
     # Deduce un sottocapitolo dal titolo grezzo del PGN (Chessable-style)
@@ -357,4 +369,4 @@ def search_position():
     return jsonify({"matches": matches})
 
 if __name__ == '__main__':
-    app.run(port=5001, debug=True)
+    app.run(port=5001, debug=os.environ.get('OPENREP_DEBUG') == '1')
