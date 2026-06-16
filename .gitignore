@@ -1,5 +1,7 @@
 # Ignora i salvataggi e i progressi personali
 repertoire.json
+repertoire.json.bak
+repertoire.json.tmp
 
 # Ignora i file di sistema del Mac
 .DS_Store
