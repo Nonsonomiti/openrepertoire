@@ -13,5 +13,5 @@ __pycache__/
 # Ignora le istruzioni locali di Claude
 CLAUDE.md
 
-# Ignora la cartella di Claude
+# Ignora la cartella di Claude con il json dentro
 .claude/
