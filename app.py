@@ -16,6 +16,7 @@ app = Flask(__name__,
             static_folder=os.path.join(BASE_DIR, 'static'))
 
 DATA_FILE = os.path.join(BASE_DIR, "repertoire.json")
+app.config['MAX_CONTENT_LENGTH'] = 8 * 1024 * 1024   # tetto upload PGN: 8 MB
 # -------------------------------
 
 def load_data():
@@ -76,11 +77,13 @@ def index():
 
 @app.route('/api/import', methods=['POST'])
 def import_pgn():
-    req = request.json
+    req = request.get_json(silent=True) or {}
     pgn_text = req.get('pgn')
-    course_name = req.get('course', 'Varie') 
-    perspective = req.get('perspective', 'white') 
-    
+    if not isinstance(pgn_text, str) or not pgn_text.strip():
+        return jsonify({"success": False, "error": "PGN mancante o non valido."}), 400
+    course_name = req.get('course', 'Varie')
+    perspective = req.get('perspective', 'white')
+
     pgn_io = io.StringIO(pgn_text)
     data = load_data()
     
@@ -196,11 +199,13 @@ def get_due():
 
 @app.route('/api/review', methods=['POST'])
 def review():
-    req = request.json
-    data = load_data()
+    req = request.get_json(silent=True) or {}
     vid = req.get('id')
     quality = req.get('quality')
-    
+    if not isinstance(vid, str) or isinstance(quality, bool) or not isinstance(quality, int) or not (0 <= quality <= 5):
+        return jsonify({"success": False, "error": "Dati di valutazione non validi."}), 400
+    data = load_data()
+
     if vid in data:
         data[vid]['srs'] = update_srs(data[vid]['srs'], quality)
         st = data[vid].get('stats') or default_stats()
@@ -220,7 +225,7 @@ def review():
 
 @app.route('/api/delete', methods=['POST'])
 def delete_variation():
-    req = request.json
+    req = request.get_json(silent=True) or {}
     data = load_data()
     vid = req.get('id')
     
@@ -232,7 +237,7 @@ def delete_variation():
 
 @app.route('/api/delete_course', methods=['POST'])
 def delete_course():
-    req = request.json
+    req = request.get_json(silent=True) or {}
     data = load_data()
     course = req.get('course')
 
@@ -298,7 +303,7 @@ def stats():
 
 @app.route('/api/set_chapter', methods=['POST'])
 def set_chapter():
-    req = request.json
+    req = request.get_json(silent=True) or {}
     data = load_data()
     vid = req.get('id')
     chapter = (req.get('chapter') or '').strip() or 'Generale'
@@ -310,7 +315,7 @@ def set_chapter():
 
 @app.route('/api/rename_chapter', methods=['POST'])
 def rename_chapter():
-    req = request.json
+    req = request.get_json(silent=True) or {}
     data = load_data()
     course = req.get('course')
     old = req.get('old')
@@ -327,7 +332,7 @@ def rename_chapter():
 
 @app.route('/api/search_position', methods=['POST'])
 def search_position():
-    req = request.json
+    req = request.get_json(silent=True) or {}
     fen = (req.get('fen') or '').strip()
     course = req.get('course')
     if not fen:
