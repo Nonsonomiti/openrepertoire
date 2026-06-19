@@ -17,6 +17,7 @@ app = Flask(__name__,
 
 DATA_FILE = os.path.join(BASE_DIR, "repertoire.json")
 app.config['MAX_CONTENT_LENGTH'] = 8 * 1024 * 1024   # tetto upload PGN: 8 MB
+app.config['TEMPLATES_AUTO_RELOAD'] = True   # ricarica index.html senza riavvio del server
 # -------------------------------
 
 def load_data():
@@ -89,6 +90,7 @@ def import_pgn():
     
     count = 0
     imported = 0
+    skipped = 0
     while True:
         game = chess.pgn.read_game(pgn_io)
         if game is None: break
@@ -116,34 +118,38 @@ def import_pgn():
         moves_data = []
         node = game
         
-        # Scorre SOLO la linea principale (variazioni[0])
-        while node.variations:
-            main_node = node.variations[0]
-            
-            combined_comment = main_node.comment if main_node.comment else ""
-            
-            # Se ci sono diramazioni, le esporta come TESTO e le accoda ai commenti
-            if len(node.variations) > 1:
-                alt_lines = []
-                for alt_node in node.variations[1:]:
-                    exporter = chess.pgn.StringExporter(headers=False, variations=False, comments=False)
-                    alt_text = alt_node.accept(exporter)
-                    alt_text = alt_text.replace('\n', ' ') # Rimuove a capo per pulizia
-                    alt_lines.append(f"Altra opzione: {alt_text}")
-                    
-                if alt_lines:
-                    if combined_comment:
-                        combined_comment += "\n\n" + "\n".join(alt_lines)
-                    else:
-                        combined_comment = "\n".join(alt_lines)
-            
-            moves_data.append({
-                "uci": main_node.move.uci(),
-                "san": main_node.san(),
-                "comment": combined_comment
-            })
-            node = main_node
-            
+        # Scorre SOLO la linea principale (variazioni[0]); salta i game con mosse illegali
+        try:
+            while node.variations:
+                main_node = node.variations[0]
+
+                combined_comment = main_node.comment if main_node.comment else ""
+
+                # Se ci sono diramazioni, le esporta come TESTO e le accoda ai commenti
+                if len(node.variations) > 1:
+                    alt_lines = []
+                    for alt_node in node.variations[1:]:
+                        exporter = chess.pgn.StringExporter(headers=False, variations=False, comments=False)
+                        alt_text = alt_node.accept(exporter)
+                        alt_text = alt_text.replace('\n', ' ') # Rimuove a capo per pulizia
+                        alt_lines.append(f"Altra opzione: {alt_text}")
+
+                    if alt_lines:
+                        if combined_comment:
+                            combined_comment += "\n\n" + "\n".join(alt_lines)
+                        else:
+                            combined_comment = "\n".join(alt_lines)
+
+                moves_data.append({
+                    "uci": main_node.move.uci(),
+                    "san": main_node.san(),
+                    "comment": combined_comment
+                })
+                node = main_node
+        except Exception:
+            skipped += 1
+            continue
+
         if moves_data:
             moves_str = (start_fen or "") + "".join([m["uci"] for m in moves_data])
             moves_hash = hashlib.md5(moves_str.encode()).hexdigest()[:10]
@@ -163,7 +169,7 @@ def import_pgn():
                 imported += 1
                 
     save_data(data)
-    return jsonify({"success": True, "imported": imported})
+    return jsonify({"success": True, "imported": imported, "skipped": skipped})
 
 @app.route('/api/due', methods=['GET'])
 def get_due():
