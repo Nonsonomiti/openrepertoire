@@ -15,3 +15,6 @@ CLAUDE.md
 
 # Ignora la cartella di Claude con il json dentro
 .claude/
+
+# ignora il file di testo con le istruzioni per il miglioramento
+PIANO_MIGLIORE.md
