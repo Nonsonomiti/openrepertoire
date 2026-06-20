@@ -86,7 +86,7 @@ h2:hover { color: var(--accent-blue); }
 .course-header:hover { border-color: var(--border-strong); }
 .var-container { display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); margin-bottom: 6px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); border-left: 3px solid transparent; padding: 8px 12px; transition: border-color 0.18s, background-color 0.18s, transform 0.08s; }
 .var-container:hover { border-color: var(--border-strong); transform: translateY(-1px); }
-.var-item { flex: 1; cursor: pointer; font-size: var(--fs-sm); color: var(--text-main); }
+.var-item { flex: 1; cursor: pointer; font-size: var(--fs-sm); color: var(--text-main); font-family: var(--font-display); }
 .var-item:hover { color: var(--accent-blue); }
 .btn-delete { background: transparent; color: var(--text-faint); border: none; cursor: pointer; font-size: 12px; transition: color 0.18s; }
 .btn-delete:hover { color: var(--accent-red); }
@@ -101,7 +101,7 @@ h2:hover { color: var(--accent-blue); }
 
 /* Barra azioni sotto la scacchiera (flip + lichess + dimensione) e indicatore progresso */
 .board-actions { display: flex; align-items: center; gap: 10px; margin-top: 16px; flex-wrap: wrap; justify-content: center; }
-.lichess-btn { background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); border-radius: var(--radius-pill); padding: 9px 22px; font-size: 12px; font-weight: 600; letter-spacing: 0.4px; cursor: pointer; transition: background-color 0.18s, color 0.18s, border-color 0.18s, transform 0.08s; }
+.lichess-btn { background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); border-radius: var(--radius-pill); padding: 9px 22px; font-size: 12px; font-weight: 600; letter-spacing: 0.4px; font-family: var(--font-display); cursor: pointer; transition: background-color 0.18s, color 0.18s, border-color 0.18s, transform 0.08s; }
 .lichess-btn:hover { color: var(--text-bright); border-color: var(--accent-blue); transform: translateY(-1px); }
 .lichess-btn:active { transform: scale(0.97); }
 .board-size-btn { padding: 9px 14px; font-size: 16px; line-height: 1; min-width: 40px; }
@@ -116,7 +116,7 @@ h2:hover { color: var(--accent-blue); }
 #status.is-muted { color: var(--text-dim); }
 
 #read-controls { display: none; justify-content: space-between; gap: 12px; width: 100%; box-sizing: border-box; padding: 12px; background: var(--grad-panel); border: 1px solid var(--border-color); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }
-#annotation-box { width: 100%; box-sizing: border-box; padding: 24px; background: var(--grad-panel); border: 1px solid var(--border-color); border-top: 3px solid var(--accent-blue); border-radius: var(--radius-lg); font-size: var(--fs-lg); line-height: 1.6; color: var(--text-main); display: none; box-shadow: var(--shadow-card), inset 0 1px 0 rgba(255,255,255,0.05); flex: 1 1 auto; min-height: 160px; overflow-y: auto; }
+#annotation-box { width: 100%; box-sizing: border-box; padding: 24px; background: var(--grad-panel); border: 1px solid var(--border-color); border-top: 3px solid var(--accent-blue); border-radius: var(--radius-lg); font-family: var(--font-display); font-size: var(--fs-lg); line-height: 1.6; color: var(--text-main); display: none; box-shadow: var(--shadow-card), inset 0 1px 0 rgba(255,255,255,0.05); flex: 1 1 auto; min-height: 160px; overflow-y: auto; }
 #annotation-box::-webkit-scrollbar { width: 8px; }
 #annotation-box::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
 

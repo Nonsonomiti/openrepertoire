@@ -500,7 +500,8 @@
                 if (showChapters) {
                     let safeChap = (course + '__' + chap).replace(/[^a-zA-Z0-9]/g, '_') + '_' + listId;
                     let chExpanded = expandedCourses[safeChap];
-                    if (chExpanded === undefined) chExpanded = !isRep;
+                    // Capitoli chiusi di default; aperto solo quello della variante attiva
+                    if (chExpanded === undefined) chExpanded = !!(currentVariation && (currentVariation.course || 'Varie') === course && (currentVariation.chapter || 'Generale') === chap);
                     let editBtn = isRep ? `<button class="btn-delete" onclick="renameChapter('${esc(course)}', '${esc(chap)}', event)" title="Rinomina capitolo">✎</button> ` : '';
                     courseDiv.append(`<div class="chapter-header" role="button" tabindex="0" onclick="toggleCourse('${safeChap}')"><span>${chap}</span><span>${editBtn}▾</span></div>`);
                     target = $(`<div id="${safeChap}" class="chapter-content" style="display: ${chExpanded ? 'block' : 'none'};"></div>`);
@@ -741,6 +742,12 @@
         if (!sb || sb.offsetParent === null || !currentVariation) return;
         let el = sb.querySelector(`.var-container[data-var-id="${currentVariation.id}"]`);
         if (!el) return;
+        // Espande capitolo/corso della variante attiva se chiusi (così resta visibile durante la sessione)
+        let cont = el.closest('.chapter-content, .course-content');
+        while (cont) {
+            if (cont.style.display === 'none') { cont.style.display = 'block'; if (cont.id) expandedCourses[cont.id] = true; }
+            cont = cont.parentElement ? cont.parentElement.closest('.chapter-content, .course-content') : null;
+        }
         let sr = sb.getBoundingClientRect(), er = el.getBoundingClientRect();
         sb.scrollTop += (er.top - sr.top) - (sb.clientHeight - el.offsetHeight) / 2;
     }
@@ -886,6 +893,16 @@
         return turnAtIndex === userColor;
     }
 
+    // Commento "vero" = annotazione dal PGN. Le sole diramazioni ripiegate dall'import
+    // ("Altra opzione: ...") NON contano come annotazione: la mossa resta non commentata.
+    function hasRealAnnotation(comment) {
+        if (!comment) return false;
+        let stripped = comment.split('\n')
+            .filter(function(line){ let t = line.trim(); return t !== '' && t.indexOf('Altra opzione:') !== 0; })
+            .join('').trim();
+        return stripped !== '';
+    }
+
     function handleStep() {
         removeHighlights();
         updateProgress();
@@ -956,7 +973,7 @@
             } else { waitingForAck = false; $('#annotation-box').hide(); }
         } else {
             setStatus(`Mossa del computer (${oppColorName})...`, 'muted');
-            if (phase === 'LEARN' && hasComment) {
+            if (phase === 'LEARN' && hasRealAnnotation(expectedMove.comment)) {
                 waitingForAck = true;
                 $('#annotation-box').html(`
                     <div class="learn-prompt is-opp">Il computer gioca: <strong>${expectedMove.san}</strong></div>
@@ -1241,6 +1258,7 @@
     });
 
     // TASTIERA
+    let _lastSpaceTs = 0;   // debounce Spazio: blocca auto-ripetizione e pressioni ravvicinate (anti-restart variante)
     $(document).on('keydown', function(event) {
         if (event.key === 'f' || event.key === 'F') { if (board) { event.preventDefault(); board.flip(); } return; }
         if (phase === 'READ') {
@@ -1260,13 +1278,22 @@
                 if (map[event.code]) { event.preventDefault(); submitQuality(map[event.code]); return; }
             }
             if (event.code === 'Space' || event.key === ' ') {
+                // Una pressione = un'azione: ignora l'auto-ripetizione del tasto tenuto premuto.
+                if (event.repeat) { event.preventDefault(); return; }
+                let _now = Date.now();
+                let _gap = _now - _lastSpaceTs;   // tempo dall'ULTIMA pressione di Spazio (aggiornato sempre)
+                _lastSpaceTs = _now;
+
                 let btnAvanti = $('#btn-avanti');
                 let btnConsolidamento = $('#btn-start-consolidation');
                 let btnNext = $('#btn-next-var');
 
+                // Avanzamento lettura: risponde a ogni pressione.
                 if (btnAvanti.length && btnAvanti.is(':visible')) { event.preventDefault(); btnAvanti.click(); }
-                else if (btnConsolidamento.length && btnConsolidamento.is(':visible')) { event.preventDefault(); btnConsolidamento.click(); }
-                else if (btnNext.length && btnNext.is(':visible')) { event.preventDefault(); btnNext.click(); }
+                // Consolidamento / prossima variante: SOLO pressione isolata (preceduta da una pausa).
+                // Durante uno "spam" i gap restano piccoli -> non riparte mai la variante da mossa 1.
+                else if (btnConsolidamento.length && btnConsolidamento.is(':visible')) { event.preventDefault(); if (_gap > 500) btnConsolidamento.click(); }
+                else if (btnNext.length && btnNext.is(':visible')) { event.preventDefault(); if (_gap > 500) btnNext.click(); }
             }
         }
     });
