@@ -22,6 +22,7 @@
         <nav id="topnav">
             <button class="navlink" data-nav="impara" onclick="navTo('impara')">Impara</button>
             <button class="navlink" data-nav="repertorio" onclick="navTo('repertorio')">Repertorio</button>
+            <button class="navlink" data-nav="esplora" onclick="navTo('esplora')">Esplora</button>
             <button class="navlink" data-nav="ripassa" onclick="navTo('ripassa')">Ripassa</button>
             <button class="navlink" data-nav="stats" onclick="navTo('stats')">Statistiche</button>
         </nav>
@@ -81,6 +82,11 @@
                 </div>
                 <div class="rep-col-side">
                     <div class="panel-box">
+                        <div class="panel-title">Crea / Modifica</div>
+                        <button class="btn" onclick="openEditor()">➕ Nuova variante</button>
+                        <p class="panel-hint">Costruisci la linea sulla scacchiera e assegnala a un corso e capitolo: digitando un nome nuovo crei al volo un nuovo corso o capitolo.</p>
+                    </div>
+                    <div class="panel-box">
                         <div class="panel-title" role="button" tabindex="0" onclick="$('#import-content').slideToggle(200)">Importa Corso (PGN) <span>▼</span></div>
                         <div id="import-content" style="display:none; margin-top: 10px; border-top: 1px solid var(--border-color); padding-top: 10px;">
                             <select id="pgn-perspective" class="import-select">
@@ -124,6 +130,131 @@
                             <label style="font-size: 11px; color: var(--text-faint); display: block; margin-top: 14px;">DIMENSIONE SCACCHIERA:</label>
                             <input type="range" id="board-size-slider" min="320" max="1400" step="20" value="600" oninput="changeBoardSize()" style="width: 100%; margin-top: 6px; accent-color: var(--accent-blue);">
                         </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="view-explore" class="view">
+            <h1 class="view-title">Esploratore del repertorio</h1>
+            <div id="explore-controls">
+                <div class="exp-ctrl"><label class="exp-ctrl-lab">Esploro come</label>
+                    <select id="explore-persp" class="import-select" onchange="explorePerspChanged()">
+                        <option value="white">Bianco ⚪</option>
+                        <option value="black">Nero ⚫</option>
+                    </select>
+                </div>
+                <div class="exp-ctrl"><label class="exp-ctrl-lab">Corso</label>
+                    <select id="explore-course" class="import-select" onchange="exploreCourseChanged()">
+                        <option value="">Tutti i corsi</option>
+                    </select>
+                </div>
+            </div>
+            <div id="explore-wrap">
+                <div id="explore-left">
+                    <div id="explore-board-card"><div id="explore-board"></div></div>
+                    <div class="board-actions">
+                        <button class="lichess-btn" onclick="exploreReset()">⏮ Inizio</button>
+                        <button class="lichess-btn" onclick="exploreBack()">◀ Indietro</button>
+                        <button class="lichess-btn" onclick="exploreFlip()">🔄 Gira</button>
+                    </div>
+                    <div id="explore-breadcrumb" class="explore-breadcrumb"></div>
+                    <div id="explore-meta" class="explore-meta"></div>
+                </div>
+                <div id="explore-right">
+                    <div class="panel-box">
+                        <div class="panel-title">Continuazioni nel repertorio</div>
+                        <div id="explore-moves"></div>
+                    </div>
+                    <div class="panel-box" id="explore-ends-box" style="display:none;">
+                        <div class="panel-title">Linee che finiscono qui</div>
+                        <div id="explore-ends-list"></div>
+                    </div>
+                    <div class="panel-box" id="explore-holes-box">
+                        <div class="panel-title" role="button" tabindex="0" onclick="$('#holes-content').slideToggle(200);"><span>Buchi nel repertorio <span class="holes-badge" id="holes-count">0</span></span><span>▼</span></div>
+                        <div id="holes-content" style="display:none; margin-top:10px; border-top:1px solid var(--border-color); padding-top:10px;">
+                            <div id="holes-list"></div>
+                        </div>
+                    </div>
+                    <div class="panel-box">
+                        <div class="panel-title" role="button" tabindex="0" onclick="$('#transp-content').slideToggle(200); loadTranspositions();">Trasposizioni & conflitti <span>▼</span></div>
+                        <div id="transp-content" style="display:none; margin-top:10px; border-top:1px solid var(--border-color); padding-top:10px;">
+                            <div id="transp-list"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="view-edit" class="view">
+            <h1 class="view-title">Editor variante</h1>
+            <div id="edit-wrap">
+                <div id="edit-left">
+                    <div id="edit-normal">
+                        <div id="edit-board-card"><div id="edit-board"></div></div>
+                        <div class="board-actions">
+                            <button class="lichess-btn" onclick="editUndo()">↶ Annulla mossa</button>
+                            <button class="lichess-btn" onclick="editClear()">✖ Svuota</button>
+                            <button class="lichess-btn" onclick="editFlip()">🔄 Gira</button>
+                            <button class="lichess-btn" onclick="openSetup()">⊞ Imposta posizione</button>
+                        </div>
+                        <div id="edit-startfen-note" class="edit-startfen-note"></div>
+                        <div id="edit-movelist" class="edit-movelist"></div>
+                    </div>
+                    <div id="edit-setup" style="display:none;">
+                        <div id="setup-board-card"><div id="setup-board"></div></div>
+                        <div class="setup-controls">
+                            <div class="setup-row">
+                                <label class="edit-lab" for="setup-turn">Tratto a</label>
+                                <select id="setup-turn" class="import-select">
+                                    <option value="w">Bianco</option>
+                                    <option value="b">Nero</option>
+                                </select>
+                            </div>
+                            <div class="setup-row">
+                                <span class="edit-lab">Arrocchi</span>
+                                <label class="setup-ck"><input type="checkbox" id="ck-K"> ♔ O-O</label>
+                                <label class="setup-ck"><input type="checkbox" id="ck-Q"> ♔ O-O-O</label>
+                                <label class="setup-ck"><input type="checkbox" id="ck-k"> ♚ O-O</label>
+                                <label class="setup-ck"><input type="checkbox" id="ck-q"> ♚ O-O-O</label>
+                            </div>
+                            <div class="setup-row">
+                                <label class="edit-lab" for="setup-ep">En passant</label>
+                                <input id="setup-ep" class="import-select" placeholder="es. e6" maxlength="2" autocomplete="off">
+                            </div>
+                        </div>
+                        <div class="board-actions">
+                            <button class="lichess-btn" onclick="setupStandard()">↺ Iniziale</button>
+                            <button class="lichess-btn" onclick="setupEmpty()">␀ Svuota</button>
+                            <button class="lichess-btn" onclick="setupFlip()">🔄 Gira</button>
+                        </div>
+                        <div class="setup-actions">
+                            <button class="btn" onclick="setupConfirm()">✓ Conferma posizione</button>
+                            <button class="btn btn-read" onclick="setupCancel()">Annulla</button>
+                        </div>
+                        <p class="panel-hint">Trascina i pezzi dalle file laterali sulla scacchiera; trascina fuori per rimuovere. Poi imposta il tratto, gli arrocchi e l'en passant.</p>
+                        <div id="setup-status" class="edit-status"></div>
+                    </div>
+                </div>
+                <div id="edit-right">
+                    <div class="panel-box">
+                        <div class="panel-title">Dettagli variante</div>
+                        <label class="edit-lab">Titolo</label>
+                        <input id="edit-title" class="import-select" placeholder="Es. Najdorf 6.Bg5" maxlength="160">
+                        <label class="edit-lab">Corso</label>
+                        <input id="edit-course" class="import-select" placeholder="Varie" maxlength="120" list="dl-courses" autocomplete="off">
+                        <datalist id="dl-courses"></datalist>
+                        <label class="edit-lab">Capitolo</label>
+                        <input id="edit-chapter" class="import-select" placeholder="(automatico se vuoto)" maxlength="120" list="dl-chapters" autocomplete="off">
+                        <datalist id="dl-chapters"></datalist>
+                        <label class="edit-lab">Il tuo colore</label>
+                        <select id="edit-perspective" class="import-select">
+                            <option value="white">Bianco ⚪</option>
+                            <option value="black">Nero ⚫</option>
+                        </select>
+                        <button class="btn" style="margin-top:14px;" onclick="editSave()">💾 Salva variante</button>
+                        <button class="btn btn-read" style="margin-top:6px;" onclick="navTo('repertorio')">Annulla</button>
+                        <div id="edit-status" class="edit-status"></div>
                     </div>
                 </div>
             </div>
@@ -224,6 +355,7 @@
         setNavActive(nav);
         if (nav === 'repertorio') showView('repertoire');
         else if (nav === 'stats') openStats();
+        else if (nav === 'esplora') openExplore();
         else if (nav === 'impara') startQueue('learn');
         else if (nav === 'ripassa') startQueue('review');
     }
@@ -427,6 +559,8 @@
         $('#board').removeClass('theme-wood theme-green theme-dark');
         if (theme !== 'classic') $('#board').addClass('theme-' + theme);
         localStorage.setItem('boardTheme', theme);
+        if (exploreBoard) applyExploreTheme();
+        if (editBoard) editApplyTheme();
     }
 
     function initBoardTheme() {
@@ -452,6 +586,18 @@
         board = Chessboard('board', { draggable: true, position: fen, orientation: ori, onDragStart: onDragStart, onDrop: onDrop, onSnapEnd: onSnapEnd, pieceTheme: pieceThemeFn });
         changeBoardTheme();
         applyBoardSize();
+        if (exploreBoard) {
+            let efen = exploreBoard.fen();
+            exploreBoard.destroy();
+            exploreBoard = Chessboard('explore-board', { draggable: false, position: efen, orientation: exploreOrient, pieceTheme: pieceThemeFn });
+            applyExploreTheme();
+        }
+        if (editBoard) {
+            let efen2 = editGame.fen();
+            editBoard.destroy();
+            editBoard = Chessboard('edit-board', { draggable: true, position: efen2, orientation: editOrient, onDragStart: editOnDragStart, onDrop: editOnDrop, onSnapEnd: editOnSnapEnd, pieceTheme: pieceThemeFn });
+            editApplyTheme();
+        }
     }
 
     function toggleCourse(id) {
@@ -461,7 +607,18 @@
     function removeHighlights() { $('#board .square-55d63').removeClass('highlight-square'); selectedSquare = null; }
     function highlightSquare(square) { removeHighlights(); $('#board .square-' + square).addClass('highlight-square'); selectedSquare = square; }
 
-    function esc(s) { return String(s == null ? '' : s).replace(/'/g, "\\'"); }
+    // Escape per CONTESTO TESTO HTML (contenuto tra i tag)
+    function escHtml(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+    // Escape per onclick (stringa JS dentro un attributo HTML a doppi apici):
+    // entità HTML per &"<> (evita la rottura dell'attributo) + escape JS per \ e '
+    function esc(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    }
 
     function renderList(dataArray, listId, mode) {
         let list = $(`#${listId}`);
@@ -477,7 +634,7 @@
             let courseName = v.course || 'Varie';
             let chapterName = v.chapter || 'Generale';
             let sideTag = v.perspective === 'black' ? '⚫ ' : '⚪ ';
-            v.displayTitle = sideTag + v.title;
+            v.displayTitle = sideTag + escHtml(v.title);
             grouped[courseName] = grouped[courseName] || {};
             (grouped[courseName][chapterName] = grouped[courseName][chapterName] || []).push(v);
         });
@@ -487,8 +644,9 @@
             let cExpanded = expandedCourses[safeCourse];
             if (cExpanded === undefined) cExpanded = !isRep;
 
+            let cRenameBtn = isRep ? `<button class="btn-delete" onclick="renameCourse('${esc(course)}', event)" title="Rinomina corso">✎</button> ` : '';
             let delBtn = isRep ? `<button class="btn-delete" onclick="deleteCourse('${esc(course)}', event)" title="Elimina corso">🗑</button> ` : '';
-            list.append(`<div class="course-header" role="button" tabindex="0" onclick="toggleCourse('${safeCourse}')"><span>${course}</span><span>${delBtn}▼</span></div>`);
+            list.append(`<div class="course-header" role="button" tabindex="0" onclick="toggleCourse('${safeCourse}')"><span>${escHtml(course)}</span><span>${cRenameBtn}${delBtn}▼</span></div>`);
             let courseDiv = $(`<div id="${safeCourse}" class="course-content" style="display: ${cExpanded ? 'block' : 'none'};"></div>`);
 
             let chapters = grouped[course];
@@ -503,13 +661,16 @@
                     // Capitoli chiusi di default; aperto solo quello della variante attiva
                     if (chExpanded === undefined) chExpanded = !!(currentVariation && (currentVariation.course || 'Varie') === course && (currentVariation.chapter || 'Generale') === chap);
                     let editBtn = isRep ? `<button class="btn-delete" onclick="renameChapter('${esc(course)}', '${esc(chap)}', event)" title="Rinomina capitolo">✎</button> ` : '';
-                    courseDiv.append(`<div class="chapter-header" role="button" tabindex="0" onclick="toggleCourse('${safeChap}')"><span>${chap}</span><span>${editBtn}▾</span></div>`);
+                    let mergeBtn = isRep ? `<button class="btn-delete" onclick="mergeChapter('${esc(course)}', '${esc(chap)}', event)" title="Unisci a un altro capitolo">🔗</button> ` : '';
+                    courseDiv.append(`<div class="chapter-header" role="button" tabindex="0" onclick="toggleCourse('${safeChap}')"><span>${escHtml(chap)}</span><span>${editBtn}${mergeBtn}▾</span></div>`);
                     target = $(`<div id="${safeChap}" class="chapter-content" style="display: ${chExpanded ? 'block' : 'none'};"></div>`);
                 }
 
                 chapters[chap].forEach(v => {
                     let isSession = (listId === 'session-list');
                     let onClickAction = mode === 'read' ? `startReadMode('${v.id}', 'repertoire')` : `startTraining('${v.id}', '${mode}')`;
+                    let editLineBtn = isRep ? `<button class="btn-delete" onclick="event.stopPropagation(); openEditor('${v.id}')" title="Modifica mosse">✏️</button>` : '';
+                    let courseBtn = isRep ? `<button class="btn-delete" onclick="editVarCourse('${v.id}', event)" title="Sposta in corso">📚</button>` : '';
                     let moveBtn = isRep ? `<button class="btn-delete" onclick="editVarChapter('${v.id}', event)" title="Sposta in capitolo">📂</button>` : '';
                     let delBtn = isSession ? '' : `<button class="btn-delete" onclick="deleteVariation('${v.id}', event)">✕</button>`;
                     let learned = v.srs && v.srs.rep > 0;
@@ -518,6 +679,8 @@
                         <div class="var-container" data-var-id="${v.id}">
                             ${flair}
                             <div class="var-item" ${isRep ? 'role="button" tabindex="0"' : ''} onclick="${onClickAction}">${v.displayTitle}</div>
+                            ${editLineBtn}
+                            ${courseBtn}
                             ${moveBtn}
                             ${delBtn}
                         </div>
@@ -599,7 +762,44 @@
         });
     }
 
+    function editVarCourse(id, event) {
+        event.stopPropagation();
+        let v = globalVariantsMap[id];
+        let cur = v ? (v.course || 'Varie') : 'Varie';
+        let nuovo = prompt('Sposta la variante nel corso:', cur);
+        if (nuovo === null || nuovo.trim() === '' || nuovo === cur) return;
+        $.ajax({
+            url: '/api/set_course', type: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ id: id, course: nuovo.trim() }),
+            success: function() { loadDueVariations(); }
+        });
+    }
+
+    function renameCourse(course, event) {
+        event.stopPropagation();
+        let nuovo = prompt(`Rinomina corso "${course}":`, course);
+        if (!nuovo || nuovo.trim() === '' || nuovo === course) return;
+        $.ajax({
+            url: '/api/rename_course', type: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ old: course, new: nuovo.trim() }),
+            success: function() { loadDueVariations(); }
+        });
+    }
+
+    function mergeChapter(course, chap, event) {
+        event.stopPropagation();
+        let dst = prompt(`Unisci il capitolo "${chap}" in quale altro capitolo?\n(le sue varianti verranno spostate là)`, '');
+        if (dst === null || dst.trim() === '' || dst.trim() === chap) return;
+        $.ajax({
+            url: '/api/merge_chapter', type: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ course: course, from: chap, to: dst.trim() }),
+            success: function() { loadDueVariations(); }
+        });
+    }
+
     // --- STATISTICHE & SCADENZE ---
+    function accClass(acc, reviews) { if (!reviews) return ''; return acc >= 85 ? 'good' : (acc >= 60 ? 'mid' : 'bad'); }
+
     function openStats() {
         setNavActive('stats');
         $.get('/api/stats', function(s) { renderStats(s); showView('stats'); });
@@ -629,16 +829,411 @@
         }).join('');
 
         let hardestHtml = s.hardest.length
-            ? s.hardest.map(h => `<div class="hard-row"><span>${h.title}</span><span style="color:var(--accent-red); white-space:nowrap;">${h.lapses} err / ${h.reviews}</span></div>`).join('')
+            ? s.hardest.map(h => `<div class="hard-row"><span>${escHtml(h.title)}</span><span style="color:var(--accent-red); white-space:nowrap;">${h.lapses} err / ${h.reviews}</span></div>`).join('')
             : '<div class="empty-msg">Nessun errore registrato.</div>';
+
+        // Tasso di richiamo (retention) — ultimi 14 giorni
+        let ret = s.retention || { overall: 0, series: [] };
+        let retBars = (ret.series || []).map(o => {
+            let cls = o.rate == null ? 'b-none' : (o.rate >= 85 ? 'b-good' : (o.rate >= 60 ? 'b-mid' : 'b-bad'));
+            let h = o.rate == null ? 2 : Math.round(6 + 96 * o.rate / 100);
+            let dd = new Date(o.date + 'T00:00:00');
+            let lab = dd.getDate() + '/' + (dd.getMonth() + 1);
+            let tip = o.reviews
+                ? `${dd.toLocaleDateString('it-IT', {weekday:'long', day:'numeric', month:'long'})}: ${o.rate}% (${o.recalled}/${o.reviews})`
+                : `${dd.toLocaleDateString('it-IT', {day:'numeric', month:'long'})}: nessun ripasso`;
+            return `<div class="bar-col" title="${tip}"><div class="bar-val">${o.rate == null ? '' : o.rate}</div><div class="rbar ${cls}" style="height:${h}px"></div><div class="bar-lab">${lab}</div></div>`;
+        }).join('');
+
+        // Accuratezza per corso
+        let courseRows = (s.by_course || []).map(c => {
+            let ac = accClass(c.accuracy, c.reviews);
+            return `<div class="stat-row"><span class="s-name">${escHtml(c.course)}</span><span class="s-meta">${c.total} var · ${c.due} oggi · ${c.learn} nuove</span><span class="s-acc ${ac}">${c.reviews ? c.accuracy + '%' : '—'}</span></div>`;
+        }).join('') || '<div class="empty-msg">—</div>';
+
+        // Accuratezza per colore
+        let colorLabel = { white: '⚪ Bianco', black: '⚫ Nero' };
+        let colorRows = (s.by_color || []).map(c => {
+            let ac = accClass(c.accuracy, c.reviews);
+            return `<div class="stat-row"><span class="s-name">${colorLabel[c.color] || c.color}</span><span class="s-meta">${c.total} var · ${c.lapses} err</span><span class="s-acc ${ac}">${c.reviews ? c.accuracy + '%' : '—'}</span></div>`;
+        }).join('') || '<div class="empty-msg">—</div>';
 
         $('#stats-body').html(`
             <div class="kpi-grid">${kpiHtml}</div>
+            <h3 class="stats-h">Tasso di richiamo · ultimi 14 giorni (${ret.overall}%)</h3>
+            <div class="bar-chart retention">${retBars}</div>
+            <h3 class="stats-h">Accuratezza per corso</h3>
+            <div class="stat-list">${courseRows}</div>
+            <h3 class="stats-h">Accuratezza per colore</h3>
+            <div class="stat-list">${colorRows}</div>
             <h3 class="stats-h">Ripassi in arrivo (14 giorni)</h3>
             <div class="bar-chart">${barsHtml}</div>
             <h3 class="stats-h">Varianti più difficili</h3>
             <div class="hard-list">${hardestHtml}</div>
         `);
+    }
+
+    // --- B1/B2: ESPLORATORE DEL REPERTORIO ---
+    let exploreBoard = null, explorePath = [], exploreOrient = 'white', _exploreInit = false;
+    let exploreCourse = '', explorePerspective = 'white';
+
+    function dominantPerspective() {
+        let rep = cachedLists.repertoire || [], w = 0, b = 0;
+        rep.forEach(function(v) { if ((v.perspective || 'white') === 'black') b++; else w++; });
+        return b > w ? 'black' : 'white';
+    }
+    function populateExploreControls() {
+        let rep = cachedLists.repertoire || [];
+        let courses = Array.from(new Set(rep
+            .filter(function(v) { return (v.perspective || 'white') === explorePerspective; })
+            .map(function(v) { return v.course || 'Varie'; }))).sort();
+        let sel = $('#explore-course'), cur = sel.val();
+        sel.html('<option value="">Tutti i corsi</option>' + courses.map(function(c) { return '<option value="' + escHtml(c) + '">' + escHtml(c) + '</option>'; }).join(''));
+        if (courses.indexOf(cur) >= 0) sel.val(cur); else { sel.val(''); exploreCourse = ''; }
+        $('#explore-persp').val(explorePerspective);
+    }
+    function explorePerspChanged() {
+        explorePerspective = $('#explore-persp').val();
+        exploreOrient = explorePerspective;
+        if (exploreBoard) exploreBoard.orientation(exploreOrient);
+        populateExploreControls();
+        exploreCourse = $('#explore-course').val() || '';
+        exploreReloadAll();
+    }
+    function exploreCourseChanged() { exploreCourse = $('#explore-course').val() || ''; exploreReloadAll(); }
+    function exploreReloadAll() {
+        $('#transp-list').data('loaded', false);
+        if ($('#transp-content').is(':visible')) loadTranspositions();
+        loadHoles();
+        exploreReset();
+    }
+
+    function applyExploreTheme() {
+        let theme = localStorage.getItem('boardTheme') || 'green';
+        $('#explore-board').removeClass('theme-wood theme-green theme-dark theme-slate theme-blue');
+        if (theme !== 'classic') $('#explore-board').addClass('theme-' + theme);
+    }
+    function initExploreBoard() {
+        exploreBoard = Chessboard('explore-board', { position: 'start', draggable: false, pieceTheme: pieceThemeFn, orientation: exploreOrient });
+        applyExploreTheme();
+        _exploreInit = true;
+    }
+    function openExplore() {
+        showView('explore');
+        setTimeout(function() {
+            if (!_exploreInit) initExploreBoard();
+            explorePerspective = dominantPerspective();
+            exploreOrient = explorePerspective;
+            populateExploreControls();
+            exploreCourse = $('#explore-course').val() || '';
+            if (exploreBoard) { exploreBoard.orientation(exploreOrient); exploreBoard.resize(); }
+            $('#transp-list').data('loaded', false);
+            loadHoles();
+            exploreReset();
+        }, 20);
+    }
+    function exploreFlip() { exploreOrient = (exploreOrient === 'white') ? 'black' : 'white'; if (exploreBoard) exploreBoard.orientation(exploreOrient); }
+    function exploreReset() { explorePath = []; exploreLoad(); }
+    function exploreBack() { if (explorePath.length) { explorePath.pop(); exploreLoad(); } }
+    function exploreGo(uci) { explorePath.push(uci); exploreLoad(); }
+
+    function exploreLoad() {
+        $.ajax({
+            url: '/api/tree', type: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ path: explorePath, course: exploreCourse || null, perspective: explorePerspective }),
+            success: function(d) { renderExplore(d); }
+        });
+    }
+
+    function renderExplore(d) {
+        if (exploreBoard) exploreBoard.position(d.fen, false);
+
+        // breadcrumb (SAN ricostruiti dal path)
+        let g = new Chess(), sans = [];
+        for (let u of d.path) {
+            let mv = g.move({ from: u.slice(0,2), to: u.slice(2,4), promotion: u.length > 4 ? u[4] : 'q' });
+            if (mv) sans.push(mv.san);
+        }
+        let bc = sans.length ? sans.map((s, i) => (i % 2 === 0 ? (Math.floor(i/2)+1) + '. ' : '') + s).join(' ') : 'Posizione iniziale';
+        $('#explore-breadcrumb').text(bc);
+        $('#explore-meta').html(`Tratto: <b>${d.turn === 'w' ? 'Bianco' : 'Nero'}</b> · raggiunta da <b>${d.reached_by}</b> variant${d.reached_by === 1 ? 'e' : 'i'}` + (d.transposition ? ' · <span style="color:var(--accent-orange)">trasposizione</span>' : '')
+            + (d.is_hole ? '<div class="hole-banner">⚠ Buco di copertura: tocca a te ma nessuna mossa preparata. Aggiungine una con l\'editor.</div>' : ''));
+
+        // continuazioni nel repertorio (ordinate per frequenza)
+        let maxCount = d.children.reduce((a, c) => Math.max(a, c.count), 1);
+        $('#explore-moves').html(d.children.length ? d.children.map(c => `
+            <div class="exp-move" onclick="exploreGo('${c.uci}')">
+                <span class="exp-san">${escHtml(c.san)}</span>
+                <span class="exp-bar-wrap"><span class="exp-bar" style="width:${Math.round(100 * c.count / maxCount)}%"></span></span>
+                <span class="exp-count">${c.count} · ${c.pct}%${c.comment ? ' <span class="exp-cmt" title="Mossa commentata">✎</span>' : ''}</span>
+            </div>`).join('') : '<div class="empty-msg">Foglia: nessuna continuazione nel repertorio.</div>');
+
+        // linee che terminano qui
+        if (d.ends && d.ends.length) {
+            $('#explore-ends-box').show();
+            let ply = d.ply;
+            $('#explore-ends-list').html(d.ends.map(e => `<div class="exp-end" onclick="openExploreLine('${e.id}', ${ply})">${escHtml(e.title)} <span style="color:var(--text-faint)">· ${escHtml(e.course || '')}</span></div>`).join('')
+                + (d.ends_count > d.ends.length ? `<div class="empty-msg">+${d.ends_count - d.ends.length} altre…</div>` : ''));
+        } else { $('#explore-ends-box').hide(); }
+    }
+
+    function openExploreLine(id, ply) {
+        if (!globalVariantsMap[id]) { navTo('repertorio'); return; }
+        startReadMode(id, 'repertoire');
+        jumpToReadMove(ply);
+    }
+
+    function exploreGoPath(p) { explorePath = (p || []).slice(); exploreLoad(); }
+    let _holesReq = 0;
+    function loadHoles() {
+        let myReq = ++_holesReq;
+        $.get('/api/holes', { course: exploreCourse || '', perspective: explorePerspective }, function(d) {
+            if (myReq !== _holesReq) return;   // risposta obsoleta: un filtro più recente l'ha superata
+            let n = d.count || 0;
+            $('#holes-count').text(n).toggleClass('warn', n > 0);
+            if (!n) { $('#holes-list').html('<div class="empty-msg">Nessun buco: ogni linea finisce quando tocca all\'avversario. ✓</div>'); return; }
+            $('#holes-list').html(
+                '<div class="empty-msg">Linee che finiscono mentre tocca a te muovere, senza risposta preparata. Dalle più vicine all\'apertura.</div>' +
+                d.holes.map(h => `
+                <div class="hole-item" onclick="exploreGoPath([${h.path.map(u => "'" + u + "'").join(',')}])">
+                    <div class="hole-line">${escHtml(h.san_line) || 'Posizione iniziale'}</div>
+                    <div class="hole-sub">dopo <b>${escHtml(h.last_move)}</b> · tocca a te${h.end_count > 1 ? ' · ' + h.end_count + ' linee' : ''} · ${escHtml(h.title)}</div>
+                </div>`).join('')
+            );
+        });
+    }
+    function loadTranspositions() {
+        if ($('#transp-list').data('loaded')) return;
+        $('#transp-list').html('<div class="empty-msg">Analisi in corso…</div>');
+        $.get('/api/transpositions', { course: exploreCourse || '', perspective: explorePerspective }, function(d) {
+            $('#transp-list').data('loaded', true);
+            if (!d.transpositions.length) { $('#transp-list').html('<div class="empty-msg">Nessuna trasposizione rilevata.</div>'); return; }
+            $('#transp-list').html(
+                `<div class="empty-msg">${d.total} posizioni raggiunte da più ordini di mosse. In arancio: ≥2 tue mosse diverse dalla stessa posizione (possibile incoerenza).</div>` +
+                d.transpositions.map(t => `
+                <div class="transp-item">
+                    <div class="t-head">
+                        <span><b>${t.reached_count}</b> varianti · ${escHtml(t.continuations.slice(0,4).join(', '))}</span>
+                        <span class="transp-badge ${t.conflict ? '' : 'ok'}">${t.conflict ? 'conflitto' : 'ok'}</span>
+                    </div>
+                    ${t.reached_by.map(b => `<div class="transp-line" onclick="openExploreLine('${b.id}', ${b.ply})">↳ ${escHtml(b.title)}</div>`).join('')}
+                </div>`).join('')
+            );
+        });
+    }
+
+    // --- B4: EDITOR DI VARIANTE (costruzione mosse sulla scacchiera) ---
+    let editBoard = null, editGame = new Chess(), editMoves = [], editId = null, editStartFen = null, editOrient = 'white', _editInit = false;
+    let editStartMeta = { color: 'w', num: 1 }, setupBoard = null;
+    const STD_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+    function fenMeta(fen) {
+        if (!fen) return { color: 'w', num: 1 };
+        let p = String(fen).split(' ');
+        return { color: (p[1] === 'b' ? 'b' : 'w'), num: parseInt(p[5] || '1', 10) || 1 };
+    }
+
+    function editApplyTheme() {
+        let theme = localStorage.getItem('boardTheme') || 'green';
+        $('#edit-board').removeClass('theme-wood theme-green theme-dark theme-slate theme-blue');
+        if (theme !== 'classic') $('#edit-board').addClass('theme-' + theme);
+    }
+    function editOnDragStart(source, piece) {
+        if (editGame.game_over()) return false;
+        if ((editGame.turn() === 'w' && piece.search(/^b/) !== -1) ||
+            (editGame.turn() === 'b' && piece.search(/^w/) !== -1)) return false;   // solo il lato al tratto
+    }
+    function editOnDrop(source, target) {
+        let mv = editGame.move({ from: source, to: target, promotion: 'q' });
+        if (mv === null) return 'snapback';
+        editMoves.push({ uci: source + target + (mv.promotion || ''), san: mv.san, comment: '' });
+        renderEditMoves();
+    }
+    function editOnSnapEnd() { if (editBoard) editBoard.position(editGame.fen(), false); }
+    function initEditBoard() {
+        editBoard = Chessboard('edit-board', { draggable: true, position: 'start', onDragStart: editOnDragStart, onDrop: editOnDrop, onSnapEnd: editOnSnapEnd, pieceTheme: pieceThemeFn, orientation: editOrient });
+        editApplyTheme();
+        _editInit = true;
+    }
+    function openEditor(id) {
+        editId = id || null;
+        editMoves = [];
+        editGame = new Chess();
+        editStartFen = null;
+        $('#edit-status').text('');
+        // autocomplete dei corsi/capitoli esistenti (per creare/riusare la struttura in-app)
+        let cs = {}, chs = {};
+        Object.keys(globalVariantsMap).forEach(function(k) { let v = globalVariantsMap[k]; if (v.course) cs[v.course] = 1; if (v.chapter) chs[v.chapter] = 1; });
+        $('#dl-courses').html(Object.keys(cs).sort().map(function(c) { return '<option value="' + escHtml(c) + '">'; }).join(''));
+        $('#dl-chapters').html(Object.keys(chs).sort().map(function(c) { return '<option value="' + escHtml(c) + '">'; }).join(''));
+        if (id && globalVariantsMap[id]) {
+            let v = globalVariantsMap[id];
+            editStartFen = v.startFen || null;
+            if (editStartFen) { try { editGame.load(editStartFen); } catch (e) {} }
+            $('#edit-title').val(v.title || '');
+            $('#edit-course').val(v.course || '');
+            $('#edit-chapter').val((v.chapter && v.chapter !== 'Generale') ? v.chapter : '');
+            $('#edit-perspective').val(v.perspective === 'black' ? 'black' : 'white');
+            editOrient = (v.perspective === 'black') ? 'black' : 'white';
+            (v.moves || []).forEach(function(m) {
+                let mv = editGame.move({ from: m.uci.slice(0,2), to: m.uci.slice(2,4), promotion: m.uci.length > 4 ? m.uci[4] : 'q' });
+                if (mv) editMoves.push({ uci: m.uci, san: mv.san, comment: m.comment || '' });
+            });
+        } else {
+            $('#edit-title').val(''); $('#edit-course').val(''); $('#edit-chapter').val('');
+            $('#edit-perspective').val('white'); editOrient = 'white';
+        }
+        editStartMeta = fenMeta(editStartFen);
+        $('#edit-setup').hide(); $('#edit-normal').show();
+        renderStartFenNote();
+        showView('edit');
+        setTimeout(function() {
+            if (!_editInit) initEditBoard();
+            editBoard.orientation(editOrient);
+            editBoard.position(editGame.fen(), false);
+            editBoard.resize();
+            editApplyTheme();
+            renderEditMoves();
+        }, 20);
+    }
+    function editFlip() { editOrient = (editOrient === 'white') ? 'black' : 'white'; if (editBoard) editBoard.orientation(editOrient); }
+    function editUndo() {
+        if (!editMoves.length) return;
+        editMoves.pop(); editGame.undo();
+        if (editBoard) editBoard.position(editGame.fen(), false);
+        renderEditMoves();
+    }
+    function editClear() {
+        editMoves = []; editGame = new Chess();
+        if (editStartFen) { try { editGame.load(editStartFen); } catch (e) {} }
+        if (editBoard) editBoard.position(editGame.fen(), false);
+        renderEditMoves();
+    }
+    function editMoveLabel(i) {
+        if (editStartMeta.color === 'b') {            // la linea parte da una mossa del Nero
+            if (i === 0) return editStartMeta.num + '… ';
+            return (i % 2 === 1) ? (editStartMeta.num + Math.floor((i + 1) / 2)) + '. ' : '';
+        }
+        return (i % 2 === 0) ? (editStartMeta.num + Math.floor(i / 2)) + '. ' : '';
+    }
+    function renderEditMoves() {
+        if (!editMoves.length) { $('#edit-movelist').html('<span class="empty-msg">Trascina i pezzi per costruire la linea…</span>'); return; }
+        $('#edit-movelist').html(editMoves.map(function(m, i) {
+            return '<span class="em-move">' + editMoveLabel(i) + escHtml(m.san) + '</span>';
+        }).join(' '));
+    }
+    function renderStartFenNote() {
+        if (editStartFen) {
+            $('#edit-startfen-note').html('⊞ Partenza personalizzata · tratto a <b>' + (editStartMeta.color === 'b' ? 'Nero' : 'Bianco') +
+                '</b> · <span class="sfn-clear" role="button" tabindex="0" onclick="editResetStart()">torna all\'iniziale</span>').show();
+        } else { $('#edit-startfen-note').hide().empty(); }
+    }
+    function editResetStart() {
+        if (editMoves.length && !confirm('Tornare alla posizione iniziale standard? Le mosse correnti verranno rimosse.')) return;
+        editStartFen = null; editStartMeta = fenMeta(null);
+        editMoves = []; editGame = new Chess();
+        if (editBoard) editBoard.position('start', false);
+        renderStartFenNote(); renderEditMoves();
+    }
+    function editSave() {
+        let title = $('#edit-title').val().trim();
+        if (!title) { $('#edit-status').text('Inserisci un titolo.').css('color', 'var(--accent-red)'); return; }
+        if (!editMoves.length) { $('#edit-status').text('Aggiungi almeno una mossa.').css('color', 'var(--accent-red)'); return; }
+        $('#edit-status').text('Salvataggio…').css('color', 'var(--text-faint)');
+        $.ajax({
+            url: '/api/save_variation', type: 'POST', contentType: 'application/json',
+            data: JSON.stringify({
+                id: editId, title: title,
+                course: $('#edit-course').val().trim(),
+                chapter: $('#edit-chapter').val().trim(),
+                perspective: $('#edit-perspective').val(),
+                startFen: editStartFen,
+                moves: editMoves.map(function(m) { return { uci: m.uci, comment: m.comment }; })
+            }),
+            success: function(res) {
+                showToast(res.rekeyed ? 'Variante salvata (ricollocata per le nuove mosse).' : 'Variante salvata.', 'success');
+                loadDueVariations();
+                navTo('repertorio');
+            }
+            // 400/409 mostrati dal gestore $.ajaxError globale (toast)
+        });
+    }
+
+    // --- B5: BOARD-EDITOR FEN (posizione di partenza, spare pieces) ---
+    function setupApplyTheme() {
+        let theme = localStorage.getItem('boardTheme') || 'green';
+        $('#setup-board').removeClass('theme-wood theme-green theme-dark theme-slate theme-blue');
+        if (theme !== 'classic') $('#setup-board').addClass('theme-' + theme);
+    }
+    function setupBoardInit(placement) {
+        if (setupBoard) { try { setupBoard.destroy(); } catch (e) {} }
+        setupBoard = Chessboard('setup-board', {
+            draggable: true, sparePieces: true, dropOffBoard: 'trash',
+            position: placement, pieceTheme: pieceThemeFn, orientation: editOrient
+        });
+        setupApplyTheme();
+    }
+    function setupPrefillControls(fen) {
+        let p = fen ? String(fen).split(' ') : ['', 'w', 'KQkq', '-'];
+        $('#setup-turn').val(p[1] === 'b' ? 'b' : 'w');
+        let cr = p[2] || '-';
+        $('#ck-K').prop('checked', cr.indexOf('K') >= 0);
+        $('#ck-Q').prop('checked', cr.indexOf('Q') >= 0);
+        $('#ck-k').prop('checked', cr.indexOf('k') >= 0);
+        $('#ck-q').prop('checked', cr.indexOf('q') >= 0);
+        $('#setup-ep').val(p[3] && p[3] !== '-' ? p[3] : '');
+    }
+    function openSetup() {
+        $('#setup-status').text('');
+        setupPrefillControls(editStartFen || null);
+        $('#edit-normal').hide(); $('#edit-setup').show();
+        setTimeout(function() {
+            setupBoardInit(editStartFen ? editStartFen.split(' ')[0] : 'start');
+            setupBoard.resize();
+        }, 20);
+    }
+    function setupStandard() {
+        if (setupBoard) setupBoard.start(false);
+        $('#setup-turn').val('w');
+        $('#ck-K,#ck-Q,#ck-k,#ck-q').prop('checked', true);
+        $('#setup-ep').val(''); $('#setup-status').text('');
+    }
+    function setupEmpty() {
+        if (setupBoard) setupBoard.clear(false);
+        $('#setup-turn').val('w');
+        $('#ck-K,#ck-Q,#ck-k,#ck-q').prop('checked', false);
+        $('#setup-ep').val(''); $('#setup-status').text('');
+    }
+    function setupFlip() { editOrient = (editOrient === 'white') ? 'black' : 'white'; if (setupBoard) setupBoard.orientation(editOrient); }
+    function setupCancel() { $('#edit-setup').hide(); $('#edit-normal').show(); if (editBoard) editBoard.orientation(editOrient); }
+    function setupComposeFen() {
+        let placement = setupBoard ? setupBoard.fen() : '8/8/8/8/8/8/8/8';
+        let turn = $('#setup-turn').val() === 'b' ? 'b' : 'w';
+        let castle = ($('#ck-K').is(':checked') ? 'K' : '') + ($('#ck-Q').is(':checked') ? 'Q' : '') +
+                     ($('#ck-k').is(':checked') ? 'k' : '') + ($('#ck-q').is(':checked') ? 'q' : '') || '-';
+        let ep = ($('#setup-ep').val() || '').trim().toLowerCase();
+        if (!/^[a-h][36]$/.test(ep)) ep = '-';
+        return placement + ' ' + turn + ' ' + castle + ' ' + ep + ' 0 1';
+    }
+    function setupConfirm() {
+        let fen = setupComposeFen();
+        $('#setup-status').text('Verifica…').css('color', 'var(--text-faint)');
+        $.ajax({
+            url: '/api/validate_fen', type: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ fen: fen }),
+            success: function(res) {
+                if (!res.valid) { $('#setup-status').text(res.error || 'Posizione non valida.').css('color', 'var(--accent-red)'); return; }
+                editStartFen = (res.fen === STD_FEN) ? null : res.fen;
+                editStartMeta = fenMeta(editStartFen);
+                editMoves = []; editGame = new Chess();
+                if (editStartFen) { try { editGame.load(editStartFen); } catch (e) {} }
+                $('#edit-setup').hide(); $('#edit-normal').show();
+                setTimeout(function() {
+                    if (editBoard) { editBoard.orientation(editOrient); editBoard.position(editGame.fen(), false); editBoard.resize(); }
+                    renderStartFenNote(); renderEditMoves();
+                }, 10);
+                showToast(editStartFen ? 'Posizione di partenza impostata.' : 'Posizione iniziale standard.', 'success');
+            }
+        });
     }
 
     // --- CERCA POSIZIONE ---
@@ -657,8 +1252,8 @@
     function renderSearchResults(matches) {
         if (!matches || !matches.length) { $('#search-results').html('<div class="empty-msg">Posizione non coperta nel repertorio.</div>'); return; }
         let html = matches.map(m => `<div class="search-hit" role="button" tabindex="0" onclick="openSearchHit('${m.id}', ${m.moveIndex})">
-            <div class="search-hit-title">${m.title}</div>
-            <div class="search-hit-sub">${m.course || ''}${m.chapter ? ' › ' + m.chapter : ''} — mossa ${m.moveIndex}</div>
+            <div class="search-hit-title">${escHtml(m.title)}</div>
+            <div class="search-hit-sub">${escHtml(m.course || '')}${m.chapter ? ' › ' + escHtml(m.chapter) : ''} — mossa ${m.moveIndex}</div>
         </div>`).join('');
         $('#search-results').html(`<div class="search-count">${matches.length} variante/i coprono la posizione:</div>` + html);
     }
@@ -1060,6 +1655,7 @@
 
     // --- NUOVO MOTORE PREVIEW INTELLIGENTE ---
     function parseCommentMoves(comment, baseMoveIndex) {
+        comment = escHtml(comment);   // neutralizza l'HTML del PGN; i SAN restano ASCII -> il match sotto regge
         var SAN = "[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[KQRBN])?[+#]?|O-O(?:-O)?";
         var re = new RegExp("(\\d+)(\\.{1,3})\\s*(" + SAN + ")|\\b(" + SAN + ")\\b", "g");
         return comment.replace(re, function(m, num, dots, san1, san2) {
