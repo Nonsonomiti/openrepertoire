@@ -166,6 +166,12 @@
                         <div class="panel-title">Continuazioni nel repertorio</div>
                         <div id="explore-moves"></div>
                     </div>
+                    <div class="panel-box">
+                        <div class="panel-title" role="button" tabindex="0" onclick="lxToggle()">Analisi Lichess (cloud) <span>▼</span></div>
+                        <div id="lx-content" style="display:none; margin-top:10px; border-top:1px solid var(--border-color); padding-top:10px;">
+                            <div id="lx-list"></div>
+                        </div>
+                    </div>
                     <div class="panel-box" id="explore-ends-box" style="display:none;">
                         <div class="panel-title">Linee che finiscono qui</div>
                         <div id="explore-ends-list"></div>
@@ -589,7 +595,7 @@
         if (exploreBoard) {
             let efen = exploreBoard.fen();
             exploreBoard.destroy();
-            exploreBoard = Chessboard('explore-board', { draggable: false, position: efen, orientation: exploreOrient, pieceTheme: pieceThemeFn });
+            exploreBoard = Chessboard('explore-board', { draggable: true, position: efen, orientation: exploreOrient, onDragStart: exploreOnDragStart, onDrop: exploreOnDrop, pieceTheme: pieceThemeFn });
             applyExploreTheme();
         }
         if (editBoard) {
@@ -604,8 +610,31 @@
         $('#' + id).slideToggle(200, function() { expandedCourses[id] = $(this).is(':visible'); });
     }
 
-    function removeHighlights() { $('#board .square-55d63').removeClass('highlight-square'); selectedSquare = null; }
-    function highlightSquare(square) { removeHighlights(); $('#board .square-' + square).addClass('highlight-square'); selectedSquare = square; }
+    function removeHighlights() { $('#board .square-55d63').removeClass('highlight-square'); clearDots('#board'); selectedSquare = null; }
+    // Evidenzia ultima mossa (from+to) e scacco sul board indicato ('#board', '#explore-board', ...)
+    function markLastMove(sel, uci) {
+        $(sel + ' .square-55d63').removeClass('sq-last');
+        if (uci) $(sel + ' .square-' + uci.slice(0, 2) + ', ' + sel + ' .square-' + uci.slice(2, 4)).addClass('sq-last');
+    }
+    function markCheck(sel, g) {
+        $(sel + ' .square-55d63').removeClass('sq-check');
+        if (!g || !g.in_check()) return;
+        let b = g.board(), turn = g.turn();
+        for (let r = 0; r < 8; r++) for (let f = 0; f < 8; f++) {
+            let p = b[r][f];
+            if (p && p.type === 'k' && p.color === turn) { $(sel + ' .square-' + 'abcdefgh'[f] + (8 - r)).addClass('sq-check'); return; }
+        }
+    }
+    // Pezzo "in mano" (click o drag): pallino sulle case legali, anello sulle catture
+    function clearDots(sel) { $(sel + ' .square-55d63').removeClass('sq-dest sq-dest-cap sq-selected'); }
+    function showDots(sel, g, square) {
+        clearDots(sel);
+        let ms = (g && g.moves({ square: square, verbose: true })) || [];
+        ms.forEach(function(m) { $(sel + ' .square-' + m.to).addClass(m.captured ? 'sq-dest-cap' : 'sq-dest'); });
+        if (ms.length) $(sel + ' .square-' + square).addClass('sq-selected');
+        return ms.length;
+    }
+    function highlightSquare(square) { removeHighlights(); $('#board .square-' + square).addClass('highlight-square'); selectedSquare = square; showDots('#board', game, square); }
 
     // Escape per CONTESTO TESTO HTML (contenuto tra i tag)
     function escHtml(s) {
@@ -875,6 +904,7 @@
 
     // --- B1/B2: ESPLORATORE DEL REPERTORIO ---
     let exploreBoard = null, explorePath = [], exploreOrient = 'white', _exploreInit = false;
+    let exploreGame = new Chess(), exploreForward = [], _exploreTopChild = null;
     let exploreCourse = '', explorePerspective = 'white';
 
     function dominantPerspective() {
@@ -913,8 +943,43 @@
         $('#explore-board').removeClass('theme-wood theme-green theme-dark theme-slate theme-blue');
         if (theme !== 'classic') $('#explore-board').addClass('theme-' + theme);
     }
+    function exploreOnDragStart(source, piece) {
+        if (!exploreGame || exploreGame.game_over()) return false;
+        if ((exploreGame.turn() === 'w' && piece.search(/^b/) !== -1) ||
+            (exploreGame.turn() === 'b' && piece.search(/^w/) !== -1)) return false;   // solo il lato al tratto
+        showDots('#explore-board', exploreGame, source);
+    }
+    function exploreOnDrop(source, target) {
+        if (source === target) {
+            // click reale sul pezzo (mousedown+rilascio in loco): prendi/lascia
+            _expDropTs = Date.now();
+            if (exploreSel === source) { exploreSel = null; clearDots('#explore-board'); }
+            else { exploreSel = source; showDots('#explore-board', exploreGame, source); }
+            return 'snapback';
+        }
+        exploreSel = null; clearDots('#explore-board');
+        let mv = exploreGame.move({ from: source, to: target, promotion: 'q' });
+        if (mv === null) return 'snapback';
+        exploreGo(source + target + (mv.promotion || ''));
+    }
+    // Click-to-move: la selezione del pezzo passa da exploreOnDrop (il drag intercetta il click);
+    // questo handler gestisce la DESTINAZIONE (casa vuota o cattura, dove il click arriva davvero)
+    let exploreSel = null, _expDropTs = 0;
+    $(document).on('click', '#explore-board .square-55d63', function() {
+        if (!exploreGame) return;
+        let sq = $(this).attr('data-square');
+        if (!sq) return;
+        let p = exploreGame.get(sq);
+        if (p && p.color === exploreGame.turn() && Date.now() - _expDropTs < 400) return;   // già gestito da onDrop
+        if (exploreSel && sq !== exploreSel) {
+            let mv = exploreGame.move({ from: exploreSel, to: sq, promotion: 'q' });
+            if (mv) { exploreSel = null; clearDots('#explore-board'); exploreGo(mv.from + mv.to + (mv.promotion || '')); return; }
+        }
+        if (p && p.color === exploreGame.turn() && sq !== exploreSel) { exploreSel = sq; showDots('#explore-board', exploreGame, sq); }
+        else { exploreSel = null; clearDots('#explore-board'); }
+    });
     function initExploreBoard() {
-        exploreBoard = Chessboard('explore-board', { position: 'start', draggable: false, pieceTheme: pieceThemeFn, orientation: exploreOrient });
+        exploreBoard = Chessboard('explore-board', { position: 'start', draggable: true, onDragStart: exploreOnDragStart, onDrop: exploreOnDrop, pieceTheme: pieceThemeFn, orientation: exploreOrient });
         applyExploreTheme();
         _exploreInit = true;
     }
@@ -933,20 +998,36 @@
         }, 20);
     }
     function exploreFlip() { exploreOrient = (exploreOrient === 'white') ? 'black' : 'white'; if (exploreBoard) exploreBoard.orientation(exploreOrient); }
-    function exploreReset() { explorePath = []; exploreLoad(); }
-    function exploreBack() { if (explorePath.length) { explorePath.pop(); exploreLoad(); } }
-    function exploreGo(uci) { explorePath.push(uci); exploreLoad(); }
+    function exploreReset() { explorePath = []; exploreForward = []; exploreLoad(); }
+    function exploreBack() { if (explorePath.length) { exploreForward.push(explorePath.pop()); exploreLoad(); } }
+    function exploreGo(uci) { explorePath.push(uci); exploreForward = []; exploreLoad(); }   // nuovo ramo: svuota il redo
+    function exploreForwardStep() {
+        if (exploreForward.length) { explorePath.push(exploreForward.pop()); exploreLoad(); }   // redo
+        else if (_exploreTopChild) { explorePath.push(_exploreTopChild); exploreForward = []; exploreLoad(); }   // avanti sulla continuazione più comune
+    }
 
+    let _treeReq = 0;
     function exploreLoad() {
+        let myReq = ++_treeReq;
         $.ajax({
             url: '/api/tree', type: 'POST', contentType: 'application/json',
             data: JSON.stringify({ path: explorePath, course: exploreCourse || null, perspective: explorePerspective }),
-            success: function(d) { renderExplore(d); }
+            success: function(d) { if (myReq === _treeReq) renderExplore(d); }   // scarta risposte obsolete
         });
     }
 
     function renderExplore(d) {
-        if (exploreBoard) exploreBoard.position(d.fen, false);
+        // Ridisegna la board solo se la posizione differisce da quella già mostrata
+        // (dopo un drag il pezzo è già al suo posto -> niente redraw). Con animazione:
+        // chessboard.js muove i singoli pezzi (diff), non ricrea tutto.
+        if (exploreBoard && exploreBoard.fen() !== d.fen.split(' ')[0]) exploreBoard.position(d.fen);
+        try { exploreGame.load(d.fen); } catch (e) {}   // verità lato server per la validazione del drag
+        exploreSel = null; clearDots('#explore-board');
+        _exploreTopChild = (d.children && d.children.length) ? d.children[0].uci : null;
+        markLastMove('#explore-board', d.path.length ? d.path[d.path.length - 1] : null);
+        markCheck('#explore-board', exploreGame);
+        _lxFen = d.fen;
+        if ($('#lx-content').is(':visible')) lxLoad();
 
         // breadcrumb (SAN ricostruiti dal path)
         let g = new Chess(), sans = [];
@@ -983,7 +1064,7 @@
         jumpToReadMove(ply);
     }
 
-    function exploreGoPath(p) { explorePath = (p || []).slice(); exploreLoad(); }
+    function exploreGoPath(p) { explorePath = (p || []).slice(); exploreForward = []; exploreLoad(); }
     let _holesReq = 0;
     function loadHoles() {
         let myReq = ++_holesReq;
@@ -1022,6 +1103,62 @@
         });
     }
 
+    // --- C3: ANALISI CLOUD LICHESS (eval + linee principali per la posizione corrente) ---
+    // L'opening explorer W/D/L (explorer.lichess.ovh) è stato reso privato da Lichess (401 per
+    // qualunque client): usiamo il cloud-eval pubblico. Solo numeri/SAN in UI, MAI nel repertorio.
+    let lxCache = {}, _lxReq = 0, _lxFen = null;
+    function lxToggle() {
+        $('#lx-content').slideToggle(160, function() { if ($(this).is(':visible')) lxLoad(); });
+    }
+    function lxLoad() {
+        if (!_lxFen || !$('#lx-content').is(':visible')) return;
+        let fen = _lxFen, myReq = ++_lxReq;
+        if (lxCache[fen]) { lxRender(lxCache[fen], fen); return; }
+        $('#lx-list').html('<div class="empty-msg">Interrogo il cloud…</div>');
+        fetch('https://lichess.org/api/cloud-eval?multiPv=3&fen=' + encodeURIComponent(fen))
+            .then(function(r) {
+                if (r.status === 404) return { notFound: true };
+                if (r.status === 429) throw new Error('429');
+                if (!r.ok) throw new Error('http');
+                return r.json();
+            })
+            .then(function(d) { lxCache[fen] = d; if (myReq === _lxReq) lxRender(d, fen); })
+            .catch(function(e) {
+                if (myReq !== _lxReq) return;
+                $('#lx-list').html('<div class="empty-msg">' + (e.message === '429'
+                    ? 'Limite richieste raggiunto: attendi qualche secondo.'
+                    : 'Cloud Lichess non raggiungibile (sei offline?).') + '</div>');
+            });
+    }
+    function lxGoUci(uci) { if (uci) exploreGo(uci); }
+    function lxRender(d, fen) {
+        if (d.notFound || !d.pvs || !d.pvs.length) {
+            $('#lx-list').html('<div class="empty-msg">Posizione non presente nel cloud Lichess (capita nelle linee meno comuni).</div>');
+            return;
+        }
+        let rows = d.pvs.map(function(pv) {
+            let g;
+            try { g = new Chess(fen); } catch (e) { return ''; }
+            let sans = [];
+            (pv.moves || '').split(' ').forEach(function(u) {
+                if (!u) return;
+                let mv = g.move({ from: u.slice(0, 2), to: u.slice(2, 4), promotion: u.length > 4 ? u[4] : undefined });
+                if (mv) sans.push(mv.san);
+            });
+            let mate = (pv.mate !== undefined && pv.mate !== null);
+            let ev = mate ? ((pv.mate > 0 ? '+M' : '−M') + Math.abs(pv.mate))
+                          : ((pv.cp >= 0 ? '+' : '−') + Math.abs(pv.cp / 100).toFixed(2));
+            let evCls = mate ? (pv.mate > 0 ? 'lx-ev-w' : 'lx-ev-b')
+                             : (pv.cp >= 20 ? 'lx-ev-w' : (pv.cp <= -20 ? 'lx-ev-b' : 'lx-ev-eq'));
+            let firstUci = (pv.moves || '').split(' ')[0] || '';
+            return '<div class="lx-row" onclick="lxGoUci(\'' + firstUci + '\')" title="Gioca la prima mossa della linea">' +
+                '<span class="lx-ev ' + evCls + '">' + ev + '</span>' +
+                '<span class="lx-pv">' + escHtml(sans.slice(0, 9).join(' ')) + '</span></div>';
+        }).join('');
+        $('#lx-list').html(rows + '<div class="lx-meta">Stockfish cloud · profondità ' + (d.depth || '?') +
+            ' · + = meglio per il Bianco, − = meglio per il Nero · clic su una linea = gioca la prima mossa</div>');
+    }
+
     // --- B4: EDITOR DI VARIANTE (costruzione mosse sulla scacchiera) ---
     let editBoard = null, editGame = new Chess(), editMoves = [], editId = null, editStartFen = null, editOrient = 'white', _editInit = false;
     let editStartMeta = { color: 'w', num: 1 }, setupBoard = null;
@@ -1041,13 +1178,42 @@
         if (editGame.game_over()) return false;
         if ((editGame.turn() === 'w' && piece.search(/^b/) !== -1) ||
             (editGame.turn() === 'b' && piece.search(/^w/) !== -1)) return false;   // solo il lato al tratto
+        showDots('#edit-board', editGame, source);
     }
     function editOnDrop(source, target) {
+        if (source === target) {
+            // click reale sul pezzo: prendi/lascia
+            _editDropTs = Date.now();
+            let had = (editSel === source);
+            editSel = null; clearDots('#edit-board');
+            if (!had) { editSel = source; showDots('#edit-board', editGame, source); }
+            return 'snapback';
+        }
+        editSel = null; clearDots('#edit-board');
         let mv = editGame.move({ from: source, to: target, promotion: 'q' });
         if (mv === null) return 'snapback';
         editMoves.push({ uci: source + target + (mv.promotion || ''), san: mv.san, comment: '' });
         renderEditMoves();
     }
+    // Click-to-move nell'editor: selezione via editOnDrop, destinazione via click (casa vuota/cattura)
+    let editSel = null, _editDropTs = 0;
+    $(document).on('click', '#edit-board .square-55d63', function() {
+        let sq = $(this).attr('data-square');
+        if (!sq) return;
+        let p = editGame.get(sq);
+        if (p && p.color === editGame.turn() && Date.now() - _editDropTs < 400) return;   // già gestito da onDrop
+        if (editSel && sq !== editSel) {
+            let mv = editGame.move({ from: editSel, to: sq, promotion: 'q' });
+            if (mv) {
+                editMoves.push({ uci: mv.from + mv.to + (mv.promotion || ''), san: mv.san, comment: '' });
+                if (editBoard) editBoard.position(editGame.fen(), false);
+                renderEditMoves();
+                return;
+            }
+        }
+        if (p && p.color === editGame.turn() && sq !== editSel) { editSel = sq; showDots('#edit-board', editGame, sq); }
+        else { editSel = null; clearDots('#edit-board'); }
+    });
     function editOnSnapEnd() { if (editBoard) editBoard.position(editGame.fen(), false); }
     function initEditBoard() {
         editBoard = Chessboard('edit-board', { draggable: true, position: 'start', onDragStart: editOnDragStart, onDrop: editOnDrop, onSnapEnd: editOnSnapEnd, pieceTheme: pieceThemeFn, orientation: editOrient });
@@ -1116,7 +1282,8 @@
         return (i % 2 === 0) ? (editStartMeta.num + Math.floor(i / 2)) + '. ' : '';
     }
     function renderEditMoves() {
-        if (!editMoves.length) { $('#edit-movelist').html('<span class="empty-msg">Trascina i pezzi per costruire la linea…</span>'); return; }
+        editSel = null; clearDots('#edit-board');
+        if (!editMoves.length) { $('#edit-movelist').html('<span class="empty-msg">Trascina o clicca i pezzi per costruire la linea…</span>'); return; }
         $('#edit-movelist').html(editMoves.map(function(m, i) {
             return '<span class="em-move">' + editMoveLabel(i) + escHtml(m.san) + '</span>';
         }).join(' '));
@@ -1399,11 +1566,9 @@
         let moves = currentVariation.moves;
         let atEnd = (moveIndex >= moves.length);
 
-        // Evidenzia sulla scacchiera la casa di arrivo della mossa corrente
-        if (moveIndex > 0) {
-            let cur = moves[moveIndex-1];
-            $('#board .square-' + cur.uci.substring(2,4)).addClass('highlight-square');
-        }
+        // Evidenzia sulla scacchiera l'ultima mossa (from+to) e l'eventuale scacco
+        markLastMove('#board', moveIndex > 0 ? moves[moveIndex-1].uci : null);
+        markCheck('#board', game);
 
         let html = `<div id="read-text" class="read-text">`;
         if (moveIndex === 0) {
@@ -1471,6 +1636,7 @@
         replayTo(game, 0);
         board.orientation(currentVariation.perspective);
         board.position(game.fen(), false);
+        markLastMove('#board', null); markCheck('#board', null);
         setStatus("", null); $('#read-controls').hide();
         updateTitle(); handleStep();
     }
@@ -1529,7 +1695,7 @@
                 $('#btn-start-consolidation').click(function() {
                     clearPreview(); 
                     $('#annotation-box').hide(); waitingForAck = false;
-                    moveIndex = 0; replayTo(game, 0); board.position(game.fen(), false); updateTitle(); handleStep();
+                    moveIndex = 0; replayTo(game, 0); board.position(game.fen(), false); markLastMove('#board', null); markCheck('#board', null); updateTitle(); handleStep();
                 });
                 return;
             } else if (phase === 'CONSOLIDATE' || phase === 'REVIEW') {
@@ -1591,7 +1757,8 @@
     function executeComputerMove() {
         let expectedMove = currentVariation.moves[moveIndex];
         game.move({from: expectedMove.uci.substring(0,2), to: expectedMove.uci.substring(2,4), promotion: 'q'});
-        board.position(game.fen()); 
+        board.position(game.fen());
+        markLastMove('#board', expectedMove.uci); markCheck('#board', game);
         moveIndex++; handleStep();
     }
 
@@ -1604,10 +1771,15 @@
         let expectedMove = currentVariation.moves[moveIndex]; 
         
         let move = game.move({ from: source, to: target, promotion: 'q' });
-        if (move === null) return false; 
+        if (move === null) return false;
+        // Il drag ha già posizionato il pezzo: risincronizza la board SOLO per mosse
+        // che spostano più di un pezzo (arrocco/en passant/promozione), evitando il redraw totale.
+        _needBoardSync = /[ekpq]/.test(move.flags);
+        markLastMove('#board', move.from + move.to); markCheck('#board', game);
 
         if (attemptedMove !== expectedMove.uci.substring(0,4)) {
-            game.undo(); 
+            game.undo();
+            markLastMove('#board', null); markCheck('#board', game);
             madeMistake = true;
             
             if (phase === 'REVIEW_ERRORS') {
@@ -1809,22 +1981,34 @@
     }
 
     // --- DRAG E DROP SULLA SCACCHIERA ---
+    let _needBoardSync = false;   // true solo per arrocco/en passant/promozione (redraw necessario)
+    let _selfDropTs = 0;          // timestamp dell'ultimo click-su-pezzo gestito da onDrop (anti doppio-toggle)
     function onDragStart (source, piece) {
-        if (isPreviewing) { clearPreview(); return false; } 
-        
+        if (isPreviewing) { clearPreview(); return false; }
+        _needBoardSync = false;
         removeHighlights();
         if (phase === 'READ' || waitingForAck || game.game_over() || !currentVariation) return false;
         let requiredColorPrefix = currentVariation.perspective === 'white' ? '^w' : '^b';
-        if (piece.search(requiredColorPrefix) === -1) return false; 
+        if (piece.search(requiredColorPrefix) === -1) return false;
+        if (checkUserTurn()) showDots('#board', game, source);   // mosse legali visibili durante il drag
     }
-    
+
     function onDrop (source, target) {
-        if (!currentVariation || waitingForAck || source === target) return 'snapback';
-        let success = evaluateUserMove(source, target, true); 
-        if (!success) return 'snapback'; 
+        if (!currentVariation || waitingForAck) { clearDots('#board'); return 'snapback'; }
+        if (source === target) {
+            // mousedown+rilascio sulla stessa casa = CLICK reale sul pezzo (chessboard.js non
+            // genera click sulle case coi pezzi: il drag lo intercetta) -> prendi/lascia
+            _selfDropTs = Date.now();
+            if (selectedSquare === source) removeHighlights();
+            else if (checkUserTurn()) highlightSquare(source);
+            else clearDots('#board');
+            return 'snapback';
+        }
+        let success = evaluateUserMove(source, target, true);
+        if (!success) return 'snapback';
     }
     
-    function onSnapEnd () { board.position(game.fen(), false); } 
+    function onSnapEnd () { if (_needBoardSync) { board.position(game.fen(), false); _needBoardSync = false; } }
     
     function analyzeOnLichess() {
         let g = isPreviewing ? previewGame : game;
@@ -1840,6 +2024,8 @@
         let square = $(this).attr('data-square');
         let piece = game.get(square);
         let userColor = currentVariation.perspective === 'white' ? 'w' : 'b';
+        // click su un proprio pezzo appena gestito da onDrop (stessa casa): evita il doppio toggle
+        if (piece && piece.color === userColor && Date.now() - _selfDropTs < 400) return;
 
         if (selectedSquare === null) {
             if (piece && piece.color === userColor) highlightSquare(square);
@@ -1856,6 +2042,15 @@
     // TASTIERA
     let _lastSpaceTs = 0;   // debounce Spazio: blocca auto-ripetizione e pressioni ravvicinate (anti-restart variante)
     $(document).on('keydown', function(event) {
+        // Esplora: ← indietro, → avanti (redo o continuazione più comune), f gira. Solo se il focus non è su un campo.
+        if ($('#view-explore').hasClass('active')) {
+            let tag = (event.target && event.target.tagName) || '';
+            if (!/^(INPUT|SELECT|TEXTAREA)$/.test(tag)) {
+                if (event.code === 'ArrowLeft') { event.preventDefault(); exploreBack(); return; }
+                if (event.code === 'ArrowRight') { event.preventDefault(); exploreForwardStep(); return; }
+                if (event.key === 'f' || event.key === 'F') { event.preventDefault(); exploreFlip(); return; }
+            }
+        }
         if (event.key === 'f' || event.key === 'F') { if (board) { event.preventDefault(); board.flip(); } return; }
         if (phase === 'READ') {
             if (event.code === 'ArrowRight') { event.preventDefault(); nextMoveRead(); }

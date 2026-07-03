@@ -366,6 +366,61 @@ h2:hover { color: var(--accent-blue); }
     .navlink { padding: 6px 10px; font-size: 13px; flex: 1; text-align: center; }
 }
 
+/* ===== POLISH GRAFICO ===== */
+/* Ultima mossa + scacco: inset shadow = tinta SOTTO il pezzo (i figli rendono sopra) */
+.sq-last { box-shadow: inset 0 0 0 999px rgba(255, 205, 60, 0.26); }
+[data-theme="light"] .sq-last { box-shadow: inset 0 0 0 999px rgba(228, 165, 0, 0.30); }
+.sq-check { box-shadow: inset 0 0 22px 7px rgba(255, 70, 84, 0.60); }
+.sq-last.sq-check { box-shadow: inset 0 0 0 999px rgba(255, 205, 60, 0.26), inset 0 0 22px 7px rgba(255, 70, 84, 0.60); }
+/* Spegne l'highlight giallo integrato di chessboard.js sul drag (flash fastidioso) */
+.highlight1-32417, .highlight2-9c5d2 { box-shadow: none !important; }
+.piece-417db { cursor: grab; }
+.piece-417db:active { cursor: grabbing; }
+/* Mosse legali del pezzo selezionato: pallino su casa vuota, anello su cattura */
+.sq-dest::after { content: ''; position: absolute; top: 50%; left: 50%; width: 30%; height: 30%; transform: translate(-50%, -50%); border-radius: 50%; background: rgba(76, 154, 255, 0.55); pointer-events: none; z-index: 2; }
+.sq-dest-cap { box-shadow: inset 0 0 0 4px rgba(76, 154, 255, 0.65); }
+.sq-dest, .sq-dest-cap { cursor: pointer; }
+.sq-selected { box-shadow: inset 0 0 0 3px var(--accent-orange); }
+
+/* Nav attiva: hairline gradiente */
+.navlink { position: relative; }
+.navlink.active::after { content: ''; position: absolute; left: 12px; right: 12px; bottom: 1px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan)); }
+
+/* Ingresso viste morbido */
+.view.active { animation: viewIn .16s ease; }
+@keyframes viewIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+/* Esplora: righe continuazioni */
+.exp-move { border-left: 2px solid transparent; transition: background-color .12s, border-color .12s, transform .12s; }
+.exp-move:hover { border-left-color: var(--accent-cyan); transform: translateX(2px); }
+.exp-move:hover .exp-san { color: var(--accent-cyan); }
+.exp-bar { background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan)); border-radius: 4px; transition: width .25s ease; }
+
+/* Pulsanti qualità: lift */
+.qbtn { transition: transform .1s ease, box-shadow .15s ease, filter .15s ease; }
+.qbtn:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.35); filter: brightness(1.08); }
+.qbtn:active { transform: none; filter: brightness(0.95); }
+
+/* Titoli pannello: tick accent */
+.panel-box > .panel-title { padding-left: 11px; position: relative; }
+.panel-box > .panel-title::before { content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 3px; height: 13px; border-radius: 2px; background: linear-gradient(180deg, var(--accent-blue), var(--accent-cyan)); }
+
+/* Scrollbar techy */
+#views::-webkit-scrollbar { width: 10px; }
+#views::-webkit-scrollbar-track { background: transparent; }
+#views::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 5px; border: 2px solid transparent; background-clip: content-box; }
+#views::-webkit-scrollbar-thumb:hover { background-color: var(--accent-blue); }
+
+/* C3: analisi cloud Lichess (eval + linee principali; l'explorer W/D/L è stato reso privato da Lichess: 401) */
+.lx-row { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-bottom: 1px solid var(--border-color); cursor: pointer; border-left: 2px solid transparent; transition: background-color .12s, border-color .12s; }
+.lx-row:hover { background: var(--accent-blue-soft); border-left-color: var(--accent-cyan); }
+.lx-ev { font-family: var(--font-display); font-weight: 700; min-width: 54px; font-size: 12px; text-align: right; }
+.lx-ev-w { color: var(--text-bright); }
+.lx-ev-b { color: var(--accent-violet, #a98bff); }
+.lx-ev-eq { color: var(--text-dim); }
+.lx-pv { flex: 1; font-family: var(--font-mono); font-size: 11.5px; color: var(--text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lx-meta { font-size: 11px; color: var(--text-faint); margin-top: 8px; font-style: italic; }
+
 /* Accessibilità: rispetta la preferenza di movimento ridotto */
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
