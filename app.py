@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, Response
 import chess
 import chess.pgn
 import io
@@ -103,14 +103,21 @@ def import_pgn():
             black = game.headers.get("Black", "")
             title = f"{white} vs {black}" if white or black else f"Linea {count}"
 
+        # Header non-standard dei nostri export PGN: restore fedele di corso/capitolo/colore
+        hdr_course = game.headers.get("Course")
+        hdr_chapter = game.headers.get("Chapter")
+        hdr_persp = game.headers.get("Perspective")
+
         # Posizione di partenza: se il PGN ha un FEN (tattica/strategia) la salva
         start_fen = None
         if game.headers.get("SetUp") == "1" or "FEN" in game.headers:
             start_fen = game.headers.get("FEN")
 
-        # Colore flessibile: 'auto' deduce il lato dal tratto nel FEN, per variante
+        # Colore: header Perspective (nostri export) > 'auto' (dal FEN) > scelta utente
         var_perspective = perspective
-        if perspective == 'auto':
+        if hdr_persp in ('white', 'black'):
+            var_perspective = hdr_persp
+        elif perspective == 'auto':
             if start_fen:
                 var_perspective = 'white' if start_fen.split(' ')[1] == 'w' else 'black'
             else:
@@ -158,8 +165,8 @@ def import_pgn():
 
             if var_id not in data:
                 data[var_id] = {
-                    "course": course_name,
-                    "chapter": derive_chapter(title),
+                    "course": hdr_course or course_name,
+                    "chapter": hdr_chapter or derive_chapter(title),
                     "title": title,
                     "moves": moves_data,
                     "perspective": var_perspective,
@@ -769,5 +776,59 @@ def save_variation():
     save_data(data)
     return jsonify({"success": True, "id": new_id, "rekeyed": bool(editing and new_id != old_id)})
 
+# ===== Export PGN (backup / condivisione): ricostruisce il PGN da moves+comment =====
+@app.route('/api/export', methods=['GET'])
+def export_pgn():
+    """Esporta tutto il repertorio o un solo corso come PGN scaricabile.
+       Header non-standard Course/Chapter/Perspective per fedelta al re-import;
+       i lettori standard (Lichess/ChessBase) li ignorano e leggono le mosse."""
+    course = request.args.get('course') or None
+    data = load_data()
+    games = []
+    for v in data.values():
+        if course and (v.get('course') or 'Varie') != course:
+            continue
+        moves = v.get('moves') or []
+        if not moves:
+            continue
+        game = chess.pgn.Game()
+        game.headers['Event'] = v.get('title') or 'Linea'
+        game.headers['Site'] = 'openrepertoire'
+        game.headers['White'] = v.get('course') or 'Varie'
+        game.headers['Black'] = v.get('chapter') or 'Generale'
+        game.headers['Result'] = '*'
+        game.headers['Course'] = v.get('course') or 'Varie'
+        game.headers['Chapter'] = v.get('chapter') or 'Generale'
+        game.headers['Perspective'] = v.get('perspective') or 'white'
+        start_fen = v.get('startFen')
+        try:
+            board = chess.Board(start_fen) if start_fen else chess.Board()
+        except Exception:
+            board = chess.Board()
+        if start_fen:
+            game.setup(board)
+        node, ok = game, True
+        for m in moves:
+            try:
+                mv = chess.Move.from_uci(m.get('uci', ''))
+                if mv not in board.legal_moves:
+                    ok = False; break
+                node = node.add_variation(mv)
+                board.push(mv)
+                if m.get('comment'):
+                    node.comment = m['comment']
+            except Exception:
+                ok = False; break
+        if ok:
+            games.append(str(game))
+
+    pgn_text = "\n\n".join(games) + ("\n" if games else "")
+    safe = re.sub(r'[^A-Za-z0-9._-]+', '_', (course or 'tutto'))[:60]
+    fname = "openrepertoire_%s_%s.pgn" % (safe, datetime.now().strftime('%Y%m%d'))
+    return Response(pgn_text, mimetype='application/x-chess-pgn',
+                    headers={'Content-Disposition': 'attachment; filename="%s"' % fname,
+                             'X-Export-Count': str(len(games))})
+
 if __name__ == '__main__':
-    app.run(port=5001, debug=os.environ.get('OPENREP_DEBUG') == '1')
+    port = int(os.environ.get('PORT', 5001))   # PORT env -> avvio su porta libera (preview/multi-istanza)
+    app.run(port=port, debug=os.environ.get('OPENREP_DEBUG') == '1')
