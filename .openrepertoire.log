@@ -1,0 +1,38 @@
+ * Serving Flask app 'app'
+ * Debug mode: off
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5001
+[33mPress CTRL+C to quit[0m
+127.0.0.1 - - [22/Jul/2026 20:10:45] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jul/2026 20:10:45] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jul/2026 20:10:45] "[36mGET /static/css/chessboard.min.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Jul/2026 20:10:45] "[36mGET /static/js/jquery.min.js HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Jul/2026 20:10:45] "[36mGET /static/js/chessboard.min.js HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Jul/2026 20:10:45] "GET /static/css/app.css HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jul/2026 20:10:45] "[36mGET /static/js/chess.min.js HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Jul/2026 20:10:45] "[36mGET /static/fonts/space-grotesk-latin-700-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Jul/2026 20:10:45] "[36mGET /static/fonts/inter-latin-400-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Jul/2026 20:10:45] "[36mGET /static/fonts/space-grotesk-latin-500-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Jul/2026 20:10:45] "[36mGET /static/img/chesspieces/cburnett/bN.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Jul/2026 20:10:45] "[36mGET /static/img/chesspieces/cburnett/wP.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Jul/2026 20:10:45] "[36mGET /static/img/chesspieces/cburnett/bQ.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Jul/2026 20:10:45] "GET /api/due HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jul/2026 20:10:45] "[36mGET /static/img/chesspieces/cburnett/bR.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Jul/2026 20:10:45] "[36mGET /static/img/chesspieces/cburnett/bB.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Jul/2026 20:10:45] "[36mGET /static/fonts/inter-latin-700-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Jul/2026 20:10:45] "[36mGET /static/fonts/inter-latin-600-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Jul/2026 20:10:45] "[36mGET /static/img/chesspieces/cburnett/bK.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Jul/2026 20:10:45] "[36mGET /static/img/chesspieces/cburnett/wB.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Jul/2026 20:10:45] "[36mGET /static/img/chesspieces/cburnett/wN.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Jul/2026 20:10:45] "[36mGET /static/img/chesspieces/cburnett/wR.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Jul/2026 20:10:45] "[36mGET /static/img/chesspieces/cburnett/bP.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Jul/2026 20:10:45] "[36mGET /static/img/chesspieces/cburnett/wQ.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Jul/2026 20:10:45] "[36mGET /static/img/chesspieces/cburnett/wK.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Jul/2026 20:10:45] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+127.0.0.1 - - [22/Jul/2026 20:10:54] "[36mGET /static/fonts/jetbrains-mono-latin-400-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Jul/2026 20:11:05] "[36mGET /static/fonts/jetbrains-mono-latin-500-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [22/Jul/2026 20:11:45] "GET /api/holes?course=&perspective=black HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jul/2026 20:11:45] "POST /api/tree HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jul/2026 20:11:50] "POST /api/tree HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jul/2026 20:11:50] "GET /api/holes?course=&perspective=black HTTP/1.1" 200 -
+127.0.0.1 - - [22/Jul/2026 20:12:02] "GET /api/stats HTTP/1.1" 200 -

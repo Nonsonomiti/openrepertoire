@@ -1,17 +1,34 @@
 @echo off
-echo Avvio del server Local Chessable...
+setlocal EnableDelayedExpansion
+title OpenRepertoire
 
-:: Si sposta nella cartella in cui si trova questo file
+:: Si sposta nella cartella di questo file
 cd /d "%~dp0"
 
-:: Controlla e installa le dipendenze in modo silenzioso
-python -m pip install flask chess >nul 2>&1
+:: Dipendenze: installa solo se mancanti (silenzioso)
+python -c "import flask, chess" 2>nul || python -m pip install flask chess >nul 2>&1
 
-:: Avvia l'app in background (non blocca la finestra)
-start /B python app.py
+:: Avvia il server SENZA finestra e scollegato (pythonw = niente console/avvisi)
+start "" pythonw "%~dp0app.py"
 
-:: Attende 2 secondi per far avviare il server
+:: Attende che il server sia pronto
 timeout /t 2 /nobreak >nul
 
-:: Apre il sito nel browser predefinito di Windows
-start http://127.0.0.1:5001
+set "URL=http://127.0.0.1:5001"
+
+:: Apre nel browser gia' aperto (in ordine di preferenza); altrimenti il predefinito
+set "BROWSER="
+for %%B in (chrome msedge brave vivaldi opera firefox) do (
+  if not defined BROWSER (
+    tasklist /FI "IMAGENAME eq %%B.exe" 2>nul | find /I "%%B.exe" >nul && set "BROWSER=%%B.exe"
+  )
+)
+
+if defined BROWSER (
+  start "" "!BROWSER!" "%URL%"
+) else (
+  start "" "%URL%"
+)
+
+:: Fine: la finestra si chiude da sola
+exit

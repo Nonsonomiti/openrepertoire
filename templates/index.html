@@ -19,7 +19,7 @@
             <div class="logo"></div>
             <div class="wm"><div class="n">openrepertoire</div><div class="s">powered by Vortichess</div></div>
         </div>
-        <nav id="topnav">
+        <nav id="topnav" aria-label="Sezioni">
             <button class="navlink" data-nav="impara" onclick="navTo('impara')">Impara</button>
             <button class="navlink" data-nav="repertorio" onclick="navTo('repertorio')">Repertorio</button>
             <button class="navlink" data-nav="esplora" onclick="navTo('esplora')">Esplora</button>
@@ -52,7 +52,7 @@
                 <div id="right-col">
                     <h1 id="title">Seleziona una variante</h1>
                     <div id="train-head"><div id="th-course"></div><div id="th-sub"></div></div>
-                    <div id="status"></div>
+                    <div id="status" role="status" aria-live="polite" aria-atomic="true"></div>
                     <div id="read-controls">
                         <button class="btn btn-read" onclick="prevMoveRead()">⬅️ Indietro</button>
                         <button class="btn btn-read" onclick="nextMoveRead()">Avanti (Spazio) ➡️</button>
@@ -78,6 +78,8 @@
             <div id="repertoire-lists" class="rep-grid">
                 <div class="rep-col-main">
                     <h2 role="button" tabindex="0" onclick="$('#repertoire-wrapper').slideToggle(200)"><span>Tutte le varianti (<span id="rep-count">0</span>)</span><span>▼</span></h2>
+                    <input id="rep-filter" class="rep-filter" type="text" placeholder="🔎 Filtra per titolo, corso o capitolo…" autocomplete="off" aria-label="Filtra varianti" oninput="renderRepertoire()">
+                    <div id="rep-filter-meta" class="rep-filter-meta"></div>
                     <div id="repertoire-wrapper"><div id="repertoire-list"></div></div>
                 </div>
                 <div class="rep-col-side">
@@ -96,6 +98,14 @@
                             </select>
                             <input type="file" id="pgn-file" accept=".pgn" style="color:var(--text-faint); margin-top: 8px; width: 100%;">
                             <button class="btn" onclick="importPGNFile()">Carica File</button>
+                        </div>
+                    </div>
+                    <div class="panel-box">
+                        <div class="panel-title" role="button" tabindex="0" onclick="$('#export-content').slideToggle(200)">Esporta / Backup <span>▼</span></div>
+                        <div id="export-content" style="display:none; margin-top: 10px; border-top: 1px solid var(--border-color); padding-top: 10px;">
+                            <p class="panel-hint" style="margin-top:0;">Scarica le tue varianti in PGN (mosse + commenti). Re-importabile: corso, capitolo e colore vengono ripristinati.</p>
+                            <select id="export-course" class="import-select"><option value="">Tutto il repertorio</option></select>
+                            <button class="btn" onclick="exportPGN()">⬇ Esporta PGN</button>
                         </div>
                     </div>
                     <div class="panel-box">
@@ -273,7 +283,7 @@
 
     </div>
 
-    <div id="toast-wrap"></div>
+    <div id="toast-wrap" aria-live="polite" aria-atomic="false"></div>
 
 <script>
     let board = null;
@@ -301,7 +311,10 @@
     let selectedSquare = null; 
     let cachedLists = { learn: [], review: [], repertoire: [] };
     let currentListMode = '';
-    let sessionKind = null;   // 'learn' | 'review' | null — sessione di allenamento attiva
+    let sessionKind = null;   // 'learn' | 'review' | 'read' | 'drill' | null — sessione attiva
+    let drillList = null, drillCourse = '';   // drill mirato per corso (snapshot fuori da cachedLists)
+    // Lista attiva per progresso/next: drill usa lo snapshot, gli altri modi cachedLists[modo]
+    function activeList() { return (currentListMode === 'drill' ? (drillList || []) : (cachedLists[currentListMode] || [])); }
     
     // PREVIEW INTELLIGENTE
     let isPreviewing = false;
@@ -354,8 +367,8 @@
         if (v === 'train') setTimeout(function() { applyBoardSize(); }, 10);
     }
     function setNavActive(nav) {
-        $('.navlink').removeClass('active');
-        $('.navlink[data-nav="' + nav + '"]').addClass('active');
+        $('.navlink').removeClass('active').removeAttr('aria-current');
+        $('.navlink[data-nav="' + nav + '"]').addClass('active').attr('aria-current', 'page');
     }
     function navTo(nav) {
         setNavActive(nav);
@@ -388,6 +401,27 @@
             startTraining((firstNew || all[0]).id, 'repertoire');
         }
     }
+
+    // Drill mirato per corso: sessione filtrata (dovute -> nuove -> programmate), riusa il motore di training
+    function startDrillCourse(course, event) {
+        if (event && event.stopPropagation) event.stopPropagation();
+        let all = (cachedLists.repertoire || []).filter(function(v) { return (v.course || 'Varie') === course; });
+        if (!all.length) { showToast('Nessuna variante in questo corso.', 'error'); return; }
+        let now = Date.now(), due = [], fresh = [], later = [];
+        all.forEach(function(v) {
+            let rep = (v.srs && v.srs.rep) || 0;
+            if (rep === 0) fresh.push(v);
+            else if (v.srs && v.srs.next_review && new Date(v.srs.next_review).getTime() <= now) due.push(v);
+            else later.push(v);
+        });
+        drillList = due.concat(fresh, later);
+        drillCourse = course;
+        sessionKind = 'drill';
+        showView('train');
+        renderSessionSidebar('drill', true);
+        startTraining(drillList[0].id, 'drill');
+        showToast('Drill « ' + course + ' »: ' + due.length + ' da ripassare · ' + fresh.length + ' nuove', 'success');
+    }
     // Sidebar di sessione: Impara/Repertorio = tutte (✓ se imparate); Ripassa = solo dovute, per capitolo.
     // Guard _sidebarKind: rirenderizza solo se cambia tipo (o force), per non ricostruire 569 voci ad ogni mossa.
     let _sidebarKind = null;
@@ -397,6 +431,9 @@
             if (kind === 'review') {
                 $('#session-title').text('Da ripassare · ' + (cachedLists.review || []).length);
                 renderList(cachedLists.review || [], 'session-list', 'review');
+            } else if (kind === 'drill') {
+                $('#session-title').text('Drill · ' + (drillCourse || '') + ' · ' + (drillList || []).length);
+                renderList(drillList || [], 'session-list', 'drill');
             } else if (kind === 'read') {
                 $('#session-title').text('Repertorio · ✓ = imparata');
                 renderList(cachedLists.repertoire || [], 'session-list', 'read');
@@ -432,6 +469,49 @@
         setTimeout(function() { t.fadeOut(200, function() { t.remove(); }); }, 3200);
     }
 
+    // ===== MODALI IN-APP (rimpiazzano prompt/alert/confirm nativi) =====
+    // Ritornano una Promise: uiConfirm->bool, uiPrompt->string|null, uiAlert->true.
+    function uiModal(opts) {
+        return new Promise(function(resolve) {
+            $('#modal-overlay').remove();
+            let isPrompt = opts.kind === 'prompt', isAlert = opts.kind === 'alert';
+            let ov = $('<div id="modal-overlay"></div>');
+            let card = $('<div class="modal-card" role="dialog" aria-modal="true" aria-label="' + escHtml(opts.title || 'Dialogo') + '"></div>');
+            if (opts.title) card.append($('<div class="modal-title"></div>').text(opts.title));
+            let body = $('<div class="modal-body"></div>');
+            if (opts.message) body.append($('<div class="modal-msg"></div>').html(escHtml(opts.message).replace(/\n/g, '<br>')));
+            let input = null;
+            if (isPrompt) { input = $('<input class="import-select modal-input" autocomplete="off">').val(opts.defaultValue || ''); body.append(input); }
+            let hint = null;
+            if (opts.requireText) {
+                if (!input) { input = $('<input class="import-select modal-input" autocomplete="off">'); body.append(input); }
+                hint = $('<div class="modal-hint"></div>').text('Scrivi "' + opts.requireText + '" per confermare.'); body.append(hint);
+            }
+            let actions = $('<div class="modal-actions"></div>');
+            let okBtn = $('<button class="btn"></button>').text(opts.okText || (isAlert ? 'OK' : 'Conferma'));
+            if (opts.danger) okBtn.addClass('btn-danger');
+            let cancelBtn = isAlert ? null : $('<button class="btn btn-read"></button>').text(opts.cancelText || 'Annulla');
+            function close(val) { $(document).off('keydown.modal'); ov.remove(); resolve(val); }
+            function doOk() {
+                if (opts.requireText && (input ? input.val() : '') !== opts.requireText) { hint && hint.removeClass('shake'); void hint[0].offsetWidth; hint && hint.addClass('shake'); return; }
+                close(isPrompt ? (input ? input.val() : '') : true);
+            }
+            okBtn.on('click', doOk);
+            if (cancelBtn) { cancelBtn.on('click', function() { close(isPrompt ? null : false); }); actions.append(cancelBtn); }
+            actions.append(okBtn);
+            card.append(body, actions);
+            ov.append(card).on('mousedown', function(e) { if (e.target === ov[0]) close(isPrompt ? null : false); }).appendTo('body');
+            $(document).on('keydown.modal', function(e) {
+                if (e.key === 'Escape') { e.preventDefault(); close(isPrompt ? null : false); }
+                else if (e.key === 'Enter') { e.preventDefault(); doOk(); }
+            });
+            setTimeout(function() { (input || okBtn).focus(); if (input && input.select) input.select(); }, 30);
+        });
+    }
+    function uiConfirm(message, opts) { return uiModal(Object.assign({ kind: 'confirm', title: 'Conferma', message: message }, opts || {})); }
+    function uiPrompt(message, defaultValue, opts) { return uiModal(Object.assign({ kind: 'prompt', message: message, defaultValue: defaultValue }, opts || {})); }
+    function uiAlert(message, opts) { return uiModal(Object.assign({ kind: 'alert', message: message }, opts || {})); }
+
     // Stato sotto la board: testo + classe semantica (token-based, niente colori inline)
     function setStatus(text, state) {
         $('#status').show().text(text)
@@ -444,7 +524,7 @@
     function updateProgress() {
         let el = $('#move-progress');
         if (!currentVariation) { el.empty(); return; }
-        let list = cachedLists[currentListMode] || [];
+        let list = activeList();
         let vi = list.findIndex(function(v) { return v.id === currentVariation.id; });
         let total = currentVariation.moves.length;
         let mv = Math.min(moveIndex, total);
@@ -486,7 +566,7 @@
         if (currentVariation && currentVariation.startFen) g.load(currentVariation.startFen);
         for (let i = 0; i < n; i++) {
             let m = currentVariation.moves[i];
-            g.move({from: m.uci.substring(0,2), to: m.uci.substring(2,4), promotion: 'q'});
+            g.move({from: m.uci.substring(0,2), to: m.uci.substring(2,4), promotion: m.uci.length > 4 ? m.uci[4] : 'q'});
         }
     }
 
@@ -673,9 +753,10 @@
             let cExpanded = expandedCourses[safeCourse];
             if (cExpanded === undefined) cExpanded = !isRep;
 
-            let cRenameBtn = isRep ? `<button class="btn-delete" onclick="renameCourse('${esc(course)}', event)" title="Rinomina corso">✎</button> ` : '';
-            let delBtn = isRep ? `<button class="btn-delete" onclick="deleteCourse('${esc(course)}', event)" title="Elimina corso">🗑</button> ` : '';
-            list.append(`<div class="course-header" role="button" tabindex="0" onclick="toggleCourse('${safeCourse}')"><span>${escHtml(course)}</span><span>${cRenameBtn}${delBtn}▼</span></div>`);
+            let drillBtn = isRep ? `<button class="btn-delete" onclick="startDrillCourse('${esc(course)}', event)" title="Studia questo corso" aria-label="Studia il corso ${escHtml(course)}">▶</button> ` : '';
+            let cRenameBtn = isRep ? `<button class="btn-delete" onclick="renameCourse('${esc(course)}', event)" title="Rinomina corso" aria-label="Rinomina il corso ${escHtml(course)}">✎</button> ` : '';
+            let delBtn = isRep ? `<button class="btn-delete" onclick="deleteCourse('${esc(course)}', event)" title="Elimina corso" aria-label="Elimina il corso ${escHtml(course)}">🗑</button> ` : '';
+            list.append(`<div class="course-header" role="button" tabindex="0" onclick="toggleCourse('${safeCourse}')"><span>${escHtml(course)}</span><span>${drillBtn}${cRenameBtn}${delBtn}▼</span></div>`);
             let courseDiv = $(`<div id="${safeCourse}" class="course-content" style="display: ${cExpanded ? 'block' : 'none'};"></div>`);
 
             let chapters = grouped[course];
@@ -689,8 +770,8 @@
                     let chExpanded = expandedCourses[safeChap];
                     // Capitoli chiusi di default; aperto solo quello della variante attiva
                     if (chExpanded === undefined) chExpanded = !!(currentVariation && (currentVariation.course || 'Varie') === course && (currentVariation.chapter || 'Generale') === chap);
-                    let editBtn = isRep ? `<button class="btn-delete" onclick="renameChapter('${esc(course)}', '${esc(chap)}', event)" title="Rinomina capitolo">✎</button> ` : '';
-                    let mergeBtn = isRep ? `<button class="btn-delete" onclick="mergeChapter('${esc(course)}', '${esc(chap)}', event)" title="Unisci a un altro capitolo">🔗</button> ` : '';
+                    let editBtn = isRep ? `<button class="btn-delete" onclick="renameChapter('${esc(course)}', '${esc(chap)}', event)" title="Rinomina capitolo" aria-label="Rinomina il capitolo ${escHtml(chap)}">✎</button> ` : '';
+                    let mergeBtn = isRep ? `<button class="btn-delete" onclick="mergeChapter('${esc(course)}', '${esc(chap)}', event)" title="Unisci a un altro capitolo" aria-label="Unisci il capitolo ${escHtml(chap)}">🔗</button> ` : '';
                     courseDiv.append(`<div class="chapter-header" role="button" tabindex="0" onclick="toggleCourse('${safeChap}')"><span>${escHtml(chap)}</span><span>${editBtn}${mergeBtn}▾</span></div>`);
                     target = $(`<div id="${safeChap}" class="chapter-content" style="display: ${chExpanded ? 'block' : 'none'};"></div>`);
                 }
@@ -698,15 +779,23 @@
                 chapters[chap].forEach(v => {
                     let isSession = (listId === 'session-list');
                     let onClickAction = mode === 'read' ? `startReadMode('${v.id}', 'repertoire')` : `startTraining('${v.id}', '${mode}')`;
-                    let editLineBtn = isRep ? `<button class="btn-delete" onclick="event.stopPropagation(); openEditor('${v.id}')" title="Modifica mosse">✏️</button>` : '';
-                    let courseBtn = isRep ? `<button class="btn-delete" onclick="editVarCourse('${v.id}', event)" title="Sposta in corso">📚</button>` : '';
-                    let moveBtn = isRep ? `<button class="btn-delete" onclick="editVarChapter('${v.id}', event)" title="Sposta in capitolo">📂</button>` : '';
-                    let delBtn = isSession ? '' : `<button class="btn-delete" onclick="deleteVariation('${v.id}', event)">✕</button>`;
+                    let editLineBtn = isRep ? `<button class="btn-delete" onclick="event.stopPropagation(); openEditor('${v.id}')" title="Modifica mosse" aria-label="Modifica le mosse della variante">✏️</button>` : '';
+                    let courseBtn = isRep ? `<button class="btn-delete" onclick="editVarCourse('${v.id}', event)" title="Sposta in corso" aria-label="Sposta la variante in un altro corso">📚</button>` : '';
+                    let moveBtn = isRep ? `<button class="btn-delete" onclick="editVarChapter('${v.id}', event)" title="Sposta in capitolo" aria-label="Sposta la variante in un altro capitolo">📂</button>` : '';
+                    let delBtn = isSession ? '' : `<button class="btn-delete" onclick="deleteVariation('${v.id}', event)" title="Elimina variante" aria-label="Elimina la variante">✕</button>`;
                     let learned = v.srs && v.srs.rep > 0;
                     let flair = (isSession && mode !== 'review') ? `<span class="flair ${learned ? 'done' : 'todo'}">${learned ? '✓' : '•'}</span>` : '';
+                    // Pallino stato SRS (solo lista repertorio): nuova / da ripassare / programmata
+                    let srsDot = '';
+                    if (isRep) {
+                        let rep = (v.srs && v.srs.rep) || 0, cls = 'srs-ok', lab = 'programmata';
+                        if (rep === 0) { cls = 'srs-new'; lab = 'da imparare'; }
+                        else if (v.srs && v.srs.next_review && new Date(v.srs.next_review).getTime() <= Date.now()) { cls = 'srs-due'; lab = 'da ripassare'; }
+                        srsDot = `<span class="srs-dot ${cls}" title="${lab}" aria-label="Stato ripasso: ${lab}"></span>`;
+                    }
                     target.append(`
                         <div class="var-container" data-var-id="${v.id}">
-                            ${flair}
+                            ${flair}${srsDot}
                             <div class="var-item" ${isRep ? 'role="button" tabindex="0"' : ''} onclick="${onClickAction}">${v.displayTitle}</div>
                             ${editLineBtn}
                             ${courseBtn}
@@ -733,10 +822,37 @@
 
     function populateSearchCourses(repertoire) {
         let courses = [...new Set(repertoire.map(v => v.course || 'Varie'))].sort();
-        let sel = $('#search-course');
-        let cur = sel.val();
-        sel.html('<option value="">Tutti i corsi</option>' + courses.map(c => `<option value="${c}">${c}</option>`).join(''));
-        sel.val(cur);
+        let opts = courses.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');   // escaping (nomi da PGN/utente)
+        let sel = $('#search-course'), cur = sel.val();
+        sel.html('<option value="">Tutti i corsi</option>' + opts); sel.val(cur);
+        let ex = $('#export-course'), curE = ex.val();
+        ex.html('<option value="">Tutto il repertorio</option>' + opts); ex.val(curE);
+    }
+
+    // Repertorio filtrabile live (titolo/corso/capitolo). globalVariantsMap resta comunque completo.
+    function renderRepertoire() {
+        let all = cachedLists.repertoire || [];
+        let q = ($('#rep-filter').val() || '').trim().toLowerCase();
+        let list = q ? all.filter(function(v) {
+            return ((v.title || '') + ' ' + (v.course || '') + ' ' + (v.chapter || '')).toLowerCase().indexOf(q) !== -1;
+        }) : all;
+        renderList(list, 'repertoire-list', 'read');
+        let meta = $('#rep-filter-meta');
+        if (q) {
+            meta.text(list.length + ' di ' + all.length + ' varianti').show();
+            $('#repertoire-wrapper').show();
+            $('#repertoire-list .course-content, #repertoire-list .chapter-content').show();   // filtro: espandi i match
+        } else { meta.hide(); }
+    }
+
+    // Export PGN (tutto o un corso): download diretto via Content-Disposition del server
+    function exportPGN() {
+        let c = $('#export-course').val() || '';
+        let url = '/api/export' + (c ? '?course=' + encodeURIComponent(c) : '');
+        let a = document.createElement('a');
+        a.href = url; a.download = '';
+        document.body.appendChild(a); a.click(); a.remove();
+        showToast('Esportazione PGN avviata…', 'success');
     }
 
     function loadDueVariations() {
@@ -744,10 +860,10 @@
             if (localStorage.getItem('shuffleReview') === '1') shuffleArray(data.review);
             cachedLists = { learn: data.learn, review: data.review, repertoire: data.repertoire };
             $('#rep-count').text(data.repertoire.length);
+            // globalVariantsMap sempre COMPLETO (indipendente dal filtro repertorio attivo)
             globalVariantsMap = {};
-            renderList(data.learn, 'learn-list', 'learn');
-            renderList(data.review, 'review-list', 'review');
-            renderList(data.repertoire, 'repertoire-list', 'read');
+            data.repertoire.forEach(function(v) { globalVariantsMap[v.id] = v; });
+            renderRepertoire();   // filtro-aware (learn/review-list erano id inesistenti: rimossi)
             populateSearchCourses(data.repertoire);
             highlightActiveVar();
 
@@ -769,12 +885,14 @@
     // --- GESTIONE CAPITOLI ---
     function renameChapter(course, chap, event) {
         event.stopPropagation();
-        let nuovo = prompt(`Rinomina capitolo "${chap}":`, chap);
-        if (!nuovo || nuovo === chap) return;
-        $.ajax({
-            url: '/api/rename_chapter', type: 'POST', contentType: 'application/json',
-            data: JSON.stringify({ course: course, old: chap, new: nuovo }),
-            success: function() { loadDueVariations(); }
+        uiPrompt(`Rinomina capitolo "${chap}":`, chap, { title: 'Rinomina capitolo' }).then(function(nuovo) {
+            if (nuovo == null) return; nuovo = nuovo.trim();
+            if (!nuovo || nuovo === chap) return;
+            $.ajax({
+                url: '/api/rename_chapter', type: 'POST', contentType: 'application/json',
+                data: JSON.stringify({ course: course, old: chap, new: nuovo }),
+                success: function() { loadDueVariations(); }
+            });
         });
     }
 
@@ -782,12 +900,14 @@
         event.stopPropagation();
         let v = globalVariantsMap[id];
         let cur = v ? (v.chapter || 'Generale') : 'Generale';
-        let nuovo = prompt('Sposta la variante nel capitolo:', cur);
-        if (nuovo === null || nuovo.trim() === '' || nuovo === cur) return;
-        $.ajax({
-            url: '/api/set_chapter', type: 'POST', contentType: 'application/json',
-            data: JSON.stringify({ id: id, chapter: nuovo }),
-            success: function() { loadDueVariations(); }
+        uiPrompt('Sposta la variante nel capitolo:', cur, { title: 'Sposta in capitolo' }).then(function(nuovo) {
+            if (nuovo == null) return; nuovo = nuovo.trim();
+            if (!nuovo || nuovo === cur) return;
+            $.ajax({
+                url: '/api/set_chapter', type: 'POST', contentType: 'application/json',
+                data: JSON.stringify({ id: id, chapter: nuovo }),
+                success: function() { loadDueVariations(); }
+            });
         });
     }
 
@@ -795,34 +915,40 @@
         event.stopPropagation();
         let v = globalVariantsMap[id];
         let cur = v ? (v.course || 'Varie') : 'Varie';
-        let nuovo = prompt('Sposta la variante nel corso:', cur);
-        if (nuovo === null || nuovo.trim() === '' || nuovo === cur) return;
-        $.ajax({
-            url: '/api/set_course', type: 'POST', contentType: 'application/json',
-            data: JSON.stringify({ id: id, course: nuovo.trim() }),
-            success: function() { loadDueVariations(); }
+        uiPrompt('Sposta la variante nel corso:', cur, { title: 'Sposta in corso' }).then(function(nuovo) {
+            if (nuovo == null) return; nuovo = nuovo.trim();
+            if (!nuovo || nuovo === cur) return;
+            $.ajax({
+                url: '/api/set_course', type: 'POST', contentType: 'application/json',
+                data: JSON.stringify({ id: id, course: nuovo }),
+                success: function() { loadDueVariations(); }
+            });
         });
     }
 
     function renameCourse(course, event) {
         event.stopPropagation();
-        let nuovo = prompt(`Rinomina corso "${course}":`, course);
-        if (!nuovo || nuovo.trim() === '' || nuovo === course) return;
-        $.ajax({
-            url: '/api/rename_course', type: 'POST', contentType: 'application/json',
-            data: JSON.stringify({ old: course, new: nuovo.trim() }),
-            success: function() { loadDueVariations(); }
+        uiPrompt(`Rinomina corso "${course}":`, course, { title: 'Rinomina corso' }).then(function(nuovo) {
+            if (nuovo == null) return; nuovo = nuovo.trim();
+            if (!nuovo || nuovo === course) return;
+            $.ajax({
+                url: '/api/rename_course', type: 'POST', contentType: 'application/json',
+                data: JSON.stringify({ old: course, new: nuovo }),
+                success: function() { loadDueVariations(); }
+            });
         });
     }
 
     function mergeChapter(course, chap, event) {
         event.stopPropagation();
-        let dst = prompt(`Unisci il capitolo "${chap}" in quale altro capitolo?\n(le sue varianti verranno spostate là)`, '');
-        if (dst === null || dst.trim() === '' || dst.trim() === chap) return;
-        $.ajax({
-            url: '/api/merge_chapter', type: 'POST', contentType: 'application/json',
-            data: JSON.stringify({ course: course, from: chap, to: dst.trim() }),
-            success: function() { loadDueVariations(); }
+        uiPrompt(`Unisci il capitolo "${chap}" in quale altro capitolo?\nLe sue varianti verranno spostate là.`, '', { title: 'Unisci capitolo' }).then(function(dst) {
+            if (dst == null) return; dst = dst.trim();
+            if (!dst || dst === chap) return;
+            $.ajax({
+                url: '/api/merge_chapter', type: 'POST', contentType: 'application/json',
+                data: JSON.stringify({ course: course, from: chap, to: dst }),
+                success: function() { loadDueVariations(); }
+            });
         });
     }
 
@@ -854,7 +980,7 @@
             let h = o.cnt ? Math.round(6 + 96 * o.cnt / max) : 2;
             let lab = o.i === 0 ? 'Oggi' : (o.d.getDate() + '/' + (o.d.getMonth() + 1));
             let tip = `${o.d.toLocaleDateString('it-IT', {weekday:'long', day:'numeric', month:'long'})}: ${o.cnt} ripass${o.cnt === 1 ? 'o' : 'i'}`;
-            return `<div class="bar-col" title="${tip}"><div class="bar-val">${o.cnt || ''}</div><div class="bar" style="height:${h}px"></div><div class="bar-lab">${lab}</div></div>`;
+            return `<div class="bar-col" role="img" tabindex="0" aria-label="${tip}" title="${tip}"><div class="bar-val">${o.cnt || ''}</div><div class="bar" style="height:${h}px"></div><div class="bar-lab">${lab}</div></div>`;
         }).join('');
 
         let hardestHtml = s.hardest.length
@@ -871,7 +997,7 @@
             let tip = o.reviews
                 ? `${dd.toLocaleDateString('it-IT', {weekday:'long', day:'numeric', month:'long'})}: ${o.rate}% (${o.recalled}/${o.reviews})`
                 : `${dd.toLocaleDateString('it-IT', {day:'numeric', month:'long'})}: nessun ripasso`;
-            return `<div class="bar-col" title="${tip}"><div class="bar-val">${o.rate == null ? '' : o.rate}</div><div class="rbar ${cls}" style="height:${h}px"></div><div class="bar-lab">${lab}</div></div>`;
+            return `<div class="bar-col" role="img" tabindex="0" aria-label="${tip}" title="${tip}"><div class="bar-val">${o.rate == null ? '' : o.rate}</div><div class="rbar ${cls}" style="height:${h}px"></div><div class="bar-lab">${lab}</div></div>`;
         }).join('');
 
         // Accuratezza per corso
@@ -890,13 +1016,13 @@
         $('#stats-body').html(`
             <div class="kpi-grid">${kpiHtml}</div>
             <h3 class="stats-h">Tasso di richiamo · ultimi 14 giorni (${ret.overall}%)</h3>
-            <div class="bar-chart retention">${retBars}</div>
+            <div class="bar-chart retention" role="group" aria-label="Tasso di richiamo, ultimi 14 giorni">${retBars}</div>
             <h3 class="stats-h">Accuratezza per corso</h3>
             <div class="stat-list">${courseRows}</div>
             <h3 class="stats-h">Accuratezza per colore</h3>
             <div class="stat-list">${colorRows}</div>
             <h3 class="stats-h">Ripassi in arrivo (14 giorni)</h3>
-            <div class="bar-chart">${barsHtml}</div>
+            <div class="bar-chart" role="group" aria-label="Ripassi in arrivo, prossimi 14 giorni">${barsHtml}</div>
             <h3 class="stats-h">Varianti più difficili</h3>
             <div class="hard-list">${hardestHtml}</div>
         `);
@@ -1295,11 +1421,14 @@
         } else { $('#edit-startfen-note').hide().empty(); }
     }
     function editResetStart() {
-        if (editMoves.length && !confirm('Tornare alla posizione iniziale standard? Le mosse correnti verranno rimosse.')) return;
-        editStartFen = null; editStartMeta = fenMeta(null);
-        editMoves = []; editGame = new Chess();
-        if (editBoard) editBoard.position('start', false);
-        renderStartFenNote(); renderEditMoves();
+        let go = function() {
+            editStartFen = null; editStartMeta = fenMeta(null);
+            editMoves = []; editGame = new Chess();
+            if (editBoard) editBoard.position('start', false);
+            renderStartFenNote(); renderEditMoves();
+        };
+        if (editMoves.length) uiConfirm('Tornare alla posizione iniziale standard? Le mosse correnti verranno rimosse.', { danger: true, okText: 'Azzera' }).then(function(ok) { if (ok) go(); });
+        else go();
     }
     function editSave() {
         let title = $('#edit-title').val().trim();
@@ -1408,7 +1537,7 @@
 
     function searchPosition() {
         let fen = $('#search-fen').val().trim();
-        if (!fen) return alert('Inserisci un FEN o usa la posizione della scacchiera.');
+        if (!fen) { showToast('Inserisci un FEN o usa la posizione della scacchiera.', 'error'); return; }
         $.ajax({
             url: '/api/search_position', type: 'POST', contentType: 'application/json',
             data: JSON.stringify({ fen: fen, course: $('#search-course').val() || null }),
@@ -1426,7 +1555,7 @@
     }
 
     function openSearchHit(id, moveIndex) {
-        if (!globalVariantsMap[id]) return alert('Variante non disponibile.');
+        if (!globalVariantsMap[id]) { showToast('Variante non disponibile.', 'error'); return; }
         startReadMode(id, 'repertoire');
         jumpToReadMove(moveIndex);
     }
@@ -1434,13 +1563,13 @@
     function importPGNFile() {
         let fileInput = document.getElementById('pgn-file');
         let perspectiveInput = document.getElementById('pgn-perspective');
-        if (fileInput.files.length === 0) return alert("Seleziona un file!");
+        if (fileInput.files.length === 0) { showToast("Seleziona un file PGN.", 'error'); return; }
         let reader = new FileReader();
         reader.onload = function(e) {
             $.ajax({
                 url: '/api/import', type: 'POST', contentType: 'application/json',
                 data: JSON.stringify({ pgn: e.target.result, course: fileInput.files[0].name.replace(/\.[^/.]+$/, ""), perspective: perspectiveInput.value }),
-                success: function(res) { let msg = `Corso importato!\n${res.imported} varianti aggiunte.`; if (res.skipped) msg += `\n${res.skipped} linee saltate (mosse illegali nel PGN).`; alert(msg); fileInput.value = ""; loadDueVariations(); }
+                success: function(res) { let msg = `${res.imported} varianti importate` + (res.skipped ? ` · ${res.skipped} linee saltate (mosse illegali)` : ''); showToast(msg, 'success'); fileInput.value = ""; loadDueVariations(); }
             });
         };
         reader.readAsText(fileInput.files[0]);
@@ -1448,7 +1577,8 @@
 
     function deleteVariation(id, event) {
         event.stopPropagation();
-        if (confirm("Eliminare definitivamente?")) {
+        uiConfirm("Eliminare definitivamente questa variante?", { danger: true, okText: 'Elimina' }).then(function(ok) {
+            if (!ok) return;
             $.ajax({
                 url: '/api/delete', type: 'POST', contentType: 'application/json', data: JSON.stringify({id: id}),
                 success: function(res) {
@@ -1461,30 +1591,32 @@
                     }
                 }
             });
-        }
+        });
     }
 
     function deleteCourse(course, event) {
         event.stopPropagation();
-        let answer = prompt(`Eliminare TUTTO il corso "${course}"?\nQuesta azione è irreversibile.\n\nScrivi "delete" per confermare:`);
-        if (answer !== "delete") return;
-        $.ajax({
-            url: '/api/delete_course', type: 'POST', contentType: 'application/json',
-            data: JSON.stringify({course: course}),
-            success: function(res) {
-                if (res.success) {
-                    loadDueVariations();
-                    if (currentVariation && (currentVariation.course || 'Varie') === course) {
-                        currentVariation = null; board.start(); $('#title').text("Seleziona una variante");
-                        $('#status').text(""); $('#annotation-box').hide(); $('#read-controls').hide();
+        uiConfirm(`Eliminare TUTTO il corso "${course}"? L'azione è irreversibile.`,
+                  { danger: true, okText: 'Elimina corso', requireText: 'delete' }).then(function(ok) {
+            if (!ok) return;
+            $.ajax({
+                url: '/api/delete_course', type: 'POST', contentType: 'application/json',
+                data: JSON.stringify({course: course}),
+                success: function(res) {
+                    if (res.success) {
+                        loadDueVariations();
+                        if (currentVariation && (currentVariation.course || 'Varie') === course) {
+                            currentVariation = null; board.start(); $('#title').text("Seleziona una variante");
+                            $('#status').text(""); $('#annotation-box').hide(); $('#read-controls').hide();
+                        }
                     }
                 }
-            }
+            });
         });
     }
 
     function getNextVariation() {
-        let list = cachedLists[currentListMode] || [];
+        let list = activeList();
         let idx = list.findIndex(v => v.id === currentVariation.id);
         return (idx !== -1 && idx + 1 < list.length) ? list[idx + 1] : null;
     }
@@ -1536,8 +1668,8 @@
         clearPreview(); 
         if (moveIndex < currentVariation.moves.length) {
             let move = currentVariation.moves[moveIndex];
-            game.move({from: move.uci.substring(0,2), to: move.uci.substring(2,4), promotion: 'q'});
-            board.position(game.fen()); 
+            game.move({from: move.uci.substring(0,2), to: move.uci.substring(2,4), promotion: move.uci.length > 4 ? move.uci[4] : 'q'});
+            board.position(game.fen());
             moveIndex++; updateReadModeUI();
         }
     }
@@ -1756,7 +1888,7 @@
 
     function executeComputerMove() {
         let expectedMove = currentVariation.moves[moveIndex];
-        game.move({from: expectedMove.uci.substring(0,2), to: expectedMove.uci.substring(2,4), promotion: 'q'});
+        game.move({from: expectedMove.uci.substring(0,2), to: expectedMove.uci.substring(2,4), promotion: expectedMove.uci.length > 4 ? expectedMove.uci[4] : 'q'});
         board.position(game.fen());
         markLastMove('#board', expectedMove.uci); markCheck('#board', game);
         moveIndex++; handleStep();
@@ -2042,14 +2174,14 @@
     // TASTIERA
     let _lastSpaceTs = 0;   // debounce Spazio: blocca auto-ripetizione e pressioni ravvicinate (anti-restart variante)
     $(document).on('keydown', function(event) {
-        // Esplora: ← indietro, → avanti (redo o continuazione più comune), f gira. Solo se il focus non è su un campo.
+        // Mai intercettare scorciatoie mentre si digita in un campo o con un modale aperto
+        let tag = (event.target && event.target.tagName) || '';
+        if (/^(INPUT|SELECT|TEXTAREA)$/.test(tag) || (event.target && event.target.isContentEditable) || $('#modal-overlay').length) return;
+        // Esplora: ← indietro, → avanti (redo o continuazione più comune), f gira.
         if ($('#view-explore').hasClass('active')) {
-            let tag = (event.target && event.target.tagName) || '';
-            if (!/^(INPUT|SELECT|TEXTAREA)$/.test(tag)) {
-                if (event.code === 'ArrowLeft') { event.preventDefault(); exploreBack(); return; }
-                if (event.code === 'ArrowRight') { event.preventDefault(); exploreForwardStep(); return; }
-                if (event.key === 'f' || event.key === 'F') { event.preventDefault(); exploreFlip(); return; }
-            }
+            if (event.code === 'ArrowLeft') { event.preventDefault(); exploreBack(); return; }
+            if (event.code === 'ArrowRight') { event.preventDefault(); exploreForwardStep(); return; }
+            if (event.key === 'f' || event.key === 'F') { event.preventDefault(); exploreFlip(); return; }
         }
         if (event.key === 'f' || event.key === 'F') { if (board) { event.preventDefault(); board.flip(); } return; }
         if (phase === 'READ') {
