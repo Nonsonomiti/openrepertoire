@@ -184,3 +184,48 @@
 127.0.0.1 - - [23/Jul/2026 13:20:57] "[36mGET /static/img/chesspieces/cburnett/wN.svg HTTP/1.1[0m" 304 -
 127.0.0.1 - - [23/Jul/2026 13:20:57] "[36mGET /static/img/chesspieces/cburnett/wK.svg HTTP/1.1[0m" 304 -
 127.0.0.1 - - [23/Jul/2026 13:20:58] "[36mGET /static/fonts/jetbrains-mono-latin-500-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 14:20:20] "GET /api/export?chapter=1.%20Keres%20Attack%20with%207.h4&strip=1&merge=1 HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 14:20:38] "GET /api/export?chapter=1.%20Keres%20Attack%20with%207.h4&strip=1&merge=1 HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 14:20:40] "GET /api/export?chapter=2.%20Keres%20Attack%20-%20Various%207th%20Moves&strip=1&merge=1 HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 14:20:42] "GET /api/export?chapter=2.Nc3%20d6%203.d4%20-%20for%202...d6&strip=1&merge=1 HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 14:21:17] "GET /api/export?course=Modern%20Scheveningen%20Sicilian&chapter=3.%20Classical%20Variation%20-%206.Be2&strip=1&merge=1 HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 14:21:20] "GET /api/export?course=Modern%20Scheveningen%20Sicilian&chapter=4.%20The%20English%20Attack%20-%206.Be3&strip=1&merge=1 HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 14:21:22] "GET /api/export?course=Modern%20Scheveningen%20Sicilian&chapter=5.%20The%20Sozin%20Attack%20-%206.Bc4&strip=1&merge=1 HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 14:21:24] "GET /api/export?course=Modern%20Scheveningen%20Sicilian&chapter=6.%20The%20Fianchetto%20Line%20-%206.g3&strip=1&merge=1 HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 14:21:26] "GET /api/export?course=Modern%20Scheveningen%20Sicilian&chapter=7.%20White%20Plays%206.f4&strip=1&merge=1 HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 14:21:29] "GET /api/export?course=Modern%20Scheveningen%20Sicilian&chapter=8.%20Various%206th%20Moves&strip=1&merge=1 HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 14:41:58] "POST /api/delete_course HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 14:41:58] "GET /api/due HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 14:42:41] "POST /api/import HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 14:42:41] "GET /api/due HTTP/1.1" 200 -
+ * Serving Flask app 'app'
+ * Debug mode: off
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5001
+[33mPress CTRL+C to quit[0m
+127.0.0.1 - - [23/Jul/2026 14:43:56] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 14:43:56] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 14:43:56] "[36mGET /static/css/chessboard.min.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 14:43:56] "[36mGET /static/js/chessboard.min.js HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 14:43:56] "[36mGET /static/js/jquery.min.js HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 14:43:56] "[36mGET /static/css/app.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 14:43:56] "[36mGET /static/js/chess.min.js HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 14:43:56] "[36mGET /static/fonts/space-grotesk-latin-700-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 14:43:56] "[36mGET /static/fonts/space-grotesk-latin-500-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 14:43:56] "[36mGET /static/fonts/inter-latin-400-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 14:43:56] "[36mGET /static/img/chesspieces/cburnett/wP.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 14:43:56] "[36mGET /static/img/chesspieces/cburnett/bR.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 14:43:56] "GET /api/due HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 14:43:56] "[36mGET /static/img/chesspieces/cburnett/bN.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 14:43:56] "[36mGET /static/img/chesspieces/cburnett/bB.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 14:43:56] "[36mGET /static/img/chesspieces/cburnett/bQ.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 14:43:56] "[36mGET /static/fonts/inter-latin-600-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 14:43:56] "[36mGET /static/fonts/inter-latin-700-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 14:43:56] "[36mGET /static/img/chesspieces/cburnett/bK.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 14:43:56] "[36mGET /static/img/chesspieces/cburnett/bP.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 14:43:56] "[36mGET /static/img/chesspieces/cburnett/wR.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 14:43:56] "[36mGET /static/img/chesspieces/cburnett/wN.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 14:43:56] "[36mGET /static/img/chesspieces/cburnett/wB.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 14:43:56] "[36mGET /static/img/chesspieces/cburnett/wQ.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 14:43:56] "[36mGET /static/img/chesspieces/cburnett/wK.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 14:44:08] "GET /api/export?course=Modern%20Scheveningen%20Sicilian&chapter=1.%20Keres%20Attack%20with%207.h4&merge=1 HTTP/1.1" 200 -
