@@ -36,3 +36,151 @@
 127.0.0.1 - - [22/Jul/2026 20:11:50] "POST /api/tree HTTP/1.1" 200 -
 127.0.0.1 - - [22/Jul/2026 20:11:50] "GET /api/holes?course=&perspective=black HTTP/1.1" 200 -
 127.0.0.1 - - [22/Jul/2026 20:12:02] "GET /api/stats HTTP/1.1" 200 -
+ * Serving Flask app 'app'
+ * Debug mode: off
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5001
+[33mPress CTRL+C to quit[0m
+127.0.0.1 - - [23/Jul/2026 11:50:23] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 11:50:23] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 11:50:23] "[36mGET /static/js/chess.min.js HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 11:50:23] "[36mGET /static/js/jquery.min.js HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 11:50:23] "[36mGET /static/css/chessboard.min.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 11:50:23] "[36mGET /static/js/chessboard.min.js HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 11:50:23] "[36mGET /static/css/app.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 11:50:23] "[36mGET /static/fonts/inter-latin-400-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 11:50:23] "[36mGET /static/fonts/space-grotesk-latin-500-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 11:50:23] "[36mGET /static/fonts/space-grotesk-latin-700-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 11:50:23] "[36mGET /static/img/chesspieces/cburnett/bR.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 11:50:23] "GET /api/due HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 11:50:23] "[36mGET /static/img/chesspieces/cburnett/wP.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 11:50:23] "[36mGET /static/img/chesspieces/cburnett/bQ.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 11:50:23] "[36mGET /static/img/chesspieces/cburnett/bB.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 11:50:23] "[36mGET /static/img/chesspieces/cburnett/bN.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 11:50:23] "[36mGET /static/fonts/inter-latin-600-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 11:50:23] "[36mGET /static/img/chesspieces/cburnett/bK.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 11:50:23] "[36mGET /static/fonts/inter-latin-700-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 11:50:23] "[36mGET /static/img/chesspieces/cburnett/bP.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 11:50:23] "[36mGET /static/img/chesspieces/cburnett/wR.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 11:50:23] "[36mGET /static/img/chesspieces/cburnett/wB.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 11:50:23] "[36mGET /static/img/chesspieces/cburnett/wN.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 11:50:23] "[36mGET /static/img/chesspieces/cburnett/wQ.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 11:50:23] "[36mGET /static/img/chesspieces/cburnett/wK.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 11:50:23] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+127.0.0.1 - - [23/Jul/2026 11:50:35] "POST /api/tree HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 11:50:35] "GET /api/holes?course=&perspective=black HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 11:50:35] "[36mGET /static/fonts/jetbrains-mono-latin-400-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 11:50:38] "GET /api/holes?course=Modern%20Scheveningen%20Sicilian&perspective=black HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 11:50:38] "POST /api/tree HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 11:50:42] "POST /api/tree HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 11:50:43] "POST /api/tree HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 11:50:44] "POST /api/tree HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 11:50:46] "POST /api/tree HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 11:50:47] "POST /api/tree HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 11:50:47] "POST /api/tree HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 11:50:48] "POST /api/tree HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 11:50:48] "POST /api/tree HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 11:50:48] "POST /api/tree HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 11:50:49] "POST /api/tree HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 11:50:49] "POST /api/tree HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 11:50:50] "POST /api/tree HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 11:55:04] "POST /api/tree HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 11:55:04] "GET /api/holes?course=Modern%20Scheveningen%20Sicilian&perspective=black HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 11:55:05] "[36mGET /static/fonts/jetbrains-mono-latin-500-normal.woff2 HTTP/1.1[0m" 304 -
+ * Serving Flask app 'app'
+ * Debug mode: off
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5001
+[33mPress CTRL+C to quit[0m
+127.0.0.1 - - [23/Jul/2026 12:16:06] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 12:16:06] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 12:16:06] "[36mGET /static/js/jquery.min.js HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 12:16:06] "[36mGET /static/css/chessboard.min.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 12:16:06] "[36mGET /static/css/app.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 12:16:07] "[36mGET /static/js/chessboard.min.js HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 12:16:07] "[36mGET /static/js/chess.min.js HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 12:16:07] "[36mGET /static/fonts/inter-latin-400-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 12:16:07] "[36mGET /static/fonts/space-grotesk-latin-500-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 12:16:07] "[36mGET /static/fonts/space-grotesk-latin-700-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 12:16:07] "GET /api/due HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 12:16:07] "[36mGET /static/img/chesspieces/cburnett/bB.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 12:16:07] "[36mGET /static/img/chesspieces/cburnett/bN.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 12:16:07] "[36mGET /static/img/chesspieces/cburnett/wP.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 12:16:07] "[36mGET /static/img/chesspieces/cburnett/bR.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 12:16:07] "[36mGET /static/img/chesspieces/cburnett/bQ.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 12:16:07] "[36mGET /static/fonts/inter-latin-600-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 12:16:07] "[36mGET /static/fonts/inter-latin-700-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 12:16:07] "[36mGET /static/img/chesspieces/cburnett/bK.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 12:16:07] "[36mGET /static/img/chesspieces/cburnett/bP.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 12:16:07] "[36mGET /static/img/chesspieces/cburnett/wN.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 12:16:07] "[36mGET /static/img/chesspieces/cburnett/wR.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 12:16:07] "[36mGET /static/img/chesspieces/cburnett/wB.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 12:16:07] "[36mGET /static/img/chesspieces/cburnett/wK.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 12:16:07] "[36mGET /static/img/chesspieces/cburnett/wQ.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 12:16:14] "[36mGET /static/fonts/jetbrains-mono-latin-400-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 12:16:22] "GET /api/export?ids=var_35424865cb HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 12:16:34] "GET /api/export?course=Modern%20Scheveningen%20Sicilian&chapter=1.%20Keres%20Attack%20with%207.h4 HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 12:16:38] "GET /api/export?course=Modern%20Scheveningen%20Sicilian&chapter=1.%20Keres%20Attack%20with%207.h4&strip=1 HTTP/1.1" 200 -
+ * Serving Flask app 'app'
+ * Debug mode: off
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5001
+[33mPress CTRL+C to quit[0m
+127.0.0.1 - - [23/Jul/2026 13:06:32] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 13:06:33] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 13:06:33] "[36mGET /static/js/chessboard.min.js HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:06:33] "[36mGET /static/css/chessboard.min.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:06:33] "[36mGET /static/css/app.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:06:33] "[36mGET /static/js/jquery.min.js HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:06:33] "[36mGET /static/js/chess.min.js HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:06:33] "[36mGET /static/fonts/space-grotesk-latin-500-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:06:33] "[36mGET /static/fonts/inter-latin-400-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:06:33] "[36mGET /static/fonts/space-grotesk-latin-700-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:06:33] "[36mGET /static/img/chesspieces/cburnett/bR.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:06:33] "GET /api/due HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 13:06:33] "[36mGET /static/img/chesspieces/cburnett/wP.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:06:33] "[36mGET /static/img/chesspieces/cburnett/bN.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:06:33] "[36mGET /static/img/chesspieces/cburnett/bB.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:06:33] "[36mGET /static/img/chesspieces/cburnett/bQ.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:06:33] "[36mGET /static/fonts/inter-latin-700-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:06:33] "[36mGET /static/fonts/inter-latin-600-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:06:33] "[36mGET /static/img/chesspieces/cburnett/bK.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:06:33] "[36mGET /static/img/chesspieces/cburnett/bP.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:06:33] "[36mGET /static/img/chesspieces/cburnett/wN.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:06:33] "[36mGET /static/img/chesspieces/cburnett/wR.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:06:33] "[36mGET /static/img/chesspieces/cburnett/wQ.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:06:33] "[36mGET /static/img/chesspieces/cburnett/wB.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:06:33] "[36mGET /static/img/chesspieces/cburnett/wK.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:06:46] "GET /api/export?course=Modern%20Scheveningen%20Sicilian&chapter=1.%20Keres%20Attack%20with%207.h4&strip=1&merge=1 HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 13:16:17] "[36mGET /static/fonts/jetbrains-mono-latin-500-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:17:40] "GET /api/stats HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 13:17:40] "GET /api/holes?course=&perspective=black HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 13:17:40] "POST /api/tree HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 13:17:52] "[36mGET /static/fonts/jetbrains-mono-latin-400-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:17:52] "POST /api/tree HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 13:17:52] "GET /api/holes?course=&perspective=black HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 13:20:56] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 13:20:56] "[36mGET /static/css/chessboard.min.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:20:56] "[36mGET /static/js/jquery.min.js HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:20:56] "[36mGET /static/js/chessboard.min.js HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:20:56] "[36mGET /static/css/app.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:20:56] "[36mGET /static/js/chess.min.js HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:20:56] "[36mGET /static/fonts/space-grotesk-latin-700-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:20:56] "[36mGET /static/fonts/space-grotesk-latin-500-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:20:56] "[36mGET /static/img/chesspieces/cburnett/wP.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:20:56] "[36mGET /static/fonts/inter-latin-400-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:20:56] "[36mGET /static/img/chesspieces/cburnett/bR.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:20:56] "[36mGET /static/img/chesspieces/cburnett/bN.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:20:56] "[36mGET /static/img/chesspieces/cburnett/bB.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:20:57] "[36mGET /static/img/chesspieces/cburnett/bQ.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:20:57] "GET /api/due HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jul/2026 13:20:57] "[36mGET /static/fonts/inter-latin-700-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:20:57] "[36mGET /static/img/chesspieces/cburnett/bK.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:20:57] "[36mGET /static/fonts/inter-latin-600-normal.woff2 HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:20:57] "[36mGET /static/img/chesspieces/cburnett/bP.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:20:57] "[36mGET /static/img/chesspieces/cburnett/wR.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:20:57] "[36mGET /static/img/chesspieces/cburnett/wQ.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:20:57] "[36mGET /static/img/chesspieces/cburnett/wB.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:20:57] "[36mGET /static/img/chesspieces/cburnett/wN.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:20:57] "[36mGET /static/img/chesspieces/cburnett/wK.svg HTTP/1.1[0m" 304 -
+127.0.0.1 - - [23/Jul/2026 13:20:58] "[36mGET /static/fonts/jetbrains-mono-latin-500-normal.woff2 HTTP/1.1[0m" 304 -

@@ -103,8 +103,11 @@
                     <div class="panel-box">
                         <div class="panel-title" role="button" tabindex="0" onclick="$('#export-content').slideToggle(200)">Esporta / Backup <span>▼</span></div>
                         <div id="export-content" style="display:none; margin-top: 10px; border-top: 1px solid var(--border-color); padding-top: 10px;">
-                            <p class="panel-hint" style="margin-top:0;">Scarica le tue varianti in PGN (mosse + commenti). Re-importabile: corso, capitolo e colore vengono ripristinati.</p>
-                            <select id="export-course" class="import-select"><option value="">Tutto il repertorio</option></select>
+                            <p class="panel-hint" style="margin-top:0;">Scarica le varianti in PGN. Corso/capitolo restano ripristinabili al re-import; con "solo mosse" ottieni un PGN pulito per studi Lichess e analisi personali.</p>
+                            <select id="export-course" class="import-select" onchange="populateExportChapters()"><option value="">Tutto il repertorio</option></select>
+                            <select id="export-chapter" class="import-select" style="margin-top:6px;"><option value="">Tutti i capitoli</option></select>
+                            <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-faint); margin:8px 0 4px;"><input type="checkbox" id="export-strip"> Solo mosse (senza commenti)</label>
+                            <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-faint); margin:0 0 8px;"><input type="checkbox" id="export-merge"> Unisci le varianti in un albero <span style="opacity:.7;">(1 capitolo Lichess)</span></label>
                             <button class="btn" onclick="exportPGN()">⬇ Esporta PGN</button>
                         </div>
                     </div>
@@ -311,10 +314,10 @@
     let selectedSquare = null; 
     let cachedLists = { learn: [], review: [], repertoire: [] };
     let currentListMode = '';
-    let sessionKind = null;   // 'learn' | 'review' | 'read' | 'drill' | null — sessione attiva
-    let drillList = null, drillCourse = '';   // drill mirato per corso (snapshot fuori da cachedLists)
-    // Lista attiva per progresso/next: drill usa lo snapshot, gli altri modi cachedLists[modo]
-    function activeList() { return (currentListMode === 'drill' ? (drillList || []) : (cachedLists[currentListMode] || [])); }
+    let sessionKind = null;   // 'learn' | 'review' | 'read' | 'course' | null — sessione attiva
+    let sessionList = null, sessionCourse = '';   // "Impara" ristretta a un corso (snapshot fuori da cachedLists)
+    // Lista attiva per progresso/next: la sessione-corso usa lo snapshot, gli altri modi cachedLists[modo]
+    function activeList() { return (currentListMode === 'course' ? (sessionList || []) : (cachedLists[currentListMode] || [])); }
     
     // PREVIEW INTELLIGENTE
     let isPreviewing = false;
@@ -402,25 +405,20 @@
         }
     }
 
-    // Drill mirato per corso: sessione filtrata (dovute -> nuove -> programmate), riusa il motore di training
-    function startDrillCourse(course, event) {
+    // "Impara" ristretta a un corso: stessa logica della sezione Impara, sul solo corso selezionato
+    // (lista nell'ordine del repertorio, si parte dalla prima variante nuova). next/progresso restano nel corso.
+    function learnCourse(course, event) {
         if (event && event.stopPropagation) event.stopPropagation();
         let all = (cachedLists.repertoire || []).filter(function(v) { return (v.course || 'Varie') === course; });
         if (!all.length) { showToast('Nessuna variante in questo corso.', 'error'); return; }
-        let now = Date.now(), due = [], fresh = [], later = [];
-        all.forEach(function(v) {
-            let rep = (v.srs && v.srs.rep) || 0;
-            if (rep === 0) fresh.push(v);
-            else if (v.srs && v.srs.next_review && new Date(v.srs.next_review).getTime() <= now) due.push(v);
-            else later.push(v);
-        });
-        drillList = due.concat(fresh, later);
-        drillCourse = course;
-        sessionKind = 'drill';
+        sessionList = all;
+        sessionCourse = course;
+        sessionKind = 'course';
+        setNavActive('impara');   // è una sessione "Impara" (ristretta al corso): evidenzia Impara nella nav
         showView('train');
-        renderSessionSidebar('drill', true);
-        startTraining(drillList[0].id, 'drill');
-        showToast('Drill « ' + course + ' »: ' + due.length + ' da ripassare · ' + fresh.length + ' nuove', 'success');
+        renderSessionSidebar('course', true);
+        let firstNew = all.find(function(v) { return v.srs && v.srs.rep === 0; });
+        startTraining((firstNew || all[0]).id, 'course');
     }
     // Sidebar di sessione: Impara/Repertorio = tutte (✓ se imparate); Ripassa = solo dovute, per capitolo.
     // Guard _sidebarKind: rirenderizza solo se cambia tipo (o force), per non ricostruire 569 voci ad ogni mossa.
@@ -431,9 +429,9 @@
             if (kind === 'review') {
                 $('#session-title').text('Da ripassare · ' + (cachedLists.review || []).length);
                 renderList(cachedLists.review || [], 'session-list', 'review');
-            } else if (kind === 'drill') {
-                $('#session-title').text('Drill · ' + (drillCourse || '') + ' · ' + (drillList || []).length);
-                renderList(drillList || [], 'session-list', 'drill');
+            } else if (kind === 'course') {
+                $('#session-title').text('Impara · ' + (sessionCourse || '') + ' · ' + (sessionList || []).length);
+                renderList(sessionList || [], 'session-list', 'course');
             } else if (kind === 'read') {
                 $('#session-title').text('Repertorio · ✓ = imparata');
                 renderList(cachedLists.repertoire || [], 'session-list', 'read');
@@ -753,10 +751,10 @@
             let cExpanded = expandedCourses[safeCourse];
             if (cExpanded === undefined) cExpanded = !isRep;
 
-            let drillBtn = isRep ? `<button class="btn-delete" onclick="startDrillCourse('${esc(course)}', event)" title="Studia questo corso" aria-label="Studia il corso ${escHtml(course)}">▶</button> ` : '';
+            let learnBtn = isRep ? `<button class="btn-delete" onclick="learnCourse('${esc(course)}', event)" title="Impara questo corso" aria-label="Impara il corso ${escHtml(course)}">▶</button> ` : '';
             let cRenameBtn = isRep ? `<button class="btn-delete" onclick="renameCourse('${esc(course)}', event)" title="Rinomina corso" aria-label="Rinomina il corso ${escHtml(course)}">✎</button> ` : '';
             let delBtn = isRep ? `<button class="btn-delete" onclick="deleteCourse('${esc(course)}', event)" title="Elimina corso" aria-label="Elimina il corso ${escHtml(course)}">🗑</button> ` : '';
-            list.append(`<div class="course-header" role="button" tabindex="0" onclick="toggleCourse('${safeCourse}')"><span>${escHtml(course)}</span><span>${drillBtn}${cRenameBtn}${delBtn}▼</span></div>`);
+            list.append(`<div class="course-header" role="button" tabindex="0" onclick="toggleCourse('${safeCourse}')"><span>${escHtml(course)}</span><span>${learnBtn}${cRenameBtn}${delBtn}▼</span></div>`);
             let courseDiv = $(`<div id="${safeCourse}" class="course-content" style="display: ${cExpanded ? 'block' : 'none'};"></div>`);
 
             let chapters = grouped[course];
@@ -770,9 +768,10 @@
                     let chExpanded = expandedCourses[safeChap];
                     // Capitoli chiusi di default; aperto solo quello della variante attiva
                     if (chExpanded === undefined) chExpanded = !!(currentVariation && (currentVariation.course || 'Varie') === course && (currentVariation.chapter || 'Generale') === chap);
+                    let addBtn = isRep ? `<button class="btn-delete" onclick="newVariationIn('${esc(course)}', '${esc(chap)}', event)" title="Aggiungi una variante a questo capitolo" aria-label="Aggiungi una variante al capitolo ${escHtml(chap)}">➕</button> ` : '';
                     let editBtn = isRep ? `<button class="btn-delete" onclick="renameChapter('${esc(course)}', '${esc(chap)}', event)" title="Rinomina capitolo" aria-label="Rinomina il capitolo ${escHtml(chap)}">✎</button> ` : '';
                     let mergeBtn = isRep ? `<button class="btn-delete" onclick="mergeChapter('${esc(course)}', '${esc(chap)}', event)" title="Unisci a un altro capitolo" aria-label="Unisci il capitolo ${escHtml(chap)}">🔗</button> ` : '';
-                    courseDiv.append(`<div class="chapter-header" role="button" tabindex="0" onclick="toggleCourse('${safeChap}')"><span>${escHtml(chap)}</span><span>${editBtn}${mergeBtn}▾</span></div>`);
+                    courseDiv.append(`<div class="chapter-header" role="button" tabindex="0" onclick="toggleCourse('${safeChap}')"><span>${escHtml(chap)}</span><span>${addBtn}${editBtn}${mergeBtn}▾</span></div>`);
                     target = $(`<div id="${safeChap}" class="chapter-content" style="display: ${chExpanded ? 'block' : 'none'};"></div>`);
                 }
 
@@ -780,6 +779,8 @@
                     let isSession = (listId === 'session-list');
                     let onClickAction = mode === 'read' ? `startReadMode('${v.id}', 'repertoire')` : `startTraining('${v.id}', '${mode}')`;
                     let editLineBtn = isRep ? `<button class="btn-delete" onclick="event.stopPropagation(); openEditor('${v.id}')" title="Modifica mosse" aria-label="Modifica le mosse della variante">✏️</button>` : '';
+                    let forkBtn = isRep ? `<button class="btn-delete" onclick="event.stopPropagation(); openEditor('${v.id}', {fork:true})" title="Duplica in una nuova variante (fork)" aria-label="Duplica la variante">⧉</button>` : '';
+                    let expBtn = isRep ? `<button class="btn-delete" onclick="event.stopPropagation(); exportPGN({ids:'${v.id}'})" title="Esporta questa variante (PGN)" aria-label="Esporta la variante in PGN">⬇</button>` : '';
                     let courseBtn = isRep ? `<button class="btn-delete" onclick="editVarCourse('${v.id}', event)" title="Sposta in corso" aria-label="Sposta la variante in un altro corso">📚</button>` : '';
                     let moveBtn = isRep ? `<button class="btn-delete" onclick="editVarChapter('${v.id}', event)" title="Sposta in capitolo" aria-label="Sposta la variante in un altro capitolo">📂</button>` : '';
                     let delBtn = isSession ? '' : `<button class="btn-delete" onclick="deleteVariation('${v.id}', event)" title="Elimina variante" aria-label="Elimina la variante">✕</button>`;
@@ -798,6 +799,8 @@
                             ${flair}${srsDot}
                             <div class="var-item" ${isRep ? 'role="button" tabindex="0"' : ''} onclick="${onClickAction}">${v.displayTitle}</div>
                             ${editLineBtn}
+                            ${forkBtn}
+                            ${expBtn}
                             ${courseBtn}
                             ${moveBtn}
                             ${delBtn}
@@ -827,6 +830,7 @@
         sel.html('<option value="">Tutti i corsi</option>' + opts); sel.val(cur);
         let ex = $('#export-course'), curE = ex.val();
         ex.html('<option value="">Tutto il repertorio</option>' + opts); ex.val(curE);
+        populateExportChapters();
     }
 
     // Repertorio filtrabile live (titolo/corso/capitolo). globalVariantsMap resta comunque completo.
@@ -845,14 +849,36 @@
         } else { meta.hide(); }
     }
 
-    // Export PGN (tutto o un corso): download diretto via Content-Disposition del server
-    function exportPGN() {
+    // Capitoli del corso selezionato nel pannello export (dipende dal corso scelto)
+    function populateExportChapters() {
         let c = $('#export-course').val() || '';
-        let url = '/api/export' + (c ? '?course=' + encodeURIComponent(c) : '');
+        let rep = cachedLists.repertoire || [];
+        let chs = [...new Set(rep.filter(function(v) { return !c || (v.course || 'Varie') === c; })
+                                 .map(function(v) { return v.chapter || 'Generale'; }))].sort();
+        let sel = $('#export-chapter'), cur = sel.val();
+        sel.html('<option value="">Tutti i capitoli</option>' + chs.map(function(x) { return '<option value="' + escHtml(x) + '">' + escHtml(x) + '</option>'; }).join(''));
+        if (chs.indexOf(cur) >= 0) sel.val(cur); else sel.val('');
+    }
+    // Export PGN: download diretto via Content-Disposition. opts.ids -> singola/e variante/i;
+    // altrimenti usa corso+capitolo del pannello. opts.strip forza "solo mosse" (default: checkbox).
+    function exportPGN(opts) {
+        opts = opts || {};
+        let params = [];
+        if (opts.ids) params.push('ids=' + encodeURIComponent(opts.ids));
+        else {
+            let c = $('#export-course').val() || '', ch = $('#export-chapter').val() || '';
+            if (c) params.push('course=' + encodeURIComponent(c));
+            if (ch) params.push('chapter=' + encodeURIComponent(ch));
+        }
+        let strip = (opts.strip != null) ? opts.strip : $('#export-strip').is(':checked');
+        if (strip) params.push('strip=1');
+        let merge = (opts.merge != null) ? opts.merge : $('#export-merge').is(':checked');
+        if (merge) params.push('merge=1');
+        let url = '/api/export' + (params.length ? '?' + params.join('&') : '');
         let a = document.createElement('a');
         a.href = url; a.download = '';
         document.body.appendChild(a); a.click(); a.remove();
-        showToast('Esportazione PGN avviata…', 'success');
+        showToast(merge ? 'Esportazione PGN (albero) avviata…' : (strip ? 'Esportazione PGN (solo mosse) avviata…' : 'Esportazione PGN avviata…'), 'success');
     }
 
     function loadDueVariations() {
@@ -1346,12 +1372,23 @@
         editApplyTheme();
         _editInit = true;
     }
-    function openEditor(id) {
-        editId = id || null;
+    // Nuova variante pre-assegnata a un corso/capitolo (dal bottone ➕ sull'header capitolo)
+    function newVariationIn(course, chapter, event) {
+        if (event && event.stopPropagation) event.stopPropagation();
+        openEditor(null, { course: course, chapter: chapter });
+    }
+    // openEditor(id)                -> modifica variante (le mosse cambiate la ri-collocano, srs/stats trasferiti)
+    // openEditor(id, {fork:true})   -> "forka": pre-carica da id ma salva come NUOVA variante (originale intatto)
+    // openEditor(null, {course,chapter}) -> nuova variante pre-assegnata a corso/capitolo
+    function openEditor(id, opts) {
+        opts = opts || {};
+        let fork = !!opts.fork;
+        editId = (id && !fork) ? id : null;   // fork o creazione -> nessun id: il server genera una nuova variante
         editMoves = [];
         editGame = new Chess();
         editStartFen = null;
-        $('#edit-status').text('');
+        $('#edit-status').text(fork ? 'Fork: salvando crei una NUOVA variante (l’originale resta).' : '')
+                         .css('color', 'var(--text-faint)');
         // autocomplete dei corsi/capitoli esistenti (per creare/riusare la struttura in-app)
         let cs = {}, chs = {};
         Object.keys(globalVariantsMap).forEach(function(k) { let v = globalVariantsMap[k]; if (v.course) cs[v.course] = 1; if (v.chapter) chs[v.chapter] = 1; });
@@ -1361,7 +1398,7 @@
             let v = globalVariantsMap[id];
             editStartFen = v.startFen || null;
             if (editStartFen) { try { editGame.load(editStartFen); } catch (e) {} }
-            $('#edit-title').val(v.title || '');
+            $('#edit-title').val((v.title || '') + (fork ? ' (copia)' : ''));
             $('#edit-course').val(v.course || '');
             $('#edit-chapter').val((v.chapter && v.chapter !== 'Generale') ? v.chapter : '');
             $('#edit-perspective').val(v.perspective === 'black' ? 'black' : 'white');
@@ -1371,7 +1408,9 @@
                 if (mv) editMoves.push({ uci: m.uci, san: mv.san, comment: m.comment || '' });
             });
         } else {
-            $('#edit-title').val(''); $('#edit-course').val(''); $('#edit-chapter').val('');
+            $('#edit-title').val('');
+            $('#edit-course').val(opts.course || '');
+            $('#edit-chapter').val((opts.chapter && opts.chapter !== 'Generale') ? opts.chapter : '');
             $('#edit-perspective').val('white'); editOrient = 'white';
         }
         editStartMeta = fenMeta(editStartFen);

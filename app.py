@@ -779,51 +779,117 @@ def save_variation():
 # ===== Export PGN (backup / condivisione): ricostruisce il PGN da moves+comment =====
 @app.route('/api/export', methods=['GET'])
 def export_pgn():
-    """Esporta tutto il repertorio o un solo corso come PGN scaricabile.
-       Header non-standard Course/Chapter/Perspective per fedelta al re-import;
-       i lettori standard (Lichess/ChessBase) li ignorano e leggono le mosse."""
+    """Esporta repertorio / corso / capitolo / varianti scelte come PGN scaricabile.
+       Filtri: course, chapter, ids (id separati da virgola).
+       strip=1 -> rimuove commenti e header non-standard (PGN pulito, solo mosse,
+       per studi Lichess/analisi personali). Senza strip include Course/Chapter/
+       Perspective per un re-import fedele (i lettori standard li ignorano).
+       merge=1 -> fonde le varianti di uno stesso (corso, capitolo, posizione di
+       partenza) in UN SOLO game ad albero (prefissi condivisi, rami sulle mosse
+       diverse): Lichess importa 1 capitolo ramificato invece di N quasi-uguali."""
     course = request.args.get('course') or None
+    chapter = request.args.get('chapter') or None
+    ids = set(x for x in (request.args.get('ids') or '').split(',') if x)
+    strip = request.args.get('strip') in ('1', 'true', 'yes')
+    merge = request.args.get('merge') in ('1', 'true', 'yes')
     data = load_data()
-    games = []
-    for v in data.values():
+
+    # 1) filtra le varianti richieste (con mosse)
+    selected = []
+    for vid, v in data.items():
+        if ids and vid not in ids:
+            continue
         if course and (v.get('course') or 'Varie') != course:
             continue
-        moves = v.get('moves') or []
-        if not moves:
+        if chapter and (v.get('chapter') or 'Generale') != chapter:
             continue
-        game = chess.pgn.Game()
-        game.headers['Event'] = v.get('title') or 'Linea'
-        game.headers['Site'] = 'openrepertoire'
-        game.headers['White'] = v.get('course') or 'Varie'
-        game.headers['Black'] = v.get('chapter') or 'Generale'
-        game.headers['Result'] = '*'
-        game.headers['Course'] = v.get('course') or 'Varie'
-        game.headers['Chapter'] = v.get('chapter') or 'Generale'
-        game.headers['Perspective'] = v.get('perspective') or 'white'
-        start_fen = v.get('startFen')
+        if not (v.get('moves') or []):
+            continue
+        selected.append(v)
+
+    def _start_board(fen):
         try:
-            board = chess.Board(start_fen) if start_fen else chess.Board()
+            return chess.Board(fen) if fen else chess.Board()
         except Exception:
-            board = chess.Board()
-        if start_fen:
-            game.setup(board)
-        node, ok = game, True
-        for m in moves:
-            try:
-                mv = chess.Move.from_uci(m.get('uci', ''))
-                if mv not in board.legal_moves:
-                    ok = False; break
-                node = node.add_variation(mv)
-                board.push(mv)
-                if m.get('comment'):
-                    node.comment = m['comment']
-            except Exception:
-                ok = False; break
-        if ok:
+            return None
+
+    games = []
+    if merge:
+        # Raggruppa per (corso, capitolo, startFen): un albero PGN ha UNA sola
+        # posizione iniziale, quindi start diversi restano game separati.
+        groups = {}
+        for v in selected:
+            key = ((v.get('course') or 'Varie'), (v.get('chapter') or 'Generale'), v.get('startFen') or '')
+            groups.setdefault(key, []).append(v)
+        for (gcourse, gchap, gfen), vs in groups.items():
+            start_fen = gfen or None
+            root = _start_board(start_fen)
+            if root is None:
+                start_fen, root = None, chess.Board()
+            game = chess.pgn.Game()
+            game.headers['Event'] = gchap        # il capitolo nomina il capitolo-studio Lichess
+            game.headers['Site'] = 'openrepertoire'
+            game.headers['White'] = gcourse
+            game.headers['Black'] = gchap
+            game.headers['Result'] = '*'
+            if not strip:
+                game.headers['Course'] = gcourse
+                game.headers['Chapter'] = gchap
+                game.headers['Perspective'] = vs[0].get('perspective') or 'white'
+            if start_fen:
+                game.setup(root)
+            # linea piu lunga come principale (backbone), poi le altre si diramano
+            for v in sorted(vs, key=lambda x: -len(x.get('moves') or [])):
+                node = game
+                board = chess.Board(start_fen) if start_fen else chess.Board()
+                for m in (v.get('moves') or []):
+                    try:
+                        mv = chess.Move.from_uci(m.get('uci', ''))
+                    except Exception:
+                        break
+                    if mv not in board.legal_moves:
+                        break
+                    node = node.variation(mv) if node.has_variation(mv) else node.add_variation(mv)
+                    if not strip and m.get('comment') and not node.comment:
+                        node.comment = m['comment']   # 1o commento non vuoto sulla mossa condivisa
+                    board.push(mv)
             games.append(str(game))
+    else:
+        for v in selected:
+            game = chess.pgn.Game()
+            game.headers['Event'] = v.get('title') or 'Linea'
+            game.headers['Site'] = 'openrepertoire'
+            game.headers['White'] = v.get('course') or 'Varie'
+            game.headers['Black'] = v.get('chapter') or 'Generale'
+            game.headers['Result'] = '*'
+            if not strip:
+                game.headers['Course'] = v.get('course') or 'Varie'
+                game.headers['Chapter'] = v.get('chapter') or 'Generale'
+                game.headers['Perspective'] = v.get('perspective') or 'white'
+            start_fen = v.get('startFen')
+            board = _start_board(start_fen) or chess.Board()
+            if start_fen:
+                game.setup(board)
+            node, ok = game, True
+            for m in (v.get('moves') or []):
+                try:
+                    mv = chess.Move.from_uci(m.get('uci', ''))
+                    if mv not in board.legal_moves:
+                        ok = False; break
+                    node = node.add_variation(mv)
+                    board.push(mv)
+                    if not strip and m.get('comment'):
+                        node.comment = m['comment']
+                except Exception:
+                    ok = False; break
+            if ok:
+                games.append(str(game))
 
     pgn_text = "\n\n".join(games) + ("\n" if games else "")
-    safe = re.sub(r'[^A-Za-z0-9._-]+', '_', (course or 'tutto'))[:60]
+    scope = (course or 'corso') + '_' + chapter if chapter else (course or ('selezione' if ids else 'tutto'))
+    if merge:
+        scope += '_albero'
+    safe = re.sub(r'[^A-Za-z0-9._-]+', '_', scope)[:60]
     fname = "openrepertoire_%s_%s.pgn" % (safe, datetime.now().strftime('%Y%m%d'))
     return Response(pgn_text, mimetype='application/x-chess-pgn',
                     headers={'Content-Disposition': 'attachment; filename="%s"' % fname,
