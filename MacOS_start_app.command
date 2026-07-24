@@ -8,11 +8,25 @@ LOG="$PWD/.openrepertoire.log"
 # Toglie la quarantena Gatekeeper (silenzioso)
 xattr -dr com.apple.quarantine . 2>/dev/null
 
+# Python: su macOS arriva con gli Strumenti da riga di comando di Apple.
+# Se manca, si avvia l'installer ufficiale Apple (finestra grafica) e si esce.
+if ! command -v python3 >/dev/null 2>&1; then
+  osascript -e "display alert \"Manca Python\" message \"Avvio l'installer ufficiale di Apple (Strumenti da riga di comando). Completa la procedura, poi riapri OpenRepertoire.\"" >/dev/null 2>&1
+  xcode-select --install >/dev/null 2>&1
+  exit 1
+fi
+
 # Dipendenze: installa solo se mancanti (log su file, niente rumore a schermo)
 python3 -c "import flask, chess" 2>/dev/null || {
   python3 -m pip install --user --quiet flask chess \
     || python3 -m pip install --user --quiet --break-system-packages flask chess
 } >"$LOG" 2>&1
+
+# Se le dipendenze mancano ancora, avvisa invece di aprire una pagina morta
+python3 -c "import flask, chess" 2>/dev/null || {
+  osascript -e "display alert \"Dipendenze mancanti\" message \"Non sono riuscito a installare flask e chess. Apri il Terminale ed esegui: python3 -m pip install --user flask chess\"" >/dev/null 2>&1
+  exit 1
+}
 
 # Chiude eventuale istanza vecchia sulla porta
 lsof -ti tcp:5001 | xargs kill -9 2>/dev/null
