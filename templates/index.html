@@ -84,9 +84,11 @@
                 </div>
                 <div class="rep-col-side">
                     <div class="panel-box">
-                        <div class="panel-title">Crea / Modifica</div>
-                        <button class="btn" onclick="openEditor()">➕ Nuova variante</button>
-                        <p class="panel-hint">Costruisci la linea sulla scacchiera e assegnala a un corso e capitolo: digitando un nome nuovo crei al volo un nuovo corso o capitolo.</p>
+                        <div class="panel-title" role="button" tabindex="0" onclick="$('#create-content').slideToggle(200)">Crea / Modifica <span>▼</span></div>
+                        <div id="create-content" style="display:none; margin-top: 10px; border-top: 1px solid var(--border-color); padding-top: 10px;">
+                            <button class="btn" onclick="openEditor()">➕ Nuova variante</button>
+                            <p class="panel-hint">Costruisci la linea sulla scacchiera e assegnala a un corso e capitolo: digitando un nome nuovo crei al volo un nuovo corso o capitolo.</p>
+                        </div>
                     </div>
                     <div class="panel-box">
                         <div class="panel-title" role="button" tabindex="0" onclick="$('#import-content').slideToggle(200)">Importa Corso (PGN) <span>▼</span></div>
@@ -108,6 +110,11 @@
                             <select id="export-chapter" class="import-select" style="margin-top:6px;"><option value="">Tutti i capitoli</option></select>
                             <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-faint); margin:8px 0 4px;"><input type="checkbox" id="export-strip"> Solo mosse (senza commenti)</label>
                             <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-faint); margin:0 0 8px;"><input type="checkbox" id="export-merge"> Unisci le varianti in un albero <span style="opacity:.7;">(1 capitolo Lichess)</span></label>
+                            <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-faint); margin:0 0 8px;"><input type="checkbox" id="export-onechapter" onchange="toggleExportChapters()"> Fondi anche i capitoli <span style="opacity:.7;">(1 solo capitolo per corso)</span></label>
+                            <div id="export-chapters-box" style="display:none;">
+                                <div class="exp-ch-head">Capitoli da includere <span><button class="btn-delete" onclick="setAllExportChapters(true)">tutti</button><button class="btn-delete" onclick="setAllExportChapters(false)">nessuno</button></span></div>
+                                <div id="export-chapters-list"></div>
+                            </div>
                             <button class="btn" onclick="exportPGN()">⬇ Esporta PGN</button>
                         </div>
                     </div>
@@ -142,6 +149,8 @@
                             </select>
                             <label style="font-size: 11px; color: var(--text-faint); display: block; margin-top: 14px;">DIMENSIONE SCACCHIERA:</label>
                             <input type="range" id="board-size-slider" min="320" max="1400" step="20" value="600" oninput="changeBoardSize()" style="width: 100%; margin-top: 6px; accent-color: var(--accent-blue);">
+                            <label style="font-size: 11px; color: var(--text-faint); display: block; margin-top: 14px;">VELOCITÀ ANIMAZIONE: <span id="anim-speed-val">200 ms</span></label>
+                            <input type="range" id="anim-speed-slider" min="0" max="800" step="20" value="200" oninput="$('#anim-speed-val').text(animSpeedLabel(this.value))" onchange="changeAnimSpeed()" style="width: 100%; margin-top: 6px; accent-color: var(--accent-blue);">
                         </div>
                     </div>
                 </div>
@@ -295,6 +304,10 @@
     // Set pezzi (selezionabile, persistito). SVG = nitidi a ogni dimensione della scacchiera.
     let pieceSet = localStorage.getItem('pieceSet') || 'cburnett';
     const PIECE_EXT = { wikipedia: 'png', cburnett: 'svg', staunty: 'svg', merida: 'svg' };
+    // Durata animazione mossa in ms (0 = istantanea). chessboard.js la legge alla creazione:
+    // cambiarla ricrea la board (vedi changeAnimSpeed).
+    let animSpeed = parseInt(localStorage.getItem('animSpeed'));
+    if (isNaN(animSpeed)) animSpeed = 200;
     function pieceThemeFn(piece) { return '/static/img/chesspieces/' + pieceSet + '/' + piece + '.' + (PIECE_EXT[pieceSet] || 'png'); }
 
     let currentVariation = null;
@@ -303,11 +316,16 @@
     // Gestione Stati e Chessable Errors
     let phase = 'NONE';
     let madeMistake = false;
+    let mistakeCount = 0;        // mosse distinte sbagliate nella variante: da qui esce la valutazione
     let reviewSession = false;   // true solo quando si RIPASSA (rep>0), non quando si impara
     let mistakeReviewQueue = []; 
     let mistakeReviewRound = 0;        // NUOVO: Conta 0, 1, 2 (i tre cicli)
     let currentMistakeIdxInQueue = 0;  // NUOVO: A che errore siamo nel ciclo corrente
-    let waitingForAck = false;   
+    let consolidateRound = 0;          // Fase 2: 0 = prima passata, 1 = seconda
+    let waitingForAck = false;
+    // Fase 1: la mossa dell'avversario si anima subito, POI viene rianimata (riavvolta e
+    // rigiocata) quando l'utente conferma il proprio turno, cosi' la rivede prima di muovere.
+    let pendingOppMove = null, pendingOppFen = null;
     
     let globalVariantsMap = {};
     let expandedCourses = {}; 
@@ -353,13 +371,12 @@
         applyTheme(saved);
     }
 
-    // Intervallo previsto (replica update_srs lato client, solo per le etichette dei tasti)
+    // Intervallo previsto (replica update_srs lato server: LEARN_STEPS + tetto MAX_INTERVAL)
+    const LEARN_STEPS = [1, 3, 7], MAX_INTERVAL = 180;
     function predictInterval(srs, q) {
         srs = srs || {}; let rep = srs.rep || 0, interval = srs.interval || 0, ease = srs.ease || 2.5;
         if (q < 3) return 0;
-        if (rep === 0) return 1;
-        if (rep === 1) return 6;
-        return Math.round(interval * ease);
+        return Math.min(rep < LEARN_STEPS.length ? LEARN_STEPS[rep] : Math.round(interval * ease), MAX_INTERVAL);
     }
     function intervalLabel(d) { return d < 1 ? '< 1 giorno' : (d === 1 ? '1 giorno' : d + ' giorni'); }
 
@@ -403,6 +420,22 @@
             let firstNew = all.find(function(v) { return v.srs && v.srs.rep === 0; });
             startTraining((firstNew || all[0]).id, 'repertoire');
         }
+    }
+
+    // Anticipa a ORA il ripasso di un corso (chapter null) o di un suo capitolo. Non tocca la
+    // cadenza calcolata: sposta solo la scadenza, le varianti mai imparate restano in "Impara".
+    function reviewNow(course, chapter, event) {
+        if (event && event.stopPropagation) event.stopPropagation();
+        $.ajax({
+            url: '/api/review_now', type: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ course: course, chapter: chapter || null }),
+            success: function(r) {
+                showToast(r.count ? r.count + (r.count === 1 ? ' variante da ripassare adesso' : ' varianti da ripassare adesso')
+                                  : 'Nessuna variante da anticipare (o già tutte in scadenza).', r.count ? 'success' : null);
+                loadDueVariations();
+            },
+            error: function() { showToast('Errore: ripasso non anticipato.', 'error'); }
+        });
     }
 
     // "Impara" ristretta a un corso: stessa logica della sezione Impara, sul solo corso selezionato
@@ -449,7 +482,7 @@
         let side = v.perspective === 'white' ? 'col Bianco' : 'col Nero';
         let chap = (v.chapter && v.chapter !== 'Generale') ? ' · ' + v.chapter : '';
         $('#th-course').text((v.course || 'Varie') + chap);
-        $('#th-sub').text('giochi ' + side);
+        $('#th-sub').text('· giochi ' + side);
         $('#train-head').css('display', 'block');
         let st = v.stats || {};
         let chips = '';
@@ -598,7 +631,7 @@
         let active = document.getElementById('view-train').classList.contains('active');
         if (window.innerWidth <= 820) {            // mobile: board a tutta larghezza (CSS)
             lc.style.width = ''; lc.style.maxWidth = ''; lc.style.flex = '';
-            let rcM = document.getElementById('right-col'); if (rcM) rcM.style.height = '';
+            let rcM = document.getElementById('right-col'); if (rcM) rcM.style.minHeight = '';
             if (board && active) board.resize();
             return;
         }
@@ -613,9 +646,10 @@
         lc.style.width = px + 'px';
         lc.style.maxWidth = px + 'px';
         if (board && active) board.resize();
-        // Lega l'altezza della colonna destra (chat/annotazioni) all'altezza reale della board
+        // Colonna destra alta almeno quanto la board (min, non fisso: se ingrandisci a mano
+        // il box del testo la colonna cresce con lui invece di farlo debordare)
         let rc = document.getElementById('right-col');
-        if (rc) rc.style.height = (active && lc.offsetHeight) ? lc.offsetHeight + 'px' : '';
+        if (rc) rc.style.minHeight = (active && lc.offsetHeight) ? lc.offsetHeight + 'px' : '';
     }
 
     function changeBoardSize() {
@@ -638,6 +672,20 @@
         applyBoardSize();
     }
 
+    // Velocita' animazione mossa. chessboard.js legge moveSpeed solo alla creazione:
+    // il ricreo e' gia' quello di changePieceSet (stessa posizione/orientamento).
+    function animSpeedLabel(v) { return (parseInt(v) === 0 ? 'istantanea' : v + ' ms'); }
+    function changeAnimSpeed() {
+        animSpeed = parseInt($('#anim-speed-slider').val());
+        localStorage.setItem('animSpeed', animSpeed);
+        $('#anim-speed-val').text(animSpeedLabel(animSpeed));
+        changePieceSet();
+    }
+    function initAnimSpeed() {
+        $('#anim-speed-slider').val(animSpeed);
+        $('#anim-speed-val').text(animSpeedLabel(animSpeed));
+    }
+
     function changeBoardTheme() {
         let theme = $('#board-theme-select').val();
         $('#board').removeClass('theme-wood theme-green theme-dark');
@@ -654,7 +702,7 @@
     }
 
     function initBoard() {
-        var config = { draggable: true, position: 'start', onDragStart: onDragStart, onDrop: onDrop, onSnapEnd: onSnapEnd, pieceTheme: pieceThemeFn };
+        var config = { draggable: true, position: 'start', onDragStart: onDragStart, onDrop: onDrop, onSnapEnd: onSnapEnd, pieceTheme: pieceThemeFn, moveSpeed: animSpeed };
         board = Chessboard('board', config);
         $('#piece-set-select').val(pieceSet);
         initBoardTheme();
@@ -667,7 +715,7 @@
         if (!board) return;
         let fen = game.fen(), ori = board.orientation();
         board.destroy();
-        board = Chessboard('board', { draggable: true, position: fen, orientation: ori, onDragStart: onDragStart, onDrop: onDrop, onSnapEnd: onSnapEnd, pieceTheme: pieceThemeFn });
+        board = Chessboard('board', { draggable: true, position: fen, orientation: ori, onDragStart: onDragStart, onDrop: onDrop, onSnapEnd: onSnapEnd, pieceTheme: pieceThemeFn, moveSpeed: animSpeed });
         changeBoardTheme();
         applyBoardSize();
         if (exploreBoard) {
@@ -754,7 +802,8 @@
             let learnBtn = isRep ? `<button class="btn-delete" onclick="learnCourse('${esc(course)}', event)" title="Impara questo corso" aria-label="Impara il corso ${escHtml(course)}">▶</button> ` : '';
             let cRenameBtn = isRep ? `<button class="btn-delete" onclick="renameCourse('${esc(course)}', event)" title="Rinomina corso" aria-label="Rinomina il corso ${escHtml(course)}">✎</button> ` : '';
             let delBtn = isRep ? `<button class="btn-delete" onclick="deleteCourse('${esc(course)}', event)" title="Elimina corso" aria-label="Elimina il corso ${escHtml(course)}">🗑</button> ` : '';
-            list.append(`<div class="course-header" role="button" tabindex="0" onclick="toggleCourse('${safeCourse}')"><span>${escHtml(course)}</span><span>${learnBtn}${cRenameBtn}${delBtn}▼</span></div>`);
+            let cNowBtn = isRep ? `<button class="btn-delete" onclick="reviewNow('${esc(course)}', null, event)" title="Rendi ripassabili adesso tutte le varianti del corso" aria-label="Rendi ripassabile adesso il corso ${escHtml(course)}">⏰</button> ` : '';
+            list.append(`<div class="course-header" role="button" tabindex="0" onclick="toggleCourse('${safeCourse}')"><span>${escHtml(course)}</span><span>${learnBtn}${cNowBtn}${cRenameBtn}${delBtn}▼</span></div>`);
             let courseDiv = $(`<div id="${safeCourse}" class="course-content" style="display: ${cExpanded ? 'block' : 'none'};"></div>`);
 
             let chapters = grouped[course];
@@ -771,7 +820,8 @@
                     let addBtn = isRep ? `<button class="btn-delete" onclick="newVariationIn('${esc(course)}', '${esc(chap)}', event)" title="Aggiungi una variante a questo capitolo" aria-label="Aggiungi una variante al capitolo ${escHtml(chap)}">➕</button> ` : '';
                     let editBtn = isRep ? `<button class="btn-delete" onclick="renameChapter('${esc(course)}', '${esc(chap)}', event)" title="Rinomina capitolo" aria-label="Rinomina il capitolo ${escHtml(chap)}">✎</button> ` : '';
                     let mergeBtn = isRep ? `<button class="btn-delete" onclick="mergeChapter('${esc(course)}', '${esc(chap)}', event)" title="Unisci a un altro capitolo" aria-label="Unisci il capitolo ${escHtml(chap)}">🔗</button> ` : '';
-                    courseDiv.append(`<div class="chapter-header" role="button" tabindex="0" onclick="toggleCourse('${safeChap}')"><span>${escHtml(chap)}</span><span>${addBtn}${editBtn}${mergeBtn}▾</span></div>`);
+                    let nowBtn = isRep ? `<button class="btn-delete" onclick="reviewNow('${esc(course)}', '${esc(chap)}', event)" title="Rendi ripassabili adesso le varianti del capitolo" aria-label="Rendi ripassabile adesso il capitolo ${escHtml(chap)}">⏰</button> ` : '';
+                    courseDiv.append(`<div class="chapter-header" role="button" tabindex="0" onclick="toggleCourse('${safeChap}')"><span>${escHtml(chap)}</span><span>${addBtn}${nowBtn}${editBtn}${mergeBtn}▾</span></div>`);
                     target = $(`<div id="${safeChap}" class="chapter-content" style="display: ${chExpanded ? 'block' : 'none'};"></div>`);
                 }
 
@@ -858,27 +908,52 @@
         let sel = $('#export-chapter'), cur = sel.val();
         sel.html('<option value="">Tutti i capitoli</option>' + chs.map(function(x) { return '<option value="' + escHtml(x) + '">' + escHtml(x) + '</option>'; }).join(''));
         if (chs.indexOf(cur) >= 0) sel.val(cur); else sel.val('');
+        // Lista a spunta per la fusione: si escludono i capitoli non teorici (partite d'esempio,
+        // introduzioni) senza doverli esportare a parte.
+        $('#export-chapters-list').html(chs.length
+            ? chs.map(function(x) { return '<label class="exp-ch"><input type="checkbox" class="exp-ch-cb" value="' + escHtml(x) + '" checked> ' + escHtml(x) + '</label>'; }).join('')
+            : '<span class="empty-msg">Nessun capitolo.</span>');
     }
+    // La lista a spunta serve solo quando si fondono i capitoli; in quel caso il select singolo
+    // e' ridondante.
+    function toggleExportChapters() {
+        let on = $('#export-onechapter').is(':checked');
+        if (on) $('#export-merge').prop('checked', true);
+        $('#export-chapters-box').toggle(on);
+        $('#export-chapter').prop('disabled', on);
+    }
+    function setAllExportChapters(on) { $('.exp-ch-cb').prop('checked', on); }
     // Export PGN: download diretto via Content-Disposition. opts.ids -> singola/e variante/i;
     // altrimenti usa corso+capitolo del pannello. opts.strip forza "solo mosse" (default: checkbox).
     function exportPGN(opts) {
         opts = opts || {};
         let params = [];
+        let one = (opts.one != null) ? opts.one : $('#export-onechapter').is(':checked');
         if (opts.ids) params.push('ids=' + encodeURIComponent(opts.ids));
         else {
-            let c = $('#export-course').val() || '', ch = $('#export-chapter').val() || '';
+            let c = $('#export-course').val() || '';
             if (c) params.push('course=' + encodeURIComponent(c));
-            if (ch) params.push('chapter=' + encodeURIComponent(ch));
+            if (one) {
+                // Fusione capitoli: si esporta solo quello che hai spuntato (piu' capitoli ->
+                // parametro chapter ripetuto, cosi' le virgole nei nomi non rompono nulla).
+                let cbs = $('.exp-ch-cb'), picked = cbs.filter(':checked').map(function() { return this.value; }).get();
+                if (!picked.length) { showToast('Seleziona almeno un capitolo da includere.', 'error'); return; }
+                if (picked.length < cbs.length) picked.forEach(function(x) { params.push('chapter=' + encodeURIComponent(x)); });
+            } else {
+                let ch = $('#export-chapter').val() || '';
+                if (ch) params.push('chapter=' + encodeURIComponent(ch));
+            }
         }
         let strip = (opts.strip != null) ? opts.strip : $('#export-strip').is(':checked');
         if (strip) params.push('strip=1');
-        let merge = (opts.merge != null) ? opts.merge : $('#export-merge').is(':checked');
+        let merge = one || ((opts.merge != null) ? opts.merge : $('#export-merge').is(':checked'));
         if (merge) params.push('merge=1');
+        if (one) params.push('onechapter=1');
         let url = '/api/export' + (params.length ? '?' + params.join('&') : '');
         let a = document.createElement('a');
         a.href = url; a.download = '';
         document.body.appendChild(a); a.click(); a.remove();
-        showToast(merge ? 'Esportazione PGN (albero) avviata…' : (strip ? 'Esportazione PGN (solo mosse) avviata…' : 'Esportazione PGN avviata…'), 'success');
+        showToast(one ? 'Esportazione PGN (1 capitolo per corso) avviata…' : (merge ? 'Esportazione PGN (albero) avviata…' : (strip ? 'Esportazione PGN (solo mosse) avviata…' : 'Esportazione PGN avviata…')), 'success');
     }
 
     function loadDueVariations() {
@@ -889,6 +964,9 @@
             // globalVariantsMap sempre COMPLETO (indipendente dal filtro repertorio attivo)
             globalVariantsMap = {};
             data.repertoire.forEach(function(v) { globalVariantsMap[v.id] = v; });
+            // La sessione-corso lavora su uno snapshot: riallinealo ai dati freschi, altrimenti
+            // le varianti appena imparate restano "•" invece di "✓" (e le eliminate restano).
+            if (sessionList) sessionList = sessionList.map(function(v) { return globalVariantsMap[v.id]; }).filter(Boolean);
             renderRepertoire();   // filtro-aware (learn/review-list erano id inesistenti: rimossi)
             populateSearchCourses(data.repertoire);
             highlightActiveVar();
@@ -1692,6 +1770,7 @@
         currentListMode = modeContext;
         currentVariation = globalVariantsMap[id];
         moveIndex = 0; phase = 'READ'; waitingForAck = false;
+        pendingOppMove = null; pendingOppFen = null;
         sessionKind = 'read'; renderSessionSidebar('read');
         showView('train'); updateTrainHead();
         highlightActiveVar();
@@ -1699,7 +1778,7 @@
         replayTo(game, 0);
         board.orientation(currentVariation.perspective);
         board.position(game.fen(), false);
-        $('#title').text("Lettura: " + currentVariation.title);
+        $('#title').text("Lettura: " + currentVariation.title).attr('title', "Lettura: " + currentVariation.title);
         $('#status').hide(); $('#read-controls').css('display', 'flex'); updateReadModeUI();
     }
 
@@ -1796,9 +1875,12 @@
         phase = (currentVariation.srs.rep === 0) ? 'LEARN' : 'REVIEW';
         reviewSession = (currentVariation.srs.rep !== 0);
         madeMistake = false;
+        mistakeCount = 0;
         mistakeReviewQueue = [];
         mistakeReviewRound = 0;
         currentMistakeIdxInQueue = 0;
+        consolidateRound = 0;
+        pendingOppMove = null; pendingOppFen = null;
         waitingForAck = false;
         showView('train'); updateTrainHead();
         if (!sessionKind) $('#train-sidebar').hide();
@@ -1814,8 +1896,9 @@
 
     function updateTitle() {
         let sideText = currentVariation.perspective === 'white' ? " (Lato Bianco)" : " (Lato Nero)";
-        if (phase === 'CONSOLIDATE') $('#title').text("Fase 2: " + currentVariation.title + sideText);
-        else $('#title').text((phase === 'LEARN' ? "Fase 1: " : "Ripasso: ") + currentVariation.title + sideText);
+        let t = (phase === 'CONSOLIDATE') ? "Fase 2 (" + (consolidateRound + 1) + "/2): " + currentVariation.title + sideText
+                                          : (phase === 'LEARN' ? "Fase 1: " : "Ripasso: ") + currentVariation.title + sideText;
+        $('#title').text(t).attr('title', t);   // troncato a 2 righe via CSS: testo intero nel tooltip
     }
 
     function checkUserTurn() {
@@ -1870,6 +1953,23 @@
                 });
                 return;
             } else if (phase === 'CONSOLIDATE' || phase === 'REVIEW') {
+                // Fase 2 si rigioca DUE volte: gli errori delle due passate si accumulano
+                // e vengono presentati (3 cicli) solo alla fine della seconda.
+                if (phase === 'CONSOLIDATE' && consolidateRound === 0) {
+                    consolidateRound = 1; waitingForAck = true;
+                    setStatus("Prima passata completata!", 'good');
+                    $('#annotation-box').html(`
+                        <strong style="color: var(--text-bright);">Passata 1 di 2 completata.</strong><br><br>
+                        Rigiocala un'altra volta per fissarla.<br>
+                        <button class="btn btn-success" id="btn-start-consolidation">Seconda passata (Spazio)</button>
+                    `).show();
+                    $('#btn-start-consolidation').click(function() {
+                        clearPreview();
+                        $('#annotation-box').hide(); waitingForAck = false;
+                        moveIndex = 0; replayTo(game, 0); board.position(game.fen(), false); markLastMove('#board', null); markCheck('#board', null); updateTitle(); handleStep();
+                    });
+                    return;
+                }
                 if (mistakeReviewQueue.length > 0) {
                     phase = 'REVIEW_ERRORS'; 
                     // Assicura l'ordine cronologico degli errori nella variante
@@ -1897,10 +1997,13 @@
                 let commentHTML = hasComment ? `<div class="learn-comment">${parseCommentMoves(expectedMove.comment, moveIndex).replace(/\n/g, '<br>')}</div>` : '';
                 $('#annotation-box').html(`${targetMoveHTML}${commentHTML}<button class="btn" id="btn-avanti">Fammi muovere (Spazio)</button>`).show();
                 
-                $('#btn-avanti').click(function() { 
-                    clearPreview(); 
-                    waitingForAck = false; 
-                    $('#annotation-box').hide(); 
+                $('#btn-avanti').click(function() {
+                    clearPreview();
+                    $('#annotation-box').hide();
+                    // Prima di lasciarti muovere, la mossa dell'avversario viene rianimata
+                    // (input bloccato per la durata dell'animazione).
+                    if (pendingOppMove) { playPendingOppMove(); window.setTimeout(function() { waitingForAck = false; }, animSpeed + 100); }
+                    else waitingForAck = false;
                 });
             } else { waitingForAck = false; $('#annotation-box').hide(); }
         } else {
@@ -1927,10 +2030,31 @@
 
     function executeComputerMove() {
         let expectedMove = currentVariation.moves[moveIndex];
+        let prevFen = game.fen();
         game.move({from: expectedMove.uci.substring(0,2), to: expectedMove.uci.substring(2,4), promotion: expectedMove.uci.length > 4 ? expectedMove.uci[4] : 'q'});
-        board.position(game.fen());
+        moveIndex++;
+        board.position(game.fen());                                  // animata subito
         markLastMove('#board', expectedMove.uci); markCheck('#board', game);
-        moveIndex++; handleStep();
+        // Fase 1, se ora tocca all'utente: la si tiene da parte per rianimarla quando conferma.
+        if (phase === 'LEARN' && moveIndex < currentVariation.moves.length && checkUserTurn()) {
+            pendingOppMove = expectedMove; pendingOppFen = prevFen;
+        } else { pendingOppMove = null; pendingOppFen = null; }
+        handleStep();
+    }
+
+    // Riavvolge la scacchiera di una mossa (istantaneo) e rigioca la mossa avversaria animata.
+    // No-op se non ce n'e' nessuna in sospeso.
+    function playPendingOppMove() {
+        if (!pendingOppMove) return;
+        let m = pendingOppMove, fen = pendingOppFen;
+        pendingOppMove = null; pendingOppFen = null;
+        if (!animSpeed) return;                  // animazione istantanea: rianimarla non si vedrebbe
+        board.position(fen, false);
+        removeHighlights();
+        window.setTimeout(function() {
+            board.position(game.fen());
+            markLastMove('#board', m.uci); markCheck('#board', game);
+        }, 60);
     }
 
     function evaluateUserMove(source, target, isDragDrop) {
@@ -1958,7 +2082,7 @@
                 board.position(game.fen(), false);
                 return false;
             } else {
-                if (!mistakeReviewQueue.includes(moveIndex)) mistakeReviewQueue.push(moveIndex);
+                if (!mistakeReviewQueue.includes(moveIndex)) { mistakeReviewQueue.push(moveIndex); mistakeCount++; }
                 
                 setStatus(`Sbagliato!`, 'bad');
                 let targetMoveHTML = `<div class="miss-prompt">Devi giocare: <strong>${expectedMove.san}</strong></div>`;
@@ -2073,34 +2197,17 @@
 
         let isTraining = (phase !== 'READ');
 
-        // RIPASSO: autovalutazione manuale, preceduta dallo storico per confronto
-        if (isTraining && reviewSession && !currentVariation.reviewedFlag) {
-            let st = currentVariation.stats || {};
-            if (st.history && st.history.length) {
-                let recent = st.history.slice(-8).map(h => `<span style="color:${qualityColor(h.q)}">${qualityLabel(h.q)}</span>`).join(' · ');
-                html += `<div class="review-recent">Le tue valutazioni passate: ${recent}</div>`;
-            } else if (st.last_quality) {
-                html += `<div class="review-recent">Valutazione precedente: <strong style="color:${qualityColor(st.last_quality)}">${qualityLabel(st.last_quality)}</strong></div>`;
-            }
-            html += `<div class="review-q">Quanto la ricordavi?</div>`;
-            let pv = function(q) { return intervalLabel(predictInterval(currentVariation.srs, q)); };
-            html += `<div id="quality-buttons" class="q-grid">
-                <button class="btn qbtn q-again" onclick="submitQuality(1)">Dimenticata<small>tasto 1 · ${pv(1)}</small></button>
-                <button class="btn qbtn q-hard" onclick="submitQuality(3)">A fatica<small>tasto 2 · ${pv(3)}</small></button>
-                <button class="btn qbtn q-good" onclick="submitQuality(4)">Ricordata<small>tasto 3 · ${pv(4)}</small></button>
-                <button class="btn qbtn q-easy" onclick="submitQuality(5)">Facile<small>tasto 4 · ${pv(5)}</small></button>
-            </div>
-            <div id="post-review"></div>`;
-            $('#annotation-box').html(html).show();
-            $('#read-controls').hide();
-            waitingForAck = true;
-            return;
-        }
-
-        // APPRENDIMENTO (prima volta): niente autovalutazione, registra e prosegui
-        if (isTraining && !reviewSession && !currentVariation.reviewedFlag) {
+        // Valutazione AUTOMATICA dagli errori commessi: l'autovalutazione stile Anki (submitQuality
+        // + tasti 1-4) e' sospesa. Ripasso: 0 errori = ricordata, 1 = a fatica, 2+ = dimenticata.
+        // Apprendimento (prima volta): gli errori sono attesi, non si penalizza la cadenza.
+        if (isTraining && !currentVariation.reviewedFlag) {
             currentVariation.reviewedFlag = true;
-            let q = madeMistake ? 4 : 5;   // entra comunque nel programma di ripasso
+            let q = reviewSession ? (mistakeCount === 0 ? 5 : (mistakeCount === 1 ? 3 : 1))
+                                  : (madeMistake ? 4 : 5);
+            let giorni = predictInterval(currentVariation.srs, q);
+            html += `<div class="review-recent">Valutata <strong style="color:${qualityColor(q)}">${qualityLabel(q)}</strong>
+                     (${mistakeCount === 0 ? 'nessun errore' : mistakeCount + (mistakeCount === 1 ? ' errore' : ' errori')})
+                     · prossimo ripasso ${giorni ? 'tra ' + intervalLabel(giorni) : 'oggi stesso'}</div>`;
             $.ajax({
                 url: '/api/review', type: 'POST', contentType: 'application/json',
                 data: JSON.stringify({ id: currentVariation.id, quality: q }),
@@ -2127,6 +2234,8 @@
         } else { waitingForAck = false; }
     }
 
+    // SOSPESA: autovalutazione stile Anki. Nessuno la chiama piu' (showSummary valuta dagli
+    // errori); resta qui per quando la riattiveremo insieme ai pulsanti qualità.
     function submitQuality(q) {
         if (!currentVariation || currentVariation.reviewedFlag) return;
         currentVariation.reviewedFlag = true;
@@ -2233,12 +2342,7 @@
             }
             else if (event.code === 'ArrowLeft') { event.preventDefault(); prevMoveRead(); }
         } else {
-            // Pulsanti qualità: tasti 1-4
-            let qb = $('#quality-buttons');
-            if (qb.length && qb.is(':visible')) {
-                let map = { Digit1: 1, Digit2: 3, Digit3: 4, Digit4: 5 };
-                if (map[event.code]) { event.preventDefault(); submitQuality(map[event.code]); return; }
-            }
+            // (tasti 1-4 dell'autovalutazione: sospesi insieme ai pulsanti qualità)
             if (event.code === 'Space' || event.key === ' ') {
                 // Una pressione = un'azione: ignora l'auto-ripetizione del tasto tenuto premuto.
                 if (event.repeat) { event.preventDefault(); return; }
@@ -2275,9 +2379,27 @@
     // Adatta la scacchiera al ridimensionamento finestra (responsive)
     let _rszTimer;
     $(window).on('resize', function() { clearTimeout(_rszTimer); _rszTimer = setTimeout(function() { applyBoardSize(); }, 150); });
+    // Box ridimensionati a mano (resize nativo): la sidebar ricalcola anche la board.
+    // Si persiste SOLO lo stile inline scritto dalla maniglia: le variazioni dovute al flex
+    // (board piu' grande, box che riempie la colonna) non toccano style.width/height e quindi
+    // non sporcano il valore salvato.
+    let _sbEl = document.getElementById('train-sidebar'), _abEl = document.getElementById('annotation-box');
+    new ResizeObserver(function() {
+        applyBoardSize();
+        if (_sbEl.style.width) localStorage.setItem('sidebarWidth', _sbEl.style.width);
+    }).observe(_sbEl);
+    new ResizeObserver(function() {
+        if (_abEl.style.height) localStorage.setItem('annoHeight', _abEl.style.height);
+    }).observe(_abEl);
+
+    function initPanelSizes() {
+        let w = localStorage.getItem('sidebarWidth'), h = localStorage.getItem('annoHeight');
+        if (w) _sbEl.style.width = w;
+        if (h) _abEl.style.height = h;
+    }
 
     $(document).ready(function() {
-        initTheme(); initBoard(); initBoardSize();
+        initTheme(); initBoard(); initBoardSize(); initAnimSpeed(); initPanelSizes();
         loadDueVariations();
         navTo('repertorio');   // vista iniziale
     });

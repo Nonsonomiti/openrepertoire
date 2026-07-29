@@ -56,18 +56,27 @@ def derive_chapter(title):
 def default_stats():
     return {'reviews': 0, 'correct': 0, 'lapses': 0, 'last_quality': None, 'history': []}
 
+# Calibrazione SRS per un repertorio di aperture (non flashcard di vocaboli):
+#  - LEARN_STEPS: i primi ripassi corretti sono ravvicinati. SM-2 puro saltava da 1 a 6 giorni,
+#    un buco troppo largo per una linea vista una volta sola.
+#  - MAX_INTERVAL: tetto a ~6 mesi. Senza tetto SM-2 arriva a 1 anno dopo 6 ripassi e continua a
+#    crescere (2-3 anni): una linea del repertorio va rivista almeno un paio di volte l'anno,
+#    anche se la ricordi bene.
+# Linea sempre corretta: 1 -> 3 -> 7 -> 20 -> 58 -> 174 -> 180 giorni (tetto dopo ~9 mesi).
+LEARN_STEPS = [1, 3, 7]
+MAX_INTERVAL = 180
+
 def update_srs(srs, quality):
     rep, interval, ease = srs.get('rep', 0), srs.get('interval', 0), srs.get('ease', 2.5)
-    
+
     if quality < 3:
-        rep = 0          # lapse: azzera la sequenza (SM-2) -> primo successo riparte da interval=1
+        rep = 0          # lapse: azzera la sequenza (SM-2) -> torna subito in coda, poi riparte da 1 giorno
         interval = 0
     else:
-        if rep == 0: interval = 1
-        elif rep == 1: interval = 6
-        else: interval = int(round(interval * ease))
+        interval = LEARN_STEPS[rep] if rep < len(LEARN_STEPS) else int(round(interval * ease))
+        interval = min(interval, MAX_INTERVAL)
         rep += 1
-        
+
     ease = max(1.3, ease + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02)))
     next_review = (datetime.now() + timedelta(days=interval)).isoformat()
     
@@ -241,6 +250,40 @@ def review():
         save_data(data)
 
     return jsonify({"success": True})
+
+@app.route('/api/review_now', methods=['POST'])
+def review_now():
+    """Anticipa a ORA il ripasso di tutte le varianti gia' imparate di un corso (o di un suo
+       capitolo): utile per ripassare una linea prima di un torneo senza aspettare la scadenza.
+       Non tocca rep/ease/interval -> la cadenza successiva resta quella dell'algoritmo."""
+    req = request.get_json(silent=True) or {}
+    course = req.get('course')
+    chapter = req.get('chapter') or None
+    if not isinstance(course, str) or not course:
+        return jsonify({"success": False, "error": "Corso mancante."}), 400
+
+    data = load_data()
+    now = datetime.now()
+    count = 0
+    for v in data.values():
+        if (v.get('course') or 'Varie') != course:
+            continue
+        if chapter and (v.get('chapter') or 'Generale') != chapter:
+            continue
+        srs = v.get('srs') or {}
+        if srs.get('rep', 0) <= 0:
+            continue                      # mai imparata: sta gia' in "Impara"
+        try:
+            if datetime.fromisoformat(srs['next_review']) <= now:
+                continue                  # gia' scaduta
+        except (KeyError, ValueError):
+            pass
+        srs['next_review'] = now.isoformat()
+        count += 1
+
+    if count:
+        save_data(data)
+    return jsonify({"success": True, "count": count})
 
 @app.route('/api/delete', methods=['POST'])
 def delete_variation():
@@ -780,18 +823,21 @@ def save_variation():
 @app.route('/api/export', methods=['GET'])
 def export_pgn():
     """Esporta repertorio / corso / capitolo / varianti scelte come PGN scaricabile.
-       Filtri: course, chapter, ids (id separati da virgola).
+       Filtri: course, chapter (ripetibile: piu' capitoli), ids (id separati da virgola).
        strip=1 -> rimuove commenti e header non-standard (PGN pulito, solo mosse,
        per studi Lichess/analisi personali). Senza strip include Course/Chapter/
        Perspective per un re-import fedele (i lettori standard li ignorano).
        merge=1 -> fonde le varianti di uno stesso (corso, capitolo, posizione di
        partenza) in UN SOLO game ad albero (prefissi condivisi, rami sulle mosse
-       diverse): Lichess importa 1 capitolo ramificato invece di N quasi-uguali."""
+       diverse): Lichess importa 1 capitolo ramificato invece di N quasi-uguali.
+       onechapter=1 (implica merge) -> ignora anche il capitolo nel raggruppamento:
+       tutto il corso finisce in UN unico albero/capitolo."""
     course = request.args.get('course') or None
-    chapter = request.args.get('chapter') or None
+    chapters = set(x for x in request.args.getlist('chapter') if x)   # ripetibile: piu' capitoli
     ids = set(x for x in (request.args.get('ids') or '').split(',') if x)
     strip = request.args.get('strip') in ('1', 'true', 'yes')
-    merge = request.args.get('merge') in ('1', 'true', 'yes')
+    one_chapter = request.args.get('onechapter') in ('1', 'true', 'yes')
+    merge = one_chapter or request.args.get('merge') in ('1', 'true', 'yes')
     data = load_data()
 
     # 1) filtra le varianti richieste (con mosse)
@@ -801,7 +847,7 @@ def export_pgn():
             continue
         if course and (v.get('course') or 'Varie') != course:
             continue
-        if chapter and (v.get('chapter') or 'Generale') != chapter:
+        if chapters and (v.get('chapter') or 'Generale') not in chapters:
             continue
         if not (v.get('moves') or []):
             continue
@@ -817,9 +863,12 @@ def export_pgn():
     if merge:
         # Raggruppa per (corso, capitolo, startFen): un albero PGN ha UNA sola
         # posizione iniziale, quindi start diversi restano game separati.
+        # Con one_chapter il capitolo esce dalla chiave: un solo albero per corso.
         groups = {}
         for v in selected:
-            key = ((v.get('course') or 'Varie'), (v.get('chapter') or 'Generale'), v.get('startFen') or '')
+            key = ((v.get('course') or 'Varie'),
+                   (v.get('course') or 'Varie') if one_chapter else (v.get('chapter') or 'Generale'),
+                   v.get('startFen') or '')
             groups.setdefault(key, []).append(v)
         for (gcourse, gchap, gfen), vs in groups.items():
             start_fen = gfen or None
@@ -886,7 +935,10 @@ def export_pgn():
                 games.append(str(game))
 
     pgn_text = "\n\n".join(games) + ("\n" if games else "")
-    scope = (course or 'corso') + '_' + chapter if chapter else (course or ('selezione' if ids else 'tutto'))
+    if chapters:
+        scope = (course or 'corso') + '_' + (sorted(chapters)[0] if len(chapters) == 1 else '%dcapitoli' % len(chapters))
+    else:
+        scope = course or ('selezione' if ids else 'tutto')
     if merge:
         scope += '_albero'
     safe = re.sub(r'[^A-Za-z0-9._-]+', '_', scope)[:60]
