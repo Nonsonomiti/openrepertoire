@@ -53,31 +53,59 @@ def derive_chapter(title):
     t = re.sub(r'\s+', ' ', t).strip(' -')
     return t if t else 'Generale'
 
+HEADER_KEYS = ('Event', 'Site', 'White', 'Black')
+
 def pick_header_roles(headers_list):
     """Decide QUALE header porta il nome della variante e quale il capitolo.
 
-    I PGN dei corsi non sono coerenti: in alcuni il nome della linea sta in Event, in altri
-    (es. export Chessable) Event e' il nome del CORSO ripetuto identico su ogni partita, la
-    linea sta in Site/White e il capitolo in Black. Prendere sempre Event produce mille
-    varianti con lo stesso titolo in un unico capitolone.
+    I PGN dei corsi non sono coerenti: in alcuni la linea sta in Event, in altri (export
+    Chessable) Event e' il CORSO ripetuto identico, il capitolo sta in White e la linea in
+    Black; certi tool (ChessBase/SCID) svuotano Event/Site a "?" e troncano i valori a ~30
+    caratteri, per cui i titoli distinti crollano. Niente soglie assolute, quindi: si
+    confrontano gli header FRA LORO su tre segnali misurati sul file intero.
 
-    Si decide contando i valori distinti sull'intero file: il titolo e' l'header che cambia
-    quasi a ogni partita, il capitolo quello che raggruppa (piu' di uno, ma molti meno delle
-    partite). Sotto le 3 partite le statistiche non dicono nulla: si resta su Event.
+      distinti -> il titolo cambia quasi a ogni partita, il capitolo raggruppa
+      contiguita' -> le partite di un capitolo sono consecutive nel file (runs ~= distinti);
+                     i nomi dei giocatori di un database di partite sono invece sparsi
+      copertura -> un header buono e' valorizzato quasi ovunque ('' e '?' non contano)
+
+    Sotto le 3 partite le statistiche non dicono nulla: si resta su Event.
     """
     n = len(headers_list)
     if n < 3:
         return 'Event', None
 
-    def distinct(k):
-        vals = {(h.get(k) or '').strip() for h in headers_list}
-        vals -= {'', '?'}
-        return len(vals)
+    stats = {}
+    for k in HEADER_KEYS:
+        vals = [(h.get(k) or '').strip() for h in headers_list]
+        usable = [v for v in vals if v and v != '?']
+        runs = sum(1 for i, v in enumerate(vals) if i == 0 or v != vals[i - 1])
+        stats[k] = (len(set(usable)), runs, len(usable))
 
-    soglia = max(2, n * 0.5)
-    title_key = next((k for k in ('Event', 'Site', 'White', 'Black') if distinct(k) >= soglia), None)
-    chapter_key = next((k for k in ('Black', 'Site', 'Event', 'White')
-                        if k != title_key and 1 < distinct(k) < soglia), None)
+    title_key = max(HEADER_KEYS, key=lambda k: stats[k][0])
+    if stats[title_key][0] < 2:
+        return None, None          # tutti gli header costanti: titolo dedotto dalle mosse
+
+    # Database di partite (White/Black = giocatori): anche l'ALTRO dei due e' quasi unico,
+    # cosa che un capitolo non e' mai. Nessuno dei due e' il nome di una linea: meglio il
+    # fallback "Tizio vs Caio". Il capitolo, se ripetuto, sta in blocchi contigui.
+    if title_key in ('White', 'Black'):
+        d_o, runs_o, _ = stats['Black' if title_key == 'White' else 'White']
+        if d_o >= n * 0.9 or (d_o > n * 0.3 and runs_o > d_o * 1.2):
+            title_key = None
+
+    d_title = stats[title_key][0] if title_key else n
+
+    def raggruppa(k):
+        d, runs, cov = stats[k]
+        return (k != title_key
+                and 1 < d < d_title      # piu' di un gruppo, ma piu' grosso del titolo
+                and d * 2 <= n           # in media >= 2 partite per capitolo: niente frammentazione
+                and runs <= d * 1.5      # blocchi contigui, non valori sparsi per il file
+                and cov >= n * 0.5)      # valorizzato su almeno meta' delle partite
+
+    # Fra i candidati validi si prende il piu' fine: e' il capitolo, non la sezione che lo contiene.
+    chapter_key = max((k for k in HEADER_KEYS if raggruppa(k)), key=lambda k: stats[k][0], default=None)
     return title_key, chapter_key
 
 def default_stats():

@@ -2122,6 +2122,9 @@
 
     // --- NUOVO MOTORE PREVIEW INTELLIGENTE ---
     function parseCommentMoves(comment, baseMoveIndex) {
+        // Diramazioni ripiegate dall'import: via l'etichetta "Altra opzione:" e la riga vuota,
+        // restano solo le mosse tra parentesi (come le scriverebbe l'autore in notazione).
+        comment = comment.replace(/\n*[ \t]*Altra opzione:[ \t]*([^\n\r]*)/g, '\n($1)').trim();
         comment = escHtml(comment);   // neutralizza l'HTML del PGN; i SAN restano ASCII -> il match sotto regge
         var SAN = "[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[KQRBN])?[+#]?|O-O(?:-O)?";
         var re = new RegExp("(\\d+)(\\.{1,3})\\s*(" + SAN + ")|\\b(" + SAN + ")\\b", "g");
