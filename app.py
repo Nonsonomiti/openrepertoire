@@ -53,6 +53,33 @@ def derive_chapter(title):
     t = re.sub(r'\s+', ' ', t).strip(' -')
     return t if t else 'Generale'
 
+def pick_header_roles(headers_list):
+    """Decide QUALE header porta il nome della variante e quale il capitolo.
+
+    I PGN dei corsi non sono coerenti: in alcuni il nome della linea sta in Event, in altri
+    (es. export Chessable) Event e' il nome del CORSO ripetuto identico su ogni partita, la
+    linea sta in Site/White e il capitolo in Black. Prendere sempre Event produce mille
+    varianti con lo stesso titolo in un unico capitolone.
+
+    Si decide contando i valori distinti sull'intero file: il titolo e' l'header che cambia
+    quasi a ogni partita, il capitolo quello che raggruppa (piu' di uno, ma molti meno delle
+    partite). Sotto le 3 partite le statistiche non dicono nulla: si resta su Event.
+    """
+    n = len(headers_list)
+    if n < 3:
+        return 'Event', None
+
+    def distinct(k):
+        vals = {(h.get(k) or '').strip() for h in headers_list}
+        vals -= {'', '?'}
+        return len(vals)
+
+    soglia = max(2, n * 0.5)
+    title_key = next((k for k in ('Event', 'Site', 'White', 'Black') if distinct(k) >= soglia), None)
+    chapter_key = next((k for k in ('Black', 'Site', 'Event', 'White')
+                        if k != title_key and 1 < distinct(k) < soglia), None)
+    return title_key, chapter_key
+
 def default_stats():
     return {'reviews': 0, 'correct': 0, 'lapses': 0, 'last_quality': None, 'history': []}
 
@@ -97,16 +124,26 @@ def import_pgn():
 
     pgn_io = io.StringIO(pgn_text)
     data = load_data()
-    
+
+    # Passata sui soli header (read_headers salta il parsing delle mosse) per capire dove
+    # stanno nome-variante e capitolo in QUESTO file, poi si riavvolge e si importa.
+    all_headers = []
+    while True:
+        h = chess.pgn.read_headers(pgn_io)
+        if h is None: break
+        all_headers.append(h)
+    title_key, chapter_key = pick_header_roles(all_headers)
+    pgn_io.seek(0)
+
     count = 0
     imported = 0
     skipped = 0
     while True:
         game = chess.pgn.read_game(pgn_io)
         if game is None: break
-        
+
         count += 1
-        title = game.headers.get("Event")
+        title = (game.headers.get(title_key) or '').strip() if title_key else ''
         if not title or title == "?":
             white = game.headers.get("White", "")
             black = game.headers.get("Black", "")
@@ -116,6 +153,14 @@ def import_pgn():
         hdr_course = game.headers.get("Course")
         hdr_chapter = game.headers.get("Chapter")
         hdr_persp = game.headers.get("Perspective")
+
+        # Capitolo: header nostro > header che raggruppa in questo file (es. Black nei PGN
+        # Chessable) > deduzione dal titolo.
+        chapter = (hdr_chapter or '').strip()
+        if not chapter and chapter_key:
+            chapter = (game.headers.get(chapter_key) or '').strip()
+        if not chapter or chapter == '?':
+            chapter = derive_chapter(title)
 
         # Posizione di partenza: se il PGN ha un FEN (tattica/strategia) la salva
         start_fen = None
@@ -175,7 +220,7 @@ def import_pgn():
             if var_id not in data:
                 data[var_id] = {
                     "course": hdr_course or course_name,
-                    "chapter": hdr_chapter or derive_chapter(title),
+                    "chapter": chapter,
                     "title": title,
                     "moves": moves_data,
                     "perspective": var_perspective,
