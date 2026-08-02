@@ -21,3 +21,6 @@ PIANO_MIGLIORIE.md
 
 # ignora file md roadmap
 ROADMAP_CHESSBASE.md
+
+# Ignora il log del server (generato dagli script di avvio)
+.openrepertoire.log
