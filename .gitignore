@@ -24,3 +24,6 @@ ROADMAP_CHESSBASE.md
 
 # Ignora il log del server (generato dagli script di avvio)
 .openrepertoire.log
+
+# Ignora il token personale di Lichess (opening explorer)
+lichess_token.txt

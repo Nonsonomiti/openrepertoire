@@ -6,6 +6,9 @@ import json
 import os
 import re
 import hashlib
+import urllib.request
+import urllib.parse
+import urllib.error
 from datetime import datetime, timedelta
 
 # --- BLINDATURA DEI PERCORSI ---
@@ -753,46 +756,96 @@ def api_transpositions():
     items.sort(key=lambda x: (-int(x['conflict']), -x['reached_count']))
     return jsonify({'transpositions': items[:80], 'total': len(items)})
 
-@app.route('/api/holes', methods=['GET'])
-def api_holes():
-    """Foglie premature (buchi di copertura): posizioni di fine-linea dove tocca al LATO
-       dell'utente muovere e nessun'altra linea fornisce una continuazione. Le fini dove
-       tocca all'avversario sono posizioni di riposo legittime, NON buchi."""
-    course = request.args.get('course') or None
-    perspective = request.args.get('perspective')
-    if perspective not in ('white', 'black'):
-        perspective = 'white'
-    idx = _build_index(course, perspective)
-    data = idx['data']
-    owner = 'w' if perspective == 'white' else 'b'
-    holes = []
-    for key, vids in idx['ends'].items():
-        if key.split(' ')[1] != owner:
-            continue                        # tocca all'avversario -> fine legittima
-        if idx['children'].get(key):
-            continue                        # coperto: un'altra linea continua da qui
-        sample = min(vids, key=lambda vid: len(data.get(vid, {}).get('moves', [])))
-        v = data.get(sample, {})
-        b = _board_for(v)
-        sans, path = [], []
-        for m in v.get('moves', []):
-            uci = m.get('uci')
-            if not uci:
-                break
-            try:
-                mv = chess.Move.from_uci(uci)
-                sans.append(b.san(mv)); b.push(mv); path.append(uci)
-            except Exception:
-                break
-        holes.append({
-            'fen': b.fen(), 'ply': len(path), 'path': path,
-            'san_line': ' '.join(sans), 'last_move': sans[-1] if sans else '',
-            'sample_var_id': sample, 'title': v.get('title', ''),
-            'course': v.get('course', ''), 'chapter': v.get('chapter', ''),
-            'end_count': len(vids)
-        })
-    holes.sort(key=lambda h: (h['ply'], -h['end_count']))
-    return jsonify({'holes': holes[:120], 'count': len(holes)})
+# ===== Opening explorer di Lichess (proxy) =====
+# Gli endpoint explorer.lichess.org non sono piu' anonimi (401 nginx): vogliono un token OAuth
+# personale, gratuito e senza scope. Il token vive sul server, mai nel browser e mai in git:
+#   1) variabile d'ambiente LICHESS_TOKEN, oppure
+#   2) lichess_token.txt accanto ad app.py, scritto dall'app quando lo incolli nel pannello.
+# Chi clona la repo trova tutto cablato: incolla il token una volta e la feature va.
+TOKEN_FILE = os.path.join(BASE_DIR, "lichess_token.txt")
+EXPLORER_HOST = "https://explorer.lichess.org/"
+# Le stesse posizioni si rivisitano in continuazione (avanti/indietro sull'albero): senza cache
+# si martella l'API per niente. Chiave = URL completo, quindi i filtri fanno parte della chiave.
+_explorer_cache = {}
+EXPLORER_PARAMS = ('fen', 'play', 'speeds', 'ratings', 'since', 'until', 'moves')
+
+def lichess_token():
+    tok = (os.environ.get('LICHESS_TOKEN') or '').strip()
+    if not tok and os.path.exists(TOKEN_FILE):
+        try:
+            with open(TOKEN_FILE) as f:
+                tok = f.read().strip()
+        except OSError:
+            pass
+    return tok
+
+def explorer_get(db, params, token):
+    """Chiama l'explorer. Ritorna (json, None) oppure (None, codice_errore)."""
+    url = EXPLORER_HOST + db + '?' + urllib.parse.urlencode(params)
+    if url in _explorer_cache:
+        return _explorer_cache[url], None
+    req = urllib.request.Request(url, headers={'Authorization': 'Bearer ' + token,
+                                               'Accept': 'application/json'})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            body = json.loads(r.read().decode('utf-8'))
+    except urllib.error.HTTPError as e:
+        return None, {401: 'bad_token', 403: 'bad_token', 429: 'rate_limit'}.get(e.code, 'http_%d' % e.code)
+    except Exception:
+        return None, 'offline'
+    if len(_explorer_cache) > 400:
+        _explorer_cache.clear()
+    _explorer_cache[url] = body
+    return body, None
+
+@app.route('/api/explorer', methods=['GET'])
+def api_explorer():
+    db = request.args.get('db')
+    if db not in ('masters', 'lichess'):
+        return jsonify({'error': 'db_invalido'}), 400
+    fen = request.args.get('fen', '')
+    try:
+        chess.Board(fen)
+    except ValueError:
+        return jsonify({'error': 'fen_invalido'}), 400
+    token = lichess_token()
+    if not token:
+        return jsonify({'error': 'no_token'})
+    params = {k: request.args[k] for k in EXPLORER_PARAMS if request.args.get(k)}
+    params.update({'fen': fen, 'topGames': 0, 'recentGames': 0, 'moves': params.get('moves', 12)})
+    if db == 'masters':
+        params.pop('speeds', None); params.pop('ratings', None)   # filtri validi solo per il db online
+    body, err = explorer_get(db, params, token)
+    if err:
+        return jsonify({'error': err})
+    tot = (body.get('white', 0) + body.get('draws', 0) + body.get('black', 0))
+    return jsonify({
+        'total': tot,
+        'opening': (body.get('opening') or {}).get('name'),
+        'moves': [{'uci': m.get('uci'), 'san': m.get('san'),
+                   'games': m.get('white', 0) + m.get('draws', 0) + m.get('black', 0),
+                   'white': m.get('white', 0), 'draws': m.get('draws', 0), 'black': m.get('black', 0),
+                   'rating': m.get('averageRating')} for m in body.get('moves', [])]
+    })
+
+@app.route('/api/lichess_token', methods=['GET', 'POST'])
+def api_lichess_token():
+    """GET: c'e' un token? POST {token}: salvalo (stringa vuota = rimuovilo) e provalo subito.
+       Il token non viene mai rimandato al client."""
+    if request.method == 'GET':
+        return jsonify({'present': bool(lichess_token()), 'from_env': bool(os.environ.get('LICHESS_TOKEN'))})
+    token = ((request.get_json(silent=True) or {}).get('token') or '').strip()
+    if not token:
+        if os.path.exists(TOKEN_FILE):
+            os.remove(TOKEN_FILE)
+        return jsonify({'success': True, 'present': False})
+    _, err = explorer_get('masters', {'fen': chess.STARTING_FEN, 'moves': 1, 'topGames': 0}, token)
+    if err:
+        return jsonify({'success': False, 'error': err})
+    fd = os.open(TOKEN_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)   # leggibile solo dall'utente
+    with os.fdopen(fd, 'w') as f:
+        f.write(token + '\n')
+    return jsonify({'success': True, 'present': True})
 
 # ===== B5: validazione FEN per il board-editor (posizione di partenza) =====
 @app.route('/api/validate_fen', methods=['POST'])

@@ -184,9 +184,41 @@
                     <div id="explore-meta" class="explore-meta"></div>
                 </div>
                 <div id="explore-right">
-                    <div class="panel-box">
+                    <div id="explore-compare">
+                    <div class="panel-box" id="explore-repbox">
                         <div class="panel-title">Continuazioni nel repertorio</div>
                         <div id="explore-moves"></div>
+                    </div>
+                    <div class="panel-box">
+                        <div class="panel-title" role="button" tabindex="0" onclick="dbToggle()">Database Lichess <span>▼</span></div>
+                        <div id="db-content" style="display:none; margin-top:10px; border-top:1px solid var(--border-color); padding-top:10px;">
+                            <div id="db-controls">
+                                <select id="db-source" class="import-select" onchange="dbSourceChanged()">
+                                    <option value="masters">Maestri (OTB)</option>
+                                    <option value="lichess">Online (Lichess)</option>
+                                </select>
+                                <select id="db-since" class="import-select" onchange="dbLoad()">
+                                    <option value="0">Tutti gli anni</option>
+                                    <option value="10">Ultimi 10 anni</option>
+                                    <option value="3">Ultimi 3 anni</option>
+                                </select>
+                                <select id="db-speeds" class="import-select" onchange="dbLoad()" style="display:none">
+                                    <option value="blitz,rapid,classical">Blitz + Rapid + Classica</option>
+                                    <option value="bullet,blitz">Bullet + Blitz</option>
+                                    <option value="rapid,classical,correspondence">Rapid + Classica + Corr.</option>
+                                    <option value="ultraBullet,bullet,blitz,rapid,classical,correspondence">Tutte le cadenze</option>
+                                </select>
+                                <select id="db-ratings" class="import-select" onchange="dbLoad()" style="display:none">
+                                    <option value="1600,1800,2000,2200,2500">Elo 1600+</option>
+                                    <option value="0,1000,1200,1400,1600,1800,2000,2200,2500">Tutti gli Elo</option>
+                                    <option value="2000,2200,2500">Elo 2000+</option>
+                                    <option value="2200,2500">Elo 2200+</option>
+                                    <option value="2500">Elo 2500+</option>
+                                </select>
+                            </div>
+                            <div id="db-list"></div>
+                        </div>
+                    </div>
                     </div>
                     <div class="panel-box">
                         <div class="panel-title" role="button" tabindex="0" onclick="lxToggle()">Analisi Lichess (cloud) <span>▼</span></div>
@@ -197,12 +229,6 @@
                     <div class="panel-box" id="explore-ends-box" style="display:none;">
                         <div class="panel-title">Linee che finiscono qui</div>
                         <div id="explore-ends-list"></div>
-                    </div>
-                    <div class="panel-box" id="explore-holes-box">
-                        <div class="panel-title" role="button" tabindex="0" onclick="$('#holes-content').slideToggle(200);"><span>Buchi nel repertorio <span class="holes-badge" id="holes-count">0</span></span><span>▼</span></div>
-                        <div id="holes-content" style="display:none; margin-top:10px; border-top:1px solid var(--border-color); padding-top:10px;">
-                            <div id="holes-list"></div>
-                        </div>
                     </div>
                     <div class="panel-box">
                         <div class="panel-title" role="button" tabindex="0" onclick="$('#transp-content').slideToggle(200); loadTranspositions();">Trasposizioni & conflitti <span>▼</span></div>
@@ -1164,7 +1190,6 @@
     function exploreReloadAll() {
         $('#transp-list').data('loaded', false);
         if ($('#transp-content').is(':visible')) loadTranspositions();
-        loadHoles();
         exploreReset();
     }
 
@@ -1223,7 +1248,9 @@
             exploreCourse = $('#explore-course').val() || '';
             if (exploreBoard) { exploreBoard.orientation(exploreOrient); exploreBoard.resize(); }
             $('#transp-list').data('loaded', false);
-            loadHoles();
+            if (localStorage.getItem('dbOpen') === '1') {   // il database resta aperto fra le sessioni
+                $('#db-content').show(); $('#explore-compare').addClass('split');
+            }
             exploreReset();
         }, 20);
     }
@@ -1258,6 +1285,8 @@
         markCheck('#explore-board', exploreGame);
         _lxFen = d.fen;
         if ($('#lx-content').is(':visible')) lxLoad();
+        _dbFen = d.fen; _dbChildren = d.children || []; _dbTurn = d.turn;
+        if ($('#db-content').is(':visible')) dbLoad();
 
         // breadcrumb (SAN ricostruiti dal path)
         let g = new Chess(), sans = [];
@@ -1294,25 +1323,6 @@
         jumpToReadMove(ply);
     }
 
-    function exploreGoPath(p) { explorePath = (p || []).slice(); exploreForward = []; exploreLoad(); }
-    let _holesReq = 0;
-    function loadHoles() {
-        let myReq = ++_holesReq;
-        $.get('/api/holes', { course: exploreCourse || '', perspective: explorePerspective }, function(d) {
-            if (myReq !== _holesReq) return;   // risposta obsoleta: un filtro più recente l'ha superata
-            let n = d.count || 0;
-            $('#holes-count').text(n).toggleClass('warn', n > 0);
-            if (!n) { $('#holes-list').html('<div class="empty-msg">Nessun buco: ogni linea finisce quando tocca all\'avversario. ✓</div>'); return; }
-            $('#holes-list').html(
-                '<div class="empty-msg">Linee che finiscono mentre tocca a te muovere, senza risposta preparata. Dalle più vicine all\'apertura.</div>' +
-                d.holes.map(h => `
-                <div class="hole-item" onclick="exploreGoPath([${h.path.map(u => "'" + u + "'").join(',')}])">
-                    <div class="hole-line">${escHtml(h.san_line) || 'Posizione iniziale'}</div>
-                    <div class="hole-sub">dopo <b>${escHtml(h.last_move)}</b> · tocca a te${h.end_count > 1 ? ' · ' + h.end_count + ' linee' : ''} · ${escHtml(h.title)}</div>
-                </div>`).join('')
-            );
-        });
-    }
     function loadTranspositions() {
         if ($('#transp-list').data('loaded')) return;
         $('#transp-list').html('<div class="empty-msg">Analisi in corso…</div>');
@@ -1387,6 +1397,103 @@
         }).join('');
         $('#lx-list').html(rows + '<div class="lx-meta">Stockfish cloud · profondità ' + (d.depth || '?') +
             ' · + = meglio per il Bianco, − = meglio per il Nero · clic su una linea = gioca la prima mossa</div>');
+    }
+
+    // --- DATABASE LICHESS (opening explorer, via proxy /api/explorer che tiene il token) ---
+    // Confronta l'albero del corso con le mosse davvero giocate: ✓ = preparata, ⚠ = giocata
+    // dall'avversario ma senza risposta nel repertorio.
+    let _dbFen = null, _dbReq = 0, _dbChildren = [], _dbTurn = 'w';
+    function dbToggle() {
+        let apri = !$('#db-content').is(':visible');
+        $('#explore-compare').toggleClass('split', apri);   // aperto = affiancato al repertorio
+        localStorage.setItem('dbOpen', apri ? '1' : '0');
+        $('#db-content').slideToggle(160, function() { if (apri) dbLoad(); });
+    }
+    function dbSourceChanged() {
+        $('#db-speeds, #db-ratings').toggle($('#db-source').val() === 'lichess');
+        dbLoad();
+    }
+    // Scorrere l'albero a raffica non deve tradursi in una richiesta per fotogramma: l'API di
+    // Lichess risponde 429 e resti fuori un minuto.
+    let _dbTimer = null;
+    function dbLoad() { clearTimeout(_dbTimer); _dbTimer = setTimeout(dbFetch, 180); }
+    function dbFetch() {
+        if (!_dbFen || !$('#db-content').is(':visible')) return;
+        let db = $('#db-source').val(), p = { db: db, fen: _dbFen };
+        let back = parseInt($('#db-since').val(), 10);
+        if (back) {
+            let y = new Date().getFullYear() - back;
+            p.since = (db === 'masters') ? y : (y + '-01');   // masters vuole l'anno, il db online il mese
+        }
+        if (db === 'lichess') { p.speeds = $('#db-speeds').val(); p.ratings = $('#db-ratings').val(); }
+        let myReq = ++_dbReq;
+        $('#db-list').html('<div class="empty-msg">Interrogo il database…</div>');
+        $.get('/api/explorer', p, function(d) { if (myReq === _dbReq) dbRender(d); })
+            .fail(function() { if (myReq === _dbReq) $('#db-list').html('<div class="empty-msg">Server non raggiungibile.</div>'); });
+    }
+    function dbTokenBox(msg) {
+        return '<div class="empty-msg">' + msg + ' Serve un token personale Lichess, gratuito e senza permessi: ' +
+            '<a href="https://lichess.org/account/oauth/token/create?description=openrepertoire" target="_blank" rel="noopener">creane uno</a>' +
+            ' e incollalo qui. Resta sul tuo computer (lichess_token.txt), fuori da git.</div>' +
+            '<div class="db-setup"><input id="db-token" type="password" class="import-select" placeholder="lip_…" autocomplete="off">' +
+            '<button class="btn" onclick="dbSaveToken()">Salva</button></div>';
+    }
+    function dbSaveToken() {
+        let tok = $('#db-token').val();
+        if (!tok || !tok.trim()) return;
+        $('#db-list').html('<div class="empty-msg">Verifico il token…</div>');
+        $.ajax({
+            url: '/api/lichess_token', type: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ token: tok }),
+            success: function(r) {
+                if (r.success) { showToast('Token salvato ✓'); dbLoad(); }
+                else $('#db-list').html(dbTokenBox(r.error === 'bad_token' ? 'Token rifiutato da Lichess.' : 'Lichess non raggiungibile.'));
+            },
+            error: function() { $('#db-list').html(dbTokenBox('Salvataggio fallito.')); }
+        });
+    }
+    function fmtGames(n) {
+        if (n >= 1000000) return (n / 1000000).toFixed(1).replace('.0', '') + 'M';
+        if (n >= 1000) return Math.round(n / 1000) + 'k';
+        return String(n);
+    }
+    function dbRender(d) {
+        if (d.error === 'no_token') { $('#db-list').html(dbTokenBox('')); return; }
+        if (d.error === 'bad_token') { $('#db-list').html(dbTokenBox('Il token salvato non è più valido.')); return; }
+        if (d.error === 'rate_limit') { $('#db-list').html('<div class="empty-msg">Limite richieste Lichess: attendi un minuto.</div>'); return; }
+        if (d.error) { $('#db-list').html('<div class="empty-msg">Database non raggiungibile (sei offline?).</div>'); return; }
+        if (!d.moves.length) { $('#db-list').html('<div class="empty-msg">Nessuna partita in questa posizione: sei fuori dai sentieri battuti.</div>'); return; }
+
+        let mie = {};
+        _dbChildren.forEach(function(c) { mie[c.uci] = true; });
+        let mioTurno = (_dbTurn === (explorePerspective === 'white' ? 'w' : 'b'));
+        let tot = d.moves.reduce(function(a, m) { return a + m.games; }, 0) || 1;
+        let rows = d.moves.map(function(m) {
+            let pct = 100 * m.games / tot;
+            let g = m.games || 1;
+            let mark = mie[m.uci] ? '<span class="db-ok" title="Nel repertorio">✓</span>'
+                     : (!mioTurno && _dbChildren.length ? '<span class="db-gap" title="Giocata qui, nessuna risposta preparata">⚠</span>' : '');
+            return '<div class="exp-move" onclick="exploreGo(\'' + m.uci + '\')" title="' +
+                (m.rating ? 'Elo medio ' + m.rating + ' · ' : '') + m.games + ' partite">' +
+                '<span class="exp-san">' + escHtml(m.san) + ' ' + mark + '</span>' +
+                '<span class="db-bar">' +
+                    '<i class="db-w" style="width:' + (100 * m.white / g) + '%"></i>' +
+                    '<i class="db-d" style="width:' + (100 * m.draws / g) + '%"></i>' +
+                    '<i class="db-b" style="width:' + (100 * m.black / g) + '%"></i>' +
+                '</span>' +
+                '<span class="exp-count">' + fmtGames(m.games) + ' · ' + pct.toFixed(0) + '%</span></div>';
+        }).join('');
+
+        // La domanda vera: quanta della realtà è coperta dal corso quando tocca all'avversario
+        let head = '';
+        if (!mioTurno && _dbChildren.length) {
+            let cov = d.moves.reduce(function(a, m) { return a + (mie[m.uci] ? m.games : 0); }, 0);
+            let p = Math.round(100 * cov / tot);
+            head = '<div class="db-cov"><span class="db-cov-n" style="color:' + (p >= 90 ? 'var(--accent-green)' : (p >= 70 ? 'var(--accent-orange)' : 'var(--accent-red)')) +
+                '">' + p + '%</span> delle partite qui è coperto dal tuo repertorio</div>';
+        }
+        $('#db-list').html(head + rows + '<div class="lx-meta">' + fmtGames(d.total) + ' partite' +
+            (d.opening ? ' · ' + escHtml(d.opening) : '') + ' · barra: vittorie Bianco / patte / vittorie Nero · clic = gioca la mossa</div>');
     }
 
     // --- B4: EDITOR DI VARIANTE (costruzione mosse sulla scacchiera) ---
@@ -2395,10 +2502,25 @@
         if (_abEl.style.height) localStorage.setItem('annoHeight', _abEl.style.height);
     }).observe(_abEl);
 
+    // Stessa idea per i box dell'esploratore, ma generica: ripristina e risalva la misura
+    // trascinata dalla maniglia d'angolo.
+    function persistSize(id, prop) {
+        let el = document.getElementById(id);
+        if (!el) return;
+        let saved = localStorage.getItem('size_' + id);
+        if (saved) el.style[prop] = saved;
+        new ResizeObserver(function() {
+            if (el.style[prop]) localStorage.setItem('size_' + id, el.style[prop]);
+        }).observe(el);
+    }
+
     function initPanelSizes() {
         let w = localStorage.getItem('sidebarWidth'), h = localStorage.getItem('annoHeight');
         if (w) _sbEl.style.width = w;
         if (h) _abEl.style.height = h;
+        persistSize('explore-repbox', 'width');    // larghezza della colonna repertorio
+        persistSize('explore-moves', 'height');
+        persistSize('db-list', 'height');
     }
 
     $(document).ready(function() {
