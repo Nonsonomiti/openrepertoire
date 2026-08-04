@@ -1468,6 +1468,8 @@
             error: function() { $('#db-list').html(dbTokenBox('Il server dell\'app non ha risposto.')); }
         });
     }
+    // Chiave di confronto: SAN senza fronzoli (+ # ! ?), che i due lati decorano diversamente
+    function sanKey(san) { return 'san:' + String(san || '').replace(/[+#!?]+$/, ''); }
     function fmtGames(n) {
         if (n >= 1000000) return (n / 1000000).toFixed(1).replace('.0', '') + 'M';
         if (n >= 1000) return Math.round(n / 1000) + 'k';
@@ -1479,14 +1481,18 @@
         if (d.error) { $('#db-list').html('<div class="empty-msg">' + dbErrMsg(d.error) + '</div>'); return; }
         if (!d.moves.length) { $('#db-list').html('<div class="empty-msg">Nessuna partita in questa posizione: sei fuori dai sentieri battuti.</div>'); return; }
 
+        // Confronto per UCI *e* per SAN. Solo l'UCI non basta: l'arrocco ha due notazioni
+        // (e8g8 "re di due case" contro e8h8 "re prende torre") e a seconda di chi la scrive
+        // la stessa mossa non si riconosce. Il SAN e' unico per posizione, quindi risolve.
         let mie = {};
-        _dbChildren.forEach(function(c) { mie[c.uci] = true; });
+        _dbChildren.forEach(function(c) { mie[c.uci] = true; mie[sanKey(c.san)] = true; });
+        let inRep = function(m) { return !!(mie[m.uci] || mie[sanKey(m.san)]); };
         let mioTurno = (_dbTurn === (explorePerspective === 'white' ? 'w' : 'b'));
         let tot = d.moves.reduce(function(a, m) { return a + m.games; }, 0) || 1;
         let rows = d.moves.map(function(m) {
             let pct = 100 * m.games / tot;
             let g = m.games || 1;
-            let mark = mie[m.uci] ? '<span class="db-ok" title="Nel repertorio">✓</span>'
+            let mark = inRep(m) ? '<span class="db-ok" title="Nel repertorio">✓</span>'
                      : (!mioTurno && _dbChildren.length ? '<span class="db-gap" title="Giocata qui, nessuna risposta preparata">⚠</span>' : '');
             return '<div class="exp-move" onclick="exploreGo(\'' + m.uci + '\')" title="' +
                 (m.rating ? 'Elo medio ' + m.rating + ' · ' : '') + m.games + ' partite">' +
@@ -1502,7 +1508,7 @@
         // La domanda vera: quanta della realtà è coperta dal corso quando tocca all'avversario
         let head = '';
         if (!mioTurno && _dbChildren.length) {
-            let cov = d.moves.reduce(function(a, m) { return a + (mie[m.uci] ? m.games : 0); }, 0);
+            let cov = d.moves.reduce(function(a, m) { return a + (inRep(m) ? m.games : 0); }, 0);
             let p = Math.round(100 * cov / tot);
             head = '<div class="db-cov"><span class="db-cov-n" style="color:' + (p >= 90 ? 'var(--accent-green)' : (p >= 70 ? 'var(--accent-orange)' : 'var(--accent-red)')) +
                 '">' + p + '%</span> delle partite qui è coperto dal tuo repertorio</div>';
