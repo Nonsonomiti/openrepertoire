@@ -30,16 +30,16 @@ if errorlevel 1 (
   echo   Prima configurazione: installo le dipendenze, un attimo...
   echo.
   "%PY%" -m pip --version >nul 2>&1 || "%PY%" -m ensurepip --upgrade
-  "%PY%" -m pip install --user flask chess
+  "%PY%" -m pip install --user flask chess certifi
   :: --user non e' valido dentro un virtualenv: in quel caso si riprova senza
-  "%PY%" -c "import flask, chess" 2>nul || "%PY%" -m pip install flask chess
+  "%PY%" -c "import flask, chess" 2>nul || "%PY%" -m pip install flask chess certifi
 )
 "%PY%" -c "import flask, chess" 2>nul
 if errorlevel 1 (
   echo.
   echo   Installazione delle dipendenze non riuscita ^(l'errore vero e' qui sopra^).
   echo   Puoi riprovare a mano con:
-  echo       "%PY%" -m pip install --user flask chess
+  echo       "%PY%" -m pip install --user flask chess certifi
   echo.
   pause
   exit /b 1

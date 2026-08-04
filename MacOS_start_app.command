@@ -18,13 +18,13 @@ fi
 
 # Dipendenze: installa solo se mancanti (log su file, niente rumore a schermo)
 python3 -c "import flask, chess" 2>/dev/null || {
-  python3 -m pip install --user --quiet flask chess \
-    || python3 -m pip install --user --quiet --break-system-packages flask chess
+  python3 -m pip install --user --quiet flask chess certifi \
+    || python3 -m pip install --user --quiet --break-system-packages flask chess certifi
 } >"$LOG" 2>&1
 
 # Se le dipendenze mancano ancora, avvisa invece di aprire una pagina morta
 python3 -c "import flask, chess" 2>/dev/null || {
-  osascript -e "display alert \"Dipendenze mancanti\" message \"Non sono riuscito a installare flask e chess. Apri il Terminale ed esegui: python3 -m pip install --user flask chess\"" >/dev/null 2>&1
+  osascript -e "display alert \"Dipendenze mancanti\" message \"Non sono riuscito a installare flask e chess. Apri il Terminale ed esegui: python3 -m pip install --user flask chess certifi\"" >/dev/null 2>&1
   exit 1
 }
 

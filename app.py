@@ -6,6 +6,7 @@ import json
 import os
 import re
 import hashlib
+import ssl
 import urllib.request
 import urllib.parse
 import urllib.error
@@ -779,6 +780,19 @@ def lichess_token():
             pass
     return tok
 
+def _ssl_context():
+    """I Python presi da python.org (macOS in testa) arrivano SENZA certificati installati:
+       urllib fallisce la verifica anche dove il browser va liscio, ed e' la causa numero uno
+       di "non raggiungibile" su una macchina nuova. certifi porta il suo bundle; se manca si
+       usa quello di sistema."""
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        return ssl.create_default_context()
+
+_SSL_CTX = _ssl_context()
+
 def explorer_get(db, params, token):
     """Chiama l'explorer. Ritorna (json, None) oppure (None, codice_errore)."""
     url = EXPLORER_HOST + db + '?' + urllib.parse.urlencode(params)
@@ -787,12 +801,17 @@ def explorer_get(db, params, token):
     req = urllib.request.Request(url, headers={'Authorization': 'Bearer ' + token,
                                                'Accept': 'application/json'})
     try:
-        with urllib.request.urlopen(req, timeout=10) as r:
+        with urllib.request.urlopen(req, timeout=10, context=_SSL_CTX) as r:
             body = json.loads(r.read().decode('utf-8'))
     except urllib.error.HTTPError as e:
         return None, {401: 'bad_token', 403: 'bad_token', 429: 'rate_limit'}.get(e.code, 'http_%d' % e.code)
-    except Exception:
-        return None, 'offline'
+    # Da qui in giu' l'errore va riportato TESTUALE: "non raggiungibile" e basta non si debugga
+    except urllib.error.URLError as e:
+        if isinstance(e.reason, ssl.SSLCertVerificationError):
+            return None, 'ssl_cert'
+        return None, 'rete: %s' % str(e.reason)[:120]
+    except Exception as e:
+        return None, '%s: %s' % (type(e).__name__, str(e)[:120])
     if len(_explorer_cache) > 400:
         _explorer_cache.clear()
     _explorer_cache[url] = body
@@ -834,11 +853,15 @@ def api_lichess_token():
        Il token non viene mai rimandato al client."""
     if request.method == 'GET':
         return jsonify({'present': bool(lichess_token()), 'from_env': bool(os.environ.get('LICHESS_TOKEN'))})
-    token = ((request.get_json(silent=True) or {}).get('token') or '').strip()
+    token = ((request.get_json(silent=True) or {}).get('token') or '').strip().strip('"\'')
     if not token:
         if os.path.exists(TOKEN_FILE):
             os.remove(TOKEN_FILE)
         return jsonify({'success': True, 'present': False})
+    # Un token incollato male (a capo, spazi, virgolette smart) romperebbe l'header HTTP con
+    # un errore incomprensibile: meglio dirlo subito.
+    if not re.fullmatch(r'[A-Za-z0-9_\-\.]+', token):
+        return jsonify({'success': False, 'error': 'token_formato'})
     _, err = explorer_get('masters', {'fen': chess.STARTING_FEN, 'moves': 1, 'topGames': 0}, token)
     if err:
         return jsonify({'success': False, 'error': err})

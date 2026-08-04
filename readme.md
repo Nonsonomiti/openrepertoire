@@ -13,4 +13,6 @@ funzionamento: con il box "load pgn" carichi il pgn di un corso / studio persona
 
 database lichess (opzionale, sezione "esplora"): il pannello "database lichess" confronta le mosse del tuo repertorio con quelle davvero giocate (OTB o partite online, filtrabili per cadenza ed elo). serve un token personale gratuito, lo crei su https://lichess.org/account/oauth/token/create e lo incolli nel pannello la prima volta. resta sul tuo computer in lichess_token.txt.
 
+se al salvataggio del token l'app dice che lichess non risponde e ti mostra un errore di certificato: è python che non ha i certificati installati (il browser ne ha di suoi, per questo lichess.org ti si apre lo stesso). su mac si risolve aprendo applicazioni → python 3.x → install certificates.command e riavviando l'app, oppure con `python3 -m pip install --user certifi`. i lanciatori installano certifi da soli, quindi di norma non serve fare niente.
+
 per segnalazioni di bug / suggerimenti @nonsonomiti instagram 
