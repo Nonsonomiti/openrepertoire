@@ -17,6 +17,4 @@ se al salvataggio del token l'app dice che lichess non risponde e ti mostra un e
 
 scorciatoie: premi "?" nell'app. tasto destro sulla scacchiera per disegnare frecce e cerchi; le frecce e i cerchi dei commenti dei corsi ([%cal] / [%csl]) compaiono da soli.
 
-crediti: la scacchiera è chessground di lichess (https://github.com/lichess-org/chessground, licenza gpl-3.0): se ridistribuisci l'app il codice deve restare open source con una licenza compatibile.
-
 per segnalazioni di bug / suggerimenti @nonsonomiti instagram 
