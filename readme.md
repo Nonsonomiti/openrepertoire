@@ -15,4 +15,8 @@ database lichess (opzionale, sezione "esplora"): il pannello "database lichess" 
 
 se al salvataggio del token l'app dice che lichess non risponde e ti mostra un errore di certificato: è python che non ha i certificati installati (il browser ne ha di suoi, per questo lichess.org ti si apre lo stesso). su mac si risolve aprendo applicazioni → python 3.x → install certificates.command e riavviando l'app, oppure con `python3 -m pip install --user certifi`. i lanciatori installano certifi da soli, quindi di norma non serve fare niente.
 
+scorciatoie: premi "?" nell'app. tasto destro sulla scacchiera per disegnare frecce e cerchi; le frecce e i cerchi dei commenti dei corsi ([%cal] / [%csl]) compaiono da soli.
+
+crediti: la scacchiera è chessground di lichess (https://github.com/lichess-org/chessground, licenza gpl-3.0): se ridistribuisci l'app il codice deve restare open source con una licenza compatibile.
+
 per segnalazioni di bug / suggerimenti @nonsonomiti instagram 

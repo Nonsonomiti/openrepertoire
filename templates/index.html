@@ -2,18 +2,21 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>openrepertoire — Vortichess</title>
     
-    <link rel="stylesheet" href="/static/css/chessboard.min.css">
+    <link rel="stylesheet" href="/static/css/chessboard.min.css">   <!-- solo per l'editor di posizione (pezzi a lato) -->
+    <link rel="stylesheet" href="/static/css/chessground.base.css">
     <script src="/static/js/jquery.min.js"></script>
     <script src="/static/js/chessboard.min.js"></script>
     <script src="/static/js/chess.min.js"></script>
+    <!-- chessground (la scacchiera di Lichess) e' un modulo ES: i moduli girano prima di $(document).ready -->
+    <script type="module">import { Chessground } from '/static/js/chessground.min.js'; window.Chessground = Chessground;</script>
     
     <link rel="stylesheet" href="/static/css/app.css">
 </head>
 <body>
 
-    <div id="topgrad"></div>
     <header id="topbar">
         <div class="brand">
             <div class="logo"></div>
@@ -28,7 +31,17 @@
         </nav>
         <div class="spacer"></div>
         <span id="due-badge" class="zero">0 oggi</span>
-        <button class="icon-btn" id="theme-toggle" onclick="toggleTheme()" title="Cambia tema" aria-label="Cambia tema chiaro/scuro">🌙</button>
+        <button class="icon-btn kbd-help" onclick="showShortcuts()" title="Scorciatoie da tastiera (?)" aria-label="Scorciatoie da tastiera">?</button>
+        <div class="theme-menu">
+            <button class="icon-btn" id="theme-btn" onclick="toggleThemeMenu()" title="Tema" aria-label="Scegli il tema" aria-haspopup="menu" aria-expanded="false"><i class="ico i-theme"></i></button>
+            <div id="theme-list" class="theme-list" role="menu" aria-label="Tema" hidden>
+                <button role="menuitemradio" data-set-theme="light"><span class="tm-sw" data-theme="light" aria-hidden="true">Aa</span>Chiaro<i class="ico i-check"></i></button>
+                <button role="menuitemradio" data-set-theme="pergamena"><span class="tm-sw" data-theme="pergamena" aria-hidden="true">Aa</span>Pergamena<i class="ico i-check"></i></button>
+                <button role="menuitemradio" data-set-theme="grafite"><span class="tm-sw" data-theme="grafite" aria-hidden="true">Aa</span>Grafite<i class="ico i-check"></i></button>
+                <button role="menuitemradio" data-set-theme="bosco"><span class="tm-sw" data-theme="bosco" aria-hidden="true">Aa</span>Bosco<i class="ico i-check"></i></button>
+                <button role="menuitemradio" data-set-theme="dark"><span class="tm-sw" data-theme="dark" aria-hidden="true">Aa</span>Scuro<i class="ico i-check"></i></button>
+            </div>
+        </div>
     </header>
 
     <div id="views">
@@ -42,8 +55,8 @@
                 <div id="left-col">
                     <div id="board-card"><div id="board"></div></div>
                     <div class="board-actions">
-                        <button class="lichess-btn" onclick="flipBoard()">🔄 Gira</button>
-                        <button class="lichess-btn" onclick="analyzeOnLichess()">🔍 Analizza su Lichess</button>
+                        <button class="lichess-btn" onclick="flipBoard()">Gira</button>
+                        <button class="lichess-btn" onclick="analyzeOnLichess()">Analizza su Lichess ↗</button>
                         <button class="lichess-btn board-size-btn" onclick="nudgeBoardSize(-40)" title="Rimpicciolisci scacchiera" aria-label="Rimpicciolisci scacchiera">−</button>
                         <button class="lichess-btn board-size-btn" onclick="nudgeBoardSize(40)" title="Ingrandisci scacchiera" aria-label="Ingrandisci scacchiera">+</button>
                     </div>
@@ -52,10 +65,13 @@
                 <div id="right-col">
                     <h1 id="title">Seleziona una variante</h1>
                     <div id="train-head"><div id="th-course"></div><div id="th-sub"></div></div>
-                    <div id="status" role="status" aria-live="polite" aria-atomic="true"></div>
+                    <div id="status-row">
+                        <div id="status" role="status" aria-live="polite" aria-atomic="true"></div>
+                        <button class="lichess-btn" id="btn-hint" onclick="showHint()" style="display:none" title="Prima il pezzo da muovere, poi la mossa. Conta come errore.">Suggerimento<span class="kbd">H</span></button>
+                    </div>
                     <div id="read-controls">
-                        <button class="btn btn-read" onclick="prevMoveRead()">⬅️ Indietro</button>
-                        <button class="btn btn-read" onclick="nextMoveRead()">Avanti (Spazio) ➡️</button>
+                        <button class="btn btn-read" onclick="prevMoveRead()">← Indietro</button>
+                        <button class="btn btn-read" onclick="nextMoveRead()">Avanti →</button>
                     </div>
                     <div id="annotation-box"></div>
                     <div id="train-chips"></div>
@@ -66,8 +82,8 @@
         <section id="view-repertoire" class="view">
             <h1 class="view-title">Il tuo repertorio</h1>
             <div id="empty-state">
-                <h2>Inizia il tuo repertorio ♟</h2>
-                <p>Carica un corso o uno studio in PGN (pannello "Importa Corso" qui sotto), oppure prova subito un esempio:</p>
+                <h2>Inizia il tuo repertorio</h2>
+                <p>Carica un corso o uno studio in PGN (pannello "Importa corso"), oppure prova subito un esempio:</p>
                 <div class="steps">
                     <div class="step"><div class="n">1 · Impara</div><div class="t">Scorri la linea con le idee, mossa per mossa.</div></div>
                     <div class="step"><div class="n">2 · Consolida</div><div class="t">Rigiocala a memoria fino a completarla.</div></div>
@@ -78,48 +94,53 @@
             <div id="repertoire-lists" class="rep-grid">
                 <div class="rep-col-main">
                     <h2 role="button" tabindex="0" onclick="$('#repertoire-wrapper').slideToggle(200)"><span>Tutte le varianti (<span id="rep-count">0</span>)</span><span>▼</span></h2>
-                    <input id="rep-filter" class="rep-filter" type="text" placeholder="🔎 Filtra per titolo, corso o capitolo…" autocomplete="off" aria-label="Filtra varianti" oninput="renderRepertoire()">
+                    <input id="rep-filter" class="rep-filter" type="text" placeholder="Filtra per titolo, corso o capitolo…" autocomplete="off" aria-label="Filtra varianti" oninput="renderRepertoire()">
                     <div id="rep-filter-meta" class="rep-filter-meta"></div>
                     <div id="repertoire-wrapper"><div id="repertoire-list"></div></div>
                 </div>
                 <div class="rep-col-side">
                     <div class="panel-box">
-                        <div class="panel-title" role="button" tabindex="0" onclick="$('#create-content').slideToggle(200)">Crea / Modifica <span>▼</span></div>
+                        <div class="panel-title" role="button" tabindex="0" onclick="$('#create-content').slideToggle(200)">Crea / modifica <span>▼</span></div>
                         <div id="create-content" style="display:none; margin-top: 10px; border-top: 1px solid var(--border-color); padding-top: 10px;">
-                            <button class="btn" onclick="openEditor()">➕ Nuova variante</button>
+                            <button class="btn" onclick="openEditor()">Nuova variante</button>
                             <p class="panel-hint">Costruisci la linea sulla scacchiera e assegnala a un corso e capitolo: digitando un nome nuovo crei al volo un nuovo corso o capitolo.</p>
                         </div>
                     </div>
                     <div class="panel-box">
-                        <div class="panel-title" role="button" tabindex="0" onclick="$('#import-content').slideToggle(200)">Importa Corso (PGN) <span>▼</span></div>
+                        <div class="panel-title" role="button" tabindex="0" onclick="$('#import-content').slideToggle(200)">Importa corso (PGN) <span>▼</span></div>
                         <div id="import-content" style="display:none; margin-top: 10px; border-top: 1px solid var(--border-color); padding-top: 10px;">
                             <select id="pgn-perspective" class="import-select">
-                                <option value="white">Bianco ⚪</option>
-                                <option value="black">Nero ⚫</option>
-                                <option value="auto">Tattica / Strategia (colore dal FEN) ♟</option>
+                                <option value="white">Bianco</option>
+                                <option value="black">Nero</option>
+                                <option value="auto">Tattica / Strategia (colore dal FEN)</option>
                             </select>
                             <input type="file" id="pgn-file" accept=".pgn" style="color:var(--text-faint); margin-top: 8px; width: 100%;">
-                            <button class="btn" onclick="importPGNFile()">Carica File</button>
+                            <button class="btn" onclick="importPGNFile()">Carica file</button>
                         </div>
                     </div>
                     <div class="panel-box">
-                        <div class="panel-title" role="button" tabindex="0" onclick="$('#export-content').slideToggle(200)">Esporta / Backup <span>▼</span></div>
+                        <div class="panel-title" role="button" tabindex="0" onclick="$('#export-content').slideToggle(200)">Esporta / backup <span>▼</span></div>
                         <div id="export-content" style="display:none; margin-top: 10px; border-top: 1px solid var(--border-color); padding-top: 10px;">
                             <p class="panel-hint" style="margin-top:0;">Scarica le varianti in PGN. Corso/capitolo restano ripristinabili al re-import; con "solo mosse" ottieni un PGN pulito per studi Lichess e analisi personali.</p>
+                            <label class="exp-sel-lab" style="margin-bottom:8px;"><input type="checkbox" id="export-selmode" onchange="toggleSelMode(this.checked)"><span>Scegli le varianti a mano <span style="opacity:.7;">(spunte nella lista)</span></span></label>
+                            <div id="export-sel-box" style="display:none;">
+                                <span><b><span id="export-sel-n">0</span> spuntate</b> · si esportano solo quelle</span>
+                                <button class="btn-delete" onclick="clearVarSel()" title="Svuota la selezione">svuota</button>
+                            </div>
                             <select id="export-course" class="import-select" onchange="populateExportChapters()"><option value="">Tutto il repertorio</option></select>
                             <select id="export-chapter" class="import-select" style="margin-top:6px;"><option value="">Tutti i capitoli</option></select>
-                            <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-faint); margin:8px 0 4px;"><input type="checkbox" id="export-strip"> Solo mosse (senza commenti)</label>
-                            <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-faint); margin:0 0 8px;"><input type="checkbox" id="export-merge"> Unisci le varianti in un albero <span style="opacity:.7;">(1 capitolo Lichess)</span></label>
-                            <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-faint); margin:0 0 8px;"><input type="checkbox" id="export-onechapter" onchange="toggleExportChapters()"> Fondi anche i capitoli <span style="opacity:.7;">(1 solo capitolo per corso)</span></label>
+                            <label class="exp-sel-lab" style="margin-top:10px;"><input type="checkbox" id="export-strip"><span>Solo mosse <span style="opacity:.7;">(senza commenti)</span></span></label>
+                            <label class="exp-sel-lab"><input type="checkbox" id="export-merge"><span>Unisci le varianti in un albero <span style="opacity:.7;">(1 capitolo Lichess)</span></span></label>
+                            <label class="exp-sel-lab"><input type="checkbox" id="export-onechapter" onchange="toggleExportChapters()"><span>Fondi anche i capitoli <span style="opacity:.7;">(1 solo capitolo per corso)</span></span></label>
                             <div id="export-chapters-box" style="display:none;">
                                 <div class="exp-ch-head">Capitoli da includere <span><button class="btn-delete" onclick="setAllExportChapters(true)">tutti</button><button class="btn-delete" onclick="setAllExportChapters(false)">nessuno</button></span></div>
                                 <div id="export-chapters-list"></div>
                             </div>
-                            <button class="btn" onclick="exportPGN()">⬇ Esporta PGN</button>
+                            <button class="btn" onclick="exportPGN()">Esporta PGN</button>
                         </div>
                     </div>
                     <div class="panel-box">
-                        <div class="panel-title" role="button" tabindex="0" onclick="$('#search-content').slideToggle(200)">Cerca Posizione <span>▼</span></div>
+                        <div class="panel-title" role="button" tabindex="0" onclick="$('#search-content').slideToggle(200)">Cerca posizione <span>▼</span></div>
                         <div id="search-content" style="display:none; margin-top: 10px; border-top: 1px solid var(--border-color); padding-top: 10px;">
                             <textarea id="search-fen" placeholder="Incolla un FEN..." class="import-select" style="height: 50px; resize: vertical; font-family: var(--font-mono); font-size: 11px;"></textarea>
                             <button class="btn btn-read" style="margin-top: 6px;" onclick="useBoardFen()">Usa posizione scacchiera</button>
@@ -129,28 +150,29 @@
                         </div>
                     </div>
                     <div class="panel-box">
-                        <div class="panel-title" role="button" tabindex="0" onclick="$('#theme-content').slideToggle(200)">Personalizza Grafica <span>▼</span></div>
+                        <div class="panel-title" role="button" tabindex="0" onclick="$('#theme-content').slideToggle(200)">Personalizza grafica <span>▼</span></div>
                         <div id="theme-content" style="display:none; margin-top: 10px; border-top: 1px solid var(--border-color); padding-top: 10px;">
-                            <label style="font-size: 11px; color: var(--text-faint); display: block;">STILE CASE:</label>
+                            <label class="edit-lab" style="margin-top:0;">Scacchiera</label>
                             <select id="board-theme-select" class="import-select" onchange="changeBoardTheme()">
-                                <option value="classic">Classico (Standard Marrone)</option>
-                                <option value="wood">Legno Noce</option>
-                                <option value="green">Verde Lichess / Torneo</option>
-                                <option value="slate">Slate Tech</option>
-                                <option value="blue">Blu Tech</option>
-                                <option value="dark">Grigio Contrasto</option>
+                                <option value="classic">Classico</option>
+                                <option value="wood">Legno</option>
+                                <option value="green">Verde torneo</option>
+                                <option value="slate">Ardesia</option>
+                                <option value="blue">Blu</option>
+                                <option value="dark">Grigio</option>
                             </select>
-                            <label style="font-size: 11px; color: var(--text-faint); display: block; margin-top: 14px;">SET PEZZI:</label>
+                            <label class="edit-lab">Pezzi</label>
                             <select id="piece-set-select" class="import-select" onchange="changePieceSet()">
-                                <option value="cburnett">Cburnett — nitido (SVG)</option>
-                                <option value="staunty">Staunty — moderno (SVG)</option>
-                                <option value="merida">Merida — classico (SVG)</option>
-                                <option value="wikipedia">Wikipedia — PNG</option>
+                                <option value="cburnett">Cburnett</option>
+                                <option value="staunty">Staunty</option>
+                                <option value="merida">Merida</option>
+                                <option value="wikipedia">Wikipedia</option>
                             </select>
-                            <label style="font-size: 11px; color: var(--text-faint); display: block; margin-top: 14px;">DIMENSIONE SCACCHIERA:</label>
-                            <input type="range" id="board-size-slider" min="320" max="1400" step="20" value="600" oninput="changeBoardSize()" style="width: 100%; margin-top: 6px; accent-color: var(--accent-blue);">
-                            <label style="font-size: 11px; color: var(--text-faint); display: block; margin-top: 14px;">VELOCITÀ ANIMAZIONE: <span id="anim-speed-val">200 ms</span></label>
-                            <input type="range" id="anim-speed-slider" min="0" max="800" step="20" value="200" oninput="$('#anim-speed-val').text(animSpeedLabel(this.value))" onchange="changeAnimSpeed()" style="width: 100%; margin-top: 6px; accent-color: var(--accent-blue);">
+                            <label class="edit-lab">Dimensione scacchiera</label>
+                            <input type="range" id="board-size-slider" min="320" max="1400" step="20" value="600" oninput="changeBoardSize()" style="width: 100%;">
+                            <label class="edit-lab">Velocità animazione · <span id="anim-speed-val">200 ms</span></label>
+                            <input type="range" id="anim-speed-slider" min="0" max="800" step="20" value="200" oninput="$('#anim-speed-val').text(animSpeedLabel(this.value))" onchange="changeAnimSpeed()" style="width: 100%;">
+                            <label class="exp-sel-lab" style="margin-top:14px;"><input type="checkbox" id="sound-toggle" onchange="toggleSound(this.checked)"><span>Suoni delle mosse</span></label>
                         </div>
                     </div>
                 </div>
@@ -162,8 +184,8 @@
             <div id="explore-controls">
                 <div class="exp-ctrl"><label class="exp-ctrl-lab">Esploro come</label>
                     <select id="explore-persp" class="import-select" onchange="explorePerspChanged()">
-                        <option value="white">Bianco ⚪</option>
-                        <option value="black">Nero ⚫</option>
+                        <option value="white">Bianco</option>
+                        <option value="black">Nero</option>
                     </select>
                 </div>
                 <div class="exp-ctrl"><label class="exp-ctrl-lab">Corso</label>
@@ -176,9 +198,10 @@
                 <div id="explore-left">
                     <div id="explore-board-card"><div id="explore-board"></div></div>
                     <div class="board-actions">
-                        <button class="lichess-btn" onclick="exploreReset()">⏮ Inizio</button>
-                        <button class="lichess-btn" onclick="exploreBack()">◀ Indietro</button>
-                        <button class="lichess-btn" onclick="exploreFlip()">🔄 Gira</button>
+                        <button class="lichess-btn" onclick="exploreReset()">Inizio</button>
+                        <button class="lichess-btn" onclick="exploreBack()">← Indietro</button>
+                        <button class="lichess-btn" onclick="exploreFlip()">Gira</button>
+                        <button class="lichess-btn" onclick="exploreAnalyze()">Analizza su Lichess ↗</button>
                     </div>
                     <div id="explore-breadcrumb" class="explore-breadcrumb"></div>
                     <div id="explore-meta" class="explore-meta"></div>
@@ -247,10 +270,10 @@
                     <div id="edit-normal">
                         <div id="edit-board-card"><div id="edit-board"></div></div>
                         <div class="board-actions">
-                            <button class="lichess-btn" onclick="editUndo()">↶ Annulla mossa</button>
-                            <button class="lichess-btn" onclick="editClear()">✖ Svuota</button>
-                            <button class="lichess-btn" onclick="editFlip()">🔄 Gira</button>
-                            <button class="lichess-btn" onclick="openSetup()">⊞ Imposta posizione</button>
+                            <button class="lichess-btn" onclick="editUndo()">Annulla mossa</button>
+                            <button class="lichess-btn" onclick="editClear()">Svuota</button>
+                            <button class="lichess-btn" onclick="editFlip()">Gira</button>
+                            <button class="lichess-btn" onclick="openSetup()">Imposta posizione</button>
                         </div>
                         <div id="edit-startfen-note" class="edit-startfen-note"></div>
                         <div id="edit-movelist" class="edit-movelist"></div>
@@ -278,12 +301,12 @@
                             </div>
                         </div>
                         <div class="board-actions">
-                            <button class="lichess-btn" onclick="setupStandard()">↺ Iniziale</button>
-                            <button class="lichess-btn" onclick="setupEmpty()">␀ Svuota</button>
-                            <button class="lichess-btn" onclick="setupFlip()">🔄 Gira</button>
+                            <button class="lichess-btn" onclick="setupStandard()">Iniziale</button>
+                            <button class="lichess-btn" onclick="setupEmpty()">Svuota</button>
+                            <button class="lichess-btn" onclick="setupFlip()">Gira</button>
                         </div>
                         <div class="setup-actions">
-                            <button class="btn" onclick="setupConfirm()">✓ Conferma posizione</button>
+                            <button class="btn" onclick="setupConfirm()">Conferma posizione</button>
                             <button class="btn btn-read" onclick="setupCancel()">Annulla</button>
                         </div>
                         <p class="panel-hint">Trascina i pezzi dalle file laterali sulla scacchiera; trascina fuori per rimuovere. Poi imposta il tratto, gli arrocchi e l'en passant.</p>
@@ -303,10 +326,10 @@
                         <datalist id="dl-chapters"></datalist>
                         <label class="edit-lab">Il tuo colore</label>
                         <select id="edit-perspective" class="import-select">
-                            <option value="white">Bianco ⚪</option>
-                            <option value="black">Nero ⚫</option>
+                            <option value="white">Bianco</option>
+                            <option value="black">Nero</option>
                         </select>
-                        <button class="btn" style="margin-top:14px;" onclick="editSave()">💾 Salva variante</button>
+                        <button class="btn" style="margin-top:14px;" onclick="editSave()">Salva variante</button>
                         <button class="btn btn-read" style="margin-top:6px;" onclick="navTo('repertorio')">Annulla</button>
                         <div id="edit-status" class="edit-status"></div>
                     </div>
@@ -315,7 +338,7 @@
         </section>
 
         <section id="view-stats" class="view">
-            <h1 class="view-title">Statistiche & Scadenze</h1>
+            <h1 class="view-title">Statistiche e scadenze</h1>
             <div id="stats-body"></div>
         </section>
 
@@ -354,8 +377,8 @@
     let pendingOppMove = null, pendingOppFen = null;
     
     let globalVariantsMap = {};
-    let expandedCourses = {}; 
-    let selectedSquare = null; 
+    // corsi/capitoli aperti: sopravvivono al ricaricamento della pagina
+    let expandedCourses = (function() { try { return JSON.parse(localStorage.getItem('expanded')) || {}; } catch (e) { return {}; } })();
     let cachedLists = { learn: [], review: [], repertoire: [] };
     let currentListMode = '';
     let sessionKind = null;   // 'learn' | 'review' | 'read' | 'course' | null — sessione attiva
@@ -372,25 +395,30 @@
             $('.san-link').removeClass('preview-active');
             $('#annotation-box').removeClass('previewing');
             isPreviewing = false;
-            board.position(game.fen(), false);
-            removeHighlights();
-            // In lettura ripristina l'evidenziazione della casa della mossa corrente
-            if (phase === 'READ' && currentVariation && moveIndex > 0) {
-                $('#board .square-' + currentVariation.moves[moveIndex - 1].uci.substring(2, 4)).addClass('highlight-square');
-            }
+            cgPosition(board, game, lastPlayedUci(), false);
+            board.setAutoShapes(_ctxShapes);
+            syncTrainMovable();
         }
     }
 
-    // ===== TEMA CHIARO/SCURO =====
+    // ===== TEMI (menu in alto a destra; i colori stanno in app.css) =====
+    const THEMES = ['light', 'pergamena', 'grafite', 'bosco', 'dark'];
     function applyTheme(t) {
+        if (THEMES.indexOf(t) < 0) t = 'dark';   // localStorage con un valore vecchio o sporco
         document.documentElement.setAttribute('data-theme', t);
-        $('#theme-toggle').text(t === 'light' ? '☀️' : '🌙');
+        $('#theme-list [data-set-theme]').each(function() { this.setAttribute('aria-checked', this.dataset.setTheme === t); });
         localStorage.setItem('theme', t);
     }
-    function toggleTheme() {
-        let cur = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
-        applyTheme(cur === 'light' ? 'dark' : 'light');
+    function toggleThemeMenu(open) {
+        let list = document.getElementById('theme-list');
+        if (open === undefined) open = list.hidden;
+        if (list.hidden === !open) return;
+        list.hidden = !open;
+        $('#theme-btn').attr('aria-expanded', open);
+        if (open) $(list).find('[aria-checked="true"]').focus();
     }
+    $(document).on('click', '#theme-list [data-set-theme]', function() { applyTheme(this.dataset.setTheme); toggleThemeMenu(false); $('#theme-btn').focus(); });
+    $(document).on('mousedown', function(e) { if (!$(e.target).closest('.theme-menu').length) toggleThemeMenu(false); });
     function initTheme() {
         let saved = localStorage.getItem('theme');
         if (!saved) saved = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
@@ -398,19 +426,25 @@
     }
 
     // Intervallo previsto (replica update_srs lato server: LEARN_STEPS + tetto MAX_INTERVAL)
-    const LEARN_STEPS = [1, 3, 7], MAX_INTERVAL = 180;
+    const LEARN_STEPS = [0.25, 1, 3, 7], RELEARN_STEP = 10 / 1440, MAX_INTERVAL = 180;
     function predictInterval(srs, q) {
         srs = srs || {}; let rep = srs.rep || 0, interval = srs.interval || 0, ease = srs.ease || 2.5;
-        if (q < 3) return 0;
+        if (q < 3) return RELEARN_STEP;
         return Math.min(rep < LEARN_STEPS.length ? LEARN_STEPS[rep] : Math.round(interval * ease), MAX_INTERVAL);
     }
-    function intervalLabel(d) { return d < 1 ? '< 1 giorno' : (d === 1 ? '1 giorno' : d + ' giorni'); }
+    function intervalLabel(d) {
+        if (d < 1 / 24) { let m = Math.max(1, Math.round(d * 1440)); return m === 1 ? '1 minuto' : m + ' minuti'; }
+        if (d < 1) { let h = Math.max(1, Math.round(d * 24)); return h === 1 ? '1 ora' : h + ' ore'; }
+        return d === 1 ? '1 giorno' : Math.round(d) + ' giorni';
+    }
 
     // ===== NAVIGAZIONE A VISTE =====
     function showView(v) {
         $('.view').removeClass('active');
         $('#view-' + v).addClass('active');
-        if (v === 'train') setTimeout(function() { applyBoardSize(); }, 10);
+        // dimensioni fissate dopo il cambio vista; poi la mossa corrente (lettura) torna in vista nel box
+        if (v === 'train') setTimeout(function() { applyBoardSize(); if (board && !isPreviewing) board.setAutoShapes(_ctxShapes); let c = document.getElementById('read-cur'); if (c) c.scrollIntoView({ block: 'nearest' }); }, 10);
+        else if (board) board.setAutoShapes([]);   // le forme del training restano in _ctxShapes
     }
     function setNavActive(nav) {
         $('.navlink').removeClass('active').removeAttr('aria-current');
@@ -418,7 +452,7 @@
     }
     function navTo(nav) {
         setNavActive(nav);
-        if (nav === 'repertorio') showView('repertoire');
+        if (nav === 'repertorio') { showView('repertoire'); if (_repDirty) renderRepertoire(); }
         else if (nav === 'stats') openStats();
         else if (nav === 'esplora') openExplore();
         else if (nav === 'impara') startQueue('learn');
@@ -430,7 +464,7 @@
         renderSessionSidebar(mode);
         let none = function(txt) {
             currentVariation = null;
-            if (board) board.start();
+            resetTrainBoard();
             $('#train-head').hide(); $('#train-chips').empty(); $('#read-controls').hide();
             $('#annotation-box').hide(); $('#move-progress').empty();
             $('#title').text(mode === 'review' ? 'Ripasso' : 'Impara');
@@ -438,12 +472,12 @@
         };
         if (mode === 'review') {
             let list = cachedLists.review || [];
-            if (!list.length) return none('Niente da ripassare oggi 🎉');
+            if (!list.length) return none('Niente da ripassare oggi.');
             startTraining(list[0].id, 'review');
         } else {
             let all = cachedLists.repertoire || [];
             if (!all.length) return none('Nessuna variante: importa un corso dal Repertorio.');
-            let firstNew = all.find(function(v) { return v.srs && v.srs.rep === 0; });
+            let firstNew = all.find(function(v) { return !isLearned(v); });
             startTraining((firstNew || all[0]).id, 'repertoire');
         }
     }
@@ -476,7 +510,7 @@
         setNavActive('impara');   // è una sessione "Impara" (ristretta al corso): evidenzia Impara nella nav
         showView('train');
         renderSessionSidebar('course', true);
-        let firstNew = all.find(function(v) { return v.srs && v.srs.rep === 0; });
+        let firstNew = all.find(function(v) { return !isLearned(v); });
         startTraining((firstNew || all[0]).id, 'course');
     }
     // Sidebar di sessione: Impara/Repertorio = tutte (✓ se imparate); Ripassa = solo dovute, per capitolo.
@@ -514,7 +548,7 @@
         let chips = '';
         if (st.reviews) {
             let acc = Math.round(100 * (st.correct || 0) / st.reviews);
-            chips += '<span>🎯 precisione ' + acc + '%</span><span>🔁 ' + st.reviews + ' ripassi</span>';
+            chips += '<span>Precisione ' + acc + '%</span><span>' + st.reviews + ' ripassi</span>';
         }
         $('#train-chips').html(chips);
     }
@@ -577,7 +611,7 @@
     }
 
     // ===== FLIP & INDICATORE PROGRESSO =====
-    function flipBoard() { if (board) board.flip(); }
+    function flipBoard() { if (board) board.toggleOrientation(); }
     function updateProgress() {
         let el = $('#move-progress');
         if (!currentVariation) { el.empty(); return; }
@@ -621,10 +655,17 @@
     function replayTo(g, n) {
         g.reset();
         if (currentVariation && currentVariation.startFen) g.load(currentVariation.startFen);
-        for (let i = 0; i < n; i++) {
-            let m = currentVariation.moves[i];
-            g.move({from: m.uci.substring(0,2), to: m.uci.substring(2,4), promotion: m.uci.length > 4 ? m.uci[4] : 'q'});
+        for (let i = 0; i < n; i++) playUci(g, currentVariation.moves[i].uci);
+    }
+    // Gioca una mossa UCI su chess.js. "0000" e' la mossa nulla ("--") che alcuni corsi usano per
+    // l'ultimo commento: chess.js non la conosce, quindi si passa il tratto a mano.
+    function playUci(g, uci) {
+        if (uci === '0000') {
+            let f = g.fen().split(' '); f[1] = (f[1] === 'w') ? 'b' : 'w'; f[3] = '-';
+            g.load(f.join(' '));
+            return { san: '--', flags: 'n' };
         }
+        return g.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci.length > 4 ? uci[4] : 'q' });
     }
 
     // Etichetta numero mossa coerente col FEN (tratto + fullmove di partenza)
@@ -658,7 +699,6 @@
         if (window.innerWidth <= 820) {            // mobile: board a tutta larghezza (CSS)
             lc.style.width = ''; lc.style.maxWidth = ''; lc.style.flex = '';
             let rcM = document.getElementById('right-col'); if (rcM) { rcM.style.minHeight = ''; rcM.style.maxHeight = ''; }
-            if (board && active) board.resize();
             return;
         }
         let ws = document.getElementById('workspace');
@@ -671,7 +711,6 @@
         lc.style.flex = '0 0 auto';
         lc.style.width = px + 'px';
         lc.style.maxWidth = px + 'px';
-        if (board && active) board.resize();
         // Colonna destra: alta almeno quanto la board, MAI piu' della finestra. Senza il tetto
         // il box del testo cresce con le mosse, la colonna lo segue e a scorrere e' la pagina:
         // la scacchiera esce di scena invece di far scorrere il testo dentro al box. Capitava a
@@ -703,27 +742,25 @@
         applyBoardSize();
     }
 
-    // Velocita' animazione mossa. chessboard.js legge moveSpeed solo alla creazione:
-    // il ricreo e' gia' quello di changePieceSet (stessa posizione/orientamento).
+    // Velocita' animazione mossa (0 = istantanea): chessground la cambia al volo
     function animSpeedLabel(v) { return (parseInt(v) === 0 ? 'istantanea' : v + ' ms'); }
     function changeAnimSpeed() {
         animSpeed = parseInt($('#anim-speed-slider').val());
         localStorage.setItem('animSpeed', animSpeed);
         $('#anim-speed-val').text(animSpeedLabel(animSpeed));
-        changePieceSet();
+        [board, exploreBoard, editBoard].forEach(function(cg) { if (cg) cg.set({ animation: { enabled: animSpeed > 0, duration: animSpeed } }); });
     }
     function initAnimSpeed() {
         $('#anim-speed-slider').val(animSpeed);
         $('#anim-speed-val').text(animSpeedLabel(animSpeed));
     }
 
+    // Tema case: una classe sul contenitore di ogni scacchiera (i colori sono variabili CSS)
+    const BOARD_THEMES = 'theme-wood theme-green theme-dark theme-slate theme-blue';
     function changeBoardTheme() {
         let theme = $('#board-theme-select').val();
-        $('#board').removeClass('theme-wood theme-green theme-dark');
-        if (theme !== 'classic') $('#board').addClass('theme-' + theme);
+        $('#board, #explore-board, #edit-board, #setup-board').removeClass(BOARD_THEMES).addClass(theme !== 'classic' ? 'theme-' + theme : '');
         localStorage.setItem('boardTheme', theme);
-        if (exploreBoard) applyExploreTheme();
-        if (editBoard) editApplyTheme();
     }
 
     function initBoardTheme() {
@@ -733,65 +770,140 @@
     }
 
     function initBoard() {
-        var config = { draggable: true, position: 'start', onDragStart: onDragStart, onDrop: onDrop, onSnapEnd: onSnapEnd, pieceTheme: pieceThemeFn, moveSpeed: animSpeed };
-        board = Chessboard('board', config);
+        board = makeBoard('board', onUserMove);
         $('#piece-set-select').val(pieceSet);
+        applyPieceCss();
         initBoardTheme();
+        // con un'anteprima aperta, toccare la scacchiera riporta alla linea principale
+        $('#board').on('mousedown touchstart', function() { if (isPreviewing) clearPreview(); });
     }
 
-    // Cambia set pezzi: ricrea la board (chessboard.js legge pieceTheme alla creazione) mantenendo posizione/orientamento
+    // Set pezzi: per chessground basta il CSS; l'editor di posizione (chessboard.js) va ricreato
     function changePieceSet() {
         pieceSet = $('#piece-set-select').val();
         localStorage.setItem('pieceSet', pieceSet);
-        if (!board) return;
-        let fen = game.fen(), ori = board.orientation();
-        board.destroy();
-        board = Chessboard('board', { draggable: true, position: fen, orientation: ori, onDragStart: onDragStart, onDrop: onDrop, onSnapEnd: onSnapEnd, pieceTheme: pieceThemeFn, moveSpeed: animSpeed });
-        changeBoardTheme();
-        applyBoardSize();
-        if (exploreBoard) {
-            let efen = exploreBoard.fen();
-            exploreBoard.destroy();
-            exploreBoard = Chessboard('explore-board', { draggable: true, position: efen, orientation: exploreOrient, onDragStart: exploreOnDragStart, onDrop: exploreOnDrop, pieceTheme: pieceThemeFn });
-            applyExploreTheme();
-        }
-        if (editBoard) {
-            let efen2 = editGame.fen();
-            editBoard.destroy();
-            editBoard = Chessboard('edit-board', { draggable: true, position: efen2, orientation: editOrient, onDragStart: editOnDragStart, onDrop: editOnDrop, onSnapEnd: editOnSnapEnd, pieceTheme: pieceThemeFn });
-            editApplyTheme();
-        }
+        applyPieceCss();
+        if (setupBoard && $('#edit-setup').is(':visible')) setupBoardInit(setupBoard.fen());
+    }
+    function applyPieceCss() {
+        let roles = { pawn: 'P', knight: 'N', bishop: 'B', rook: 'R', queen: 'Q', king: 'K' }, css = '';
+        for (let r in roles) ['white', 'black'].forEach(function(c) {
+            css += '.cg-wrap piece.' + r + '.' + c + '{background-image:url("' + pieceThemeFn(c[0] + roles[r]) + '")}';
+        });
+        let el = document.getElementById('piece-css');
+        if (!el) { el = document.createElement('style'); el.id = 'piece-css'; document.head.appendChild(el); }
+        el.textContent = css;
     }
 
     function toggleCourse(id) {
-        $('#' + id).slideToggle(200, function() { expandedCourses[id] = $(this).is(':visible'); });
+        $('#' + id).slideToggle(200, function() {
+            expandedCourses[id] = $(this).is(':visible');
+            try { localStorage.setItem('expanded', JSON.stringify(expandedCourses)); } catch (e) {}
+        });
     }
 
-    function removeHighlights() { $('#board .square-55d63').removeClass('highlight-square'); clearDots('#board'); selectedSquare = null; }
-    // Evidenzia ultima mossa (from+to) e scacco sul board indicato ('#board', '#explore-board', ...)
-    function markLastMove(sel, uci) {
-        $(sel + ' .square-55d63').removeClass('sq-last');
-        if (uci) $(sel + ' .square-' + uci.slice(0, 2) + ', ' + sel + ' .square-' + uci.slice(2, 4)).addClass('sq-last');
+    // ===== SCACCHIERA: chessground (la board di Lichess) disegna, chess.js tiene le regole =====
+    function legalDests(g) {   // mosse legali nel formato di chessground: Map(casa -> [arrivi])
+        let d = new Map();
+        g.moves({ verbose: true }).forEach(function(m) { if (!d.has(m.from)) d.set(m.from, []); d.get(m.from).push(m.to); });
+        return d;
     }
-    function markCheck(sel, g) {
-        $(sel + ' .square-55d63').removeClass('sq-check');
-        if (!g || !g.in_check()) return;
-        let b = g.board(), turn = g.turn();
-        for (let r = 0; r < 8; r++) for (let f = 0; f < 8; f++) {
-            let p = b[r][f];
-            if (p && p.type === 'k' && p.color === turn) { $(sel + ' .square-' + 'abcdefgh'[f] + (8 - r)).addClass('sq-check'); return; }
-        }
+    function turnColor(g) { return g.turn() === 'w' ? 'white' : 'black'; }
+    // Posizione + tratto + scacco + ultima mossa. animate=false per i salti (inizio variante,
+    // anteprime); le singole mosse invece scorrono.
+    function cgPosition(cg, g, lastUci, animate) {
+        if (!cg) return;
+        if (animate === false) cg.set({ animation: { enabled: false } });
+        cg.set({ fen: g.fen(), turnColor: turnColor(g), check: g.in_check() ? turnColor(g) : false,
+                 lastMove: (lastUci && lastUci !== '0000') ? [lastUci.slice(0, 2), lastUci.slice(2, 4)] : undefined });
+        if (animate === false) cg.set({ animation: { enabled: animSpeed > 0 } });
     }
-    // Pezzo "in mano" (click o drag): pallino sulle case legali, anello sulle catture
-    function clearDots(sel) { $(sel + ' .square-55d63').removeClass('sq-dest sq-dest-cap sq-selected'); }
-    function showDots(sel, g, square) {
-        clearDots(sel);
-        let ms = (g && g.moves({ square: square, verbose: true })) || [];
-        ms.forEach(function(m) { $(sel + ' .square-' + m.to).addClass(m.captured ? 'sq-dest-cap' : 'sq-dest'); });
-        if (ms.length) $(sel + ' .square-' + square).addClass('sq-selected');
-        return ms.length;
+    // Chi puo' muovere: un colore (solo mosse legali) oppure nessuno (color null)
+    function cgMovable(cg, g, color) {
+        if (!cg) return;
+        cg.selectSquare(null);
+        cg.set({ movable: { color: color || undefined, dests: color ? legalDests(g) : new Map() } });
     }
-    function highlightSquare(square) { removeHighlights(); $('#board .square-' + square).addClass('highlight-square'); selectedSquare = square; showDots('#board', game, square); }
+    function makeBoard(id, onMove) {
+        let el = document.getElementById(id);
+        let cg = Chessground(el, {
+            coordinates: true,
+            animation: { enabled: animSpeed > 0, duration: animSpeed },
+            highlight: { lastMove: true, check: true },
+            movable: { free: false, showDests: true, color: undefined, events: { after: onMove } },
+            premovable: { enabled: false },
+            draggable: { showGhost: true },
+            drawable: { enabled: true, eraseOnClick: true }   // tasto destro: frecce e cerchi come su Lichess
+        });
+        // Quando la board cambia misura chessground riallinea i pezzi ma non frecce e cerchi: messi
+        // mentre la vista diventava visibile restavano schiacciati al centro. set({}) li ridisegna.
+        new ResizeObserver(function() { if (el.offsetWidth) cg.set({}); }).observe(el);   // nascosta: niente da ridisegnare
+        return cg;
+    }
+
+    // Comandi nei commenti PGN: [%cal Ge2e4,Rd7d5] (frecce) e [%csl Gb4] (cerchi) diventano forme
+    // sulla scacchiera; gli altri ([%mdl], [%emt], [%clk]...) non sono testo da mostrare. Il commento
+    // originale resta intatto nei dati: export e editor lo conservano.
+    const BRUSH = { G: 'green', R: 'red', Y: 'yellow', B: 'blue' };
+    function commentShapes(comment) {
+        let shapes = [];
+        String(comment || '').replace(/\[%(cal|csl)\s+([^\]]*)\]/gi, function(_, cmd, args) {
+            args.split(',').forEach(function(a) {
+                let m = a.trim().match(/^([GRYB])([a-h][1-8])([a-h][1-8])?$/i);
+                if (m) shapes.push({ orig: m[2].toLowerCase(), dest: (m[3] && cmd.toLowerCase() === 'cal') ? m[3].toLowerCase() : undefined, brush: BRUSH[m[1].toUpperCase()] });
+            });
+            return '';
+        });
+        return shapes;
+    }
+    function stripCmds(comment) { return String(comment || '').replace(/\[%[^\]]*\]/g, '').replace(/[ \t]{2,}/g, ' ').trim(); }
+
+    // Forme "di contesto" della board di training (frecce dell'autore, mossa da imparare...):
+    // un'anteprima le nasconde, chiusa l'anteprima tornano.
+    let _ctxShapes = [];
+    // Su una board nascosta (vista non attiva) chessground calcolerebbe le forme con misure zero (NaN):
+    // si tengono da parte e le mette showView quando la vista torna visibile.
+    function setCtxShapes(shapes) { _ctxShapes = shapes || []; if (board && !isPreviewing && document.getElementById('board').offsetWidth) board.setAutoShapes(_ctxShapes); }
+    function moveArrow(uci, brush) { return { orig: uci.slice(0, 2), dest: uci.slice(2, 4), brush: brush || 'paleGreen' }; }
+
+    // ===== SUONI (sintetizzati con WebAudio: nessun file) =====
+    let soundOn = localStorage.getItem('sound') !== '0', _actx = null;
+    function playSound(kind) {   // 'move' | 'capture' | 'error'
+        if (!soundOn) return;
+        try {
+            let ac = _actx || (_actx = new (window.AudioContext || window.webkitAudioContext)());
+            if (ac.state === 'suspended') ac.resume();
+            let t = ac.currentTime, out = ac.createGain();
+            out.gain.value = 0.6;
+            out.connect(ac.destination);
+            if (kind === 'error') {   // due toni bassi e smorzati
+                [0, 0.09].forEach(function(dt, i) {
+                    let o = ac.createOscillator(), g = ac.createGain();
+                    o.type = 'sine'; o.frequency.value = i ? 196 : 247;
+                    g.gain.setValueAtTime(0.0001, t + dt);
+                    g.gain.exponentialRampToValueAtTime(0.25, t + dt + 0.01);
+                    g.gain.exponentialRampToValueAtTime(0.0001, t + dt + 0.16);
+                    o.connect(g).connect(out); o.start(t + dt); o.stop(t + dt + 0.18);
+                });
+                return;
+            }
+            // "toc" di legno: rumore breve filtrato, piu' grave e con un colpo sordo sulle catture
+            let cap = kind === 'capture', n = Math.floor(ac.sampleRate * (cap ? 0.09 : 0.06));
+            let buf = ac.createBuffer(1, n, ac.sampleRate), d = buf.getChannelData(0);
+            for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 5);
+            let src = ac.createBufferSource(), bp = ac.createBiquadFilter();
+            src.buffer = buf; bp.type = 'bandpass'; bp.frequency.value = cap ? 1100 : 1700; bp.Q.value = 1.4;
+            src.connect(bp).connect(out); src.start(t);
+            if (cap) {
+                let o = ac.createOscillator(), og = ac.createGain();
+                o.frequency.setValueAtTime(160, t); o.frequency.exponentialRampToValueAtTime(70, t + 0.08);
+                og.gain.setValueAtTime(0.4, t); og.gain.exponentialRampToValueAtTime(0.0001, t + 0.1);
+                o.connect(og).connect(out); o.start(t); o.stop(t + 0.11);
+            }
+        } catch (e) {}
+    }
+    function playMoveSound(mv) { playSound(mv && mv.captured ? 'capture' : 'move'); }
+    function toggleSound(on) { soundOn = !!on; localStorage.setItem('sound', on ? '1' : '0'); if (on) playSound('move'); }
 
     // Escape per CONTESTO TESTO HTML (contenuto tra i tag)
     function escHtml(s) {
@@ -806,12 +918,32 @@
             .replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     }
 
-    function renderList(dataArray, listId, mode) {
-        let list = $(`#${listId}`);
-        list.empty();
-        if (dataArray.length === 0) { list.append('<p class="empty-msg">Nessuna variante presente.</p>'); return; }
+    // Imparata = ripassata almeno una volta. NON basta srs.rep > 0: sbagliando piu' volte SM-2
+    // riazzera rep (lapse), ma una variante gia' studiata non torna "mai vista" — va ripassata,
+    // non re-imparata da zero.
+    function isLearned(v) {
+        return !!(v && ((v.stats && v.stats.reviews > 0) || (v.srs && v.srs.rep > 0)));
+    }
 
-        let isRep = (listId === 'repertoire-list');
+    // Stato ripasso di una variante: nuova / da ripassare / programmata
+    function srsState(v) {
+        if (!isLearned(v)) return { cls: 'srs-new', lab: 'da imparare' };
+        if (v.srs && v.srs.next_review && new Date(v.srs.next_review).getTime() <= Date.now()) return { cls: 'srs-due', lab: 'da ripassare' };
+        return { cls: 'srs-ok', lab: 'programmata' };
+    }
+    function countMeta(vs) {   // "42 · 3 da ripassare" sulle intestazioni di corso e capitolo
+        let due = vs.filter(function(v) { return srsState(v).cls === 'srs-due'; }).length;
+        return vs.length + (due ? ' · ' + due + ' da ripassare' : '');
+    }
+
+    // L'HTML si costruisce come stringa e si inserisce una volta sola: con migliaia di varianti gli
+    // append riga per riga costavano centinaia di millisecondi a ogni ridisegno.
+    function renderList(dataArray, listId, mode) {
+        let list = document.getElementById(listId);
+        if (!list) return;
+        if (dataArray.length === 0) { list.innerHTML = '<p class="empty-msg">Nessuna variante presente.</p>'; return; }
+
+        let isRep = (listId === 'repertoire-list'), isSession = (listId === 'session-list');
 
         // Raggruppa: corso -> capitolo -> [varianti]
         let grouped = {};
@@ -819,89 +951,73 @@
             globalVariantsMap[v.id] = v;
             let courseName = v.course || 'Varie';
             let chapterName = v.chapter || 'Generale';
-            let sideTag = v.perspective === 'black' ? '⚫ ' : '⚪ ';
-            v.displayTitle = sideTag + escHtml(v.title);
+            v.displayTitle = escHtml(v.title);
             grouped[courseName] = grouped[courseName] || {};
             (grouped[courseName][chapterName] = grouped[courseName][chapterName] || []).push(v);
         });
 
+        // Lato giocato: sul corso se tutte le sue varianti hanno lo stesso colore (il caso normale),
+        // altrimenti su ogni riga.
+        let sideName = p => (p === 'black' ? 'Nero' : 'Bianco');
+        let meta = t => t ? '<span class="row-meta">' + t + '</span>' : '';
+        let out = [];
         for (let course in grouped) {
+            let chapters = grouped[course], chapterKeys = Object.keys(chapters);
+            let all = [].concat.apply([], chapterKeys.map(k => chapters[k]));
+            let sides = new Set(all.map(v => v.perspective === 'black' ? 'black' : 'white'));
+            let courseSide = sides.size === 1 ? [...sides][0] : null;
             let safeCourse = course.replace(/[^a-zA-Z0-9]/g, '_') + '_' + listId;
             let cExpanded = expandedCourses[safeCourse];
             if (cExpanded === undefined) cExpanded = !isRep;
 
-            let learnBtn = isRep ? `<button class="btn-delete" onclick="learnCourse('${esc(course)}', event)" title="Impara questo corso" aria-label="Impara il corso ${escHtml(course)}">▶</button> ` : '';
-            let cRenameBtn = isRep ? `<button class="btn-delete" onclick="renameCourse('${esc(course)}', event)" title="Rinomina corso" aria-label="Rinomina il corso ${escHtml(course)}">✎</button> ` : '';
-            let delBtn = isRep ? `<button class="btn-delete" onclick="deleteCourse('${esc(course)}', event)" title="Elimina corso" aria-label="Elimina il corso ${escHtml(course)}">🗑</button> ` : '';
-            let cNowBtn = isRep ? `<button class="btn-delete" onclick="reviewNow('${esc(course)}', null, event)" title="Rendi ripassabili adesso tutte le varianti del corso" aria-label="Rendi ripassabile adesso il corso ${escHtml(course)}">⏰</button> ` : '';
-            list.append(`<div class="course-header" role="button" tabindex="0" onclick="toggleCourse('${safeCourse}')"><span>${escHtml(course)}</span><span>${learnBtn}${cNowBtn}${cRenameBtn}${delBtn}▼</span></div>`);
-            let courseDiv = $(`<div id="${safeCourse}" class="course-content" style="display: ${cExpanded ? 'block' : 'none'};"></div>`);
+            let learnBtn = isRep ? `<button class="btn-delete" onclick="learnCourse('${esc(course)}', event)" title="Impara questo corso" aria-label="Impara il corso ${escHtml(course)}"><i class="ico i-play"></i></button>` : '';
+            let cRenameBtn = isRep ? `<button class="btn-delete" onclick="renameCourse('${esc(course)}', event)" title="Rinomina corso" aria-label="Rinomina il corso ${escHtml(course)}"><i class="ico i-edit"></i></button>` : '';
+            let delBtn = isRep ? `<button class="btn-delete" onclick="deleteCourse('${esc(course)}', event)" title="Elimina corso" aria-label="Elimina il corso ${escHtml(course)}"><i class="ico i-trash"></i></button>` : '';
+            let cNowBtn = isRep ? `<button class="btn-delete" onclick="reviewNow('${esc(course)}', null, event)" title="Rendi ripassabili adesso tutte le varianti del corso" aria-label="Rendi ripassabile adesso il corso ${escHtml(course)}"><i class="ico i-clock"></i></button>` : '';
+            let cMeta = [courseSide ? sideName(courseSide) : '', isRep ? countMeta(all) : ''].filter(Boolean).join(' · ');
+            out.push(`<div class="course-header" role="button" tabindex="0" onclick="toggleCourse('${safeCourse}')"><span>${escHtml(course)}${meta(cMeta)}</span><span>${learnBtn}${cNowBtn}${cRenameBtn}${delBtn}▼</span></div>`);
+            out.push(`<div id="${safeCourse}" class="course-content" style="display: ${cExpanded ? 'block' : 'none'};">`);
 
-            let chapters = grouped[course];
-            let chapterKeys = Object.keys(chapters);
             let showChapters = isRep || chapterKeys.length > 1;
-
             chapterKeys.forEach(chap => {
-                let target = courseDiv;
                 if (showChapters) {
                     let safeChap = (course + '__' + chap).replace(/[^a-zA-Z0-9]/g, '_') + '_' + listId;
                     let chExpanded = expandedCourses[safeChap];
                     // Capitoli chiusi di default; aperto solo quello della variante attiva
                     if (chExpanded === undefined) chExpanded = !!(currentVariation && (currentVariation.course || 'Varie') === course && (currentVariation.chapter || 'Generale') === chap);
-                    let addBtn = isRep ? `<button class="btn-delete" onclick="newVariationIn('${esc(course)}', '${esc(chap)}', event)" title="Aggiungi una variante a questo capitolo" aria-label="Aggiungi una variante al capitolo ${escHtml(chap)}">➕</button> ` : '';
-                    let editBtn = isRep ? `<button class="btn-delete" onclick="renameChapter('${esc(course)}', '${esc(chap)}', event)" title="Rinomina capitolo" aria-label="Rinomina il capitolo ${escHtml(chap)}">✎</button> ` : '';
-                    let mergeBtn = isRep ? `<button class="btn-delete" onclick="mergeChapter('${esc(course)}', '${esc(chap)}', event)" title="Unisci a un altro capitolo" aria-label="Unisci il capitolo ${escHtml(chap)}">🔗</button> ` : '';
-                    let nowBtn = isRep ? `<button class="btn-delete" onclick="reviewNow('${esc(course)}', '${esc(chap)}', event)" title="Rendi ripassabili adesso le varianti del capitolo" aria-label="Rendi ripassabile adesso il capitolo ${escHtml(chap)}">⏰</button> ` : '';
-                    courseDiv.append(`<div class="chapter-header" role="button" tabindex="0" onclick="toggleCourse('${safeChap}')"><span>${escHtml(chap)}</span><span>${addBtn}${nowBtn}${editBtn}${mergeBtn}▾</span></div>`);
-                    target = $(`<div id="${safeChap}" class="chapter-content" style="display: ${chExpanded ? 'block' : 'none'};"></div>`);
+                    let addBtn = isRep ? `<button class="btn-delete" onclick="newVariationIn('${esc(course)}', '${esc(chap)}', event)" title="Aggiungi una variante a questo capitolo" aria-label="Aggiungi una variante al capitolo ${escHtml(chap)}"><i class="ico i-plus"></i></button>` : '';
+                    let editBtn = isRep ? `<button class="btn-delete" onclick="renameChapter('${esc(course)}', '${esc(chap)}', event)" title="Rinomina capitolo" aria-label="Rinomina il capitolo ${escHtml(chap)}"><i class="ico i-edit"></i></button>` : '';
+                    let mergeBtn = isRep ? `<button class="btn-delete" onclick="mergeChapter('${esc(course)}', '${esc(chap)}', event)" title="Unisci a un altro capitolo" aria-label="Unisci il capitolo ${escHtml(chap)}"><i class="ico i-link"></i></button>` : '';
+                    let nowBtn = isRep ? `<button class="btn-delete" onclick="reviewNow('${esc(course)}', '${esc(chap)}', event)" title="Rendi ripassabili adesso le varianti del capitolo" aria-label="Rendi ripassabile adesso il capitolo ${escHtml(chap)}"><i class="ico i-clock"></i></button>` : '';
+                    out.push(`<div class="chapter-header" role="button" tabindex="0" onclick="toggleCourse('${safeChap}')"><span>${escHtml(chap)}${isRep ? meta(countMeta(chapters[chap])) : ''}</span><span>${addBtn}${nowBtn}${editBtn}${mergeBtn}▾</span></div>`);
+                    out.push(`<div id="${safeChap}" class="chapter-content" style="display: ${chExpanded ? 'block' : 'none'};">`);
                 }
 
                 chapters[chap].forEach(v => {
-                    let isSession = (listId === 'session-list');
                     let onClickAction = mode === 'read' ? `startReadMode('${v.id}', 'repertoire')` : `startTraining('${v.id}', '${mode}')`;
-                    let editLineBtn = isRep ? `<button class="btn-delete" onclick="event.stopPropagation(); openEditor('${v.id}')" title="Modifica mosse" aria-label="Modifica le mosse della variante">✏️</button>` : '';
-                    let forkBtn = isRep ? `<button class="btn-delete" onclick="event.stopPropagation(); openEditor('${v.id}', {fork:true})" title="Duplica in una nuova variante (fork)" aria-label="Duplica la variante">⧉</button>` : '';
-                    let expBtn = isRep ? `<button class="btn-delete" onclick="event.stopPropagation(); exportPGN({ids:'${v.id}'})" title="Esporta questa variante (PGN)" aria-label="Esporta la variante in PGN">⬇</button>` : '';
-                    let courseBtn = isRep ? `<button class="btn-delete" onclick="editVarCourse('${v.id}', event)" title="Sposta in corso" aria-label="Sposta la variante in un altro corso">📚</button>` : '';
-                    let moveBtn = isRep ? `<button class="btn-delete" onclick="editVarChapter('${v.id}', event)" title="Sposta in capitolo" aria-label="Sposta la variante in un altro capitolo">📂</button>` : '';
-                    let delBtn = isSession ? '' : `<button class="btn-delete" onclick="deleteVariation('${v.id}', event)" title="Elimina variante" aria-label="Elimina la variante">✕</button>`;
-                    let learned = v.srs && v.srs.rep > 0;
+                    let editLineBtn = isRep ? `<button class="btn-delete" onclick="event.stopPropagation(); openEditor('${v.id}')" title="Modifica mosse" aria-label="Modifica le mosse della variante"><i class="ico i-edit"></i></button>` : '';
+                    let forkBtn = isRep ? `<button class="btn-delete" onclick="event.stopPropagation(); openEditor('${v.id}', {fork:true})" title="Duplica in una nuova variante (fork)" aria-label="Duplica la variante"><i class="ico i-copy"></i></button>` : '';
+                    let expBtn = isRep ? `<button class="btn-delete" onclick="event.stopPropagation(); exportPGN({ids:'${v.id}'})" title="Esporta questa variante (PGN)" aria-label="Esporta la variante in PGN"><i class="ico i-download"></i></button>` : '';
+                    let courseBtn = isRep ? `<button class="btn-delete" onclick="editVarCourse('${v.id}', event)" title="Sposta in corso" aria-label="Sposta la variante in un altro corso"><i class="ico i-book"></i></button>` : '';
+                    let moveBtn = isRep ? `<button class="btn-delete" onclick="editVarChapter('${v.id}', event)" title="Sposta in capitolo" aria-label="Sposta la variante in un altro capitolo"><i class="ico i-folder"></i></button>` : '';
+                    let vDelBtn = isSession ? '' : `<button class="btn-delete" onclick="deleteVariation('${v.id}', event)" title="Elimina variante" aria-label="Elimina la variante"><i class="ico i-x"></i></button>`;
+                    let learned = isLearned(v);
                     let flair = (isSession && mode !== 'review') ? `<span class="flair ${learned ? 'done' : 'todo'}">${learned ? '✓' : '•'}</span>` : '';
                     // Pallino stato SRS (solo lista repertorio): nuova / da ripassare / programmata
-                    let srsDot = '';
-                    if (isRep) {
-                        let rep = (v.srs && v.srs.rep) || 0, cls = 'srs-ok', lab = 'programmata';
-                        if (rep === 0) { cls = 'srs-new'; lab = 'da imparare'; }
-                        else if (v.srs && v.srs.next_review && new Date(v.srs.next_review).getTime() <= Date.now()) { cls = 'srs-due'; lab = 'da ripassare'; }
-                        srsDot = `<span class="srs-dot ${cls}" title="${lab}" aria-label="Stato ripasso: ${lab}"></span>`;
-                    }
-                    target.append(`
-                        <div class="var-container" data-var-id="${v.id}">
-                            ${flair}${srsDot}
-                            <div class="var-item" ${isRep ? 'role="button" tabindex="0"' : ''} onclick="${onClickAction}">${v.displayTitle}</div>
-                            ${editLineBtn}
-                            ${forkBtn}
-                            ${expBtn}
-                            ${courseBtn}
-                            ${moveBtn}
-                            ${delBtn}
-                        </div>
-                    `);
+                    let st = isRep ? srsState(v) : null;
+                    let srsDot = st ? `<span class="srs-dot ${st.cls}" title="${st.lab}" aria-label="Stato ripasso: ${st.lab}"></span>` : '';
+                    // Spunta di selezione: serve a esportare piu' varianti scelte a mano in un
+                    // unico PGN, con le stesse opzioni di compressione del pannello.
+                    let selBox = isRep ? `<input type="checkbox" class="var-sel" onclick="event.stopPropagation(); toggleVarSel('${v.id}', this.checked)"${selectedIds.has(v.id) ? ' checked' : ''} title="Seleziona per l'esportazione" aria-label="Seleziona la variante per l'esportazione">` : '';
+                    out.push(`<div class="var-container" data-var-id="${v.id}">${selBox}${flair}${srsDot}<div class="var-item" ${isRep ? 'role="button" tabindex="0"' : ''} onclick="${onClickAction}">${v.displayTitle}${courseSide ? '' : meta(sideName(v.perspective))}</div>${editLineBtn}${forkBtn}${expBtn}${courseBtn}${moveBtn}${vDelBtn}</div>`);
                 });
 
-                if (showChapters) courseDiv.append(target);
+                if (showChapters) out.push('</div>');
             });
-
-            list.append(courseDiv);
+            out.push('</div>');
         }
-    }
-
-    function shuffleArray(a) {
-        for (let i = a.length - 1; i > 0; i--) {
-            let j = Math.floor(Math.random() * (i + 1));
-            [a[i], a[j]] = [a[j], a[i]];
-        }
-        return a;
+        list.innerHTML = out.join('');
+        updateVarSelUI();   // la lista si ridisegna spesso: tiene allineato il contatore
     }
 
     function populateSearchCourses(repertoire) {
@@ -915,7 +1031,9 @@
     }
 
     // Repertorio filtrabile live (titolo/corso/capitolo). globalVariantsMap resta comunque completo.
+    let _repDirty = false;   // dopo un ripasso la lista si ridisegna solo quando torni a guardarla
     function renderRepertoire() {
+        _repDirty = false;
         let all = cachedLists.repertoire || [];
         let q = ($('#rep-filter').val() || '').trim().toLowerCase();
         let list = q ? all.filter(function(v) {
@@ -954,12 +1072,41 @@
         $('#export-chapter').prop('disabled', on);
     }
     function setAllExportChapters(on) { $('.exp-ch-cb').prop('checked', on); }
+
+    // Selezione di varianti sparse (anche di corsi diversi) da esportare insieme: le spunte
+    // stanno nella lista, le opzioni di compressione restano quelle del pannello. Serve di rado,
+    // quindi le spunte restano nascoste finche' non attivi la modalita' dal pannello Esporta.
+    let selectedIds = new Set(), selMode = false;
+    function toggleSelMode(on) {
+        selMode = !!on;
+        $('#repertoire-list').toggleClass('sel-mode', selMode);
+        if (!selMode) selectedIds.clear();
+        $('.var-sel').prop('checked', false);
+        updateVarSelUI();
+    }
+    function toggleVarSel(id, on) {
+        if (on) selectedIds.add(id); else selectedIds.delete(id);
+        updateVarSelUI();
+    }
+    function clearVarSel() {
+        selectedIds.clear();
+        $('.var-sel').prop('checked', false);
+        updateVarSelUI();
+    }
+    function updateVarSelUI() {
+        $('#export-sel-n').text(selectedIds.size);
+        $('#export-sel-box').toggle(selMode);
+    }
     // Export PGN: download diretto via Content-Disposition. opts.ids -> singola/e variante/i;
     // altrimenti usa corso+capitolo del pannello. opts.strip forza "solo mosse" (default: checkbox).
     function exportPGN(opts) {
         opts = opts || {};
         let params = [];
         let one = (opts.one != null) ? opts.one : $('#export-onechapter').is(':checked');
+        // Varianti spuntate a mano: hanno la precedenza su corso/capitolo, le opzioni no.
+        if (!opts.ids && selMode && selectedIds.size) {
+            opts = Object.assign({}, opts, { ids: Array.from(selectedIds).join(',') });
+        }
         if (opts.ids) params.push('ids=' + encodeURIComponent(opts.ids));
         else {
             let c = $('#export-course').val() || '';
@@ -984,17 +1131,20 @@
         let a = document.createElement('a');
         a.href = url; a.download = '';
         document.body.appendChild(a); a.click(); a.remove();
-        showToast(one ? 'Esportazione PGN (1 capitolo per corso) avviata…' : (merge ? 'Esportazione PGN (albero) avviata…' : (strip ? 'Esportazione PGN (solo mosse) avviata…' : 'Esportazione PGN avviata…')), 'success');
+        let quante = opts.ids ? (opts.ids.split(',').length + (opts.ids.indexOf(',') < 0 ? ' variante' : ' varianti') + ' · ') : '';
+        showToast(quante + (one ? 'PGN in 1 capitolo…' : (merge ? 'PGN ad albero…' : (strip ? 'PGN solo mosse…' : 'Esportazione PGN avviata…'))), 'success');
     }
 
     function loadDueVariations() {
         $.get('/api/due', function(data) {
-            if (localStorage.getItem('shuffleReview') === '1') shuffleArray(data.review);
-            cachedLists = { learn: data.learn, review: data.review, repertoire: data.repertoire };
-            $('#rep-count').text(data.repertoire.length);
-            // globalVariantsMap sempre COMPLETO (indipendente dal filtro repertorio attivo)
+            // globalVariantsMap sempre COMPLETO (indipendente dal filtro repertorio attivo). L'elenco
+            // arriva senza mosse: quelle gia' scaricate si tengono.
+            let prev = globalVariantsMap;
             globalVariantsMap = {};
-            data.repertoire.forEach(function(v) { globalVariantsMap[v.id] = v; });
+            data.repertoire.forEach(function(v) { let o = prev[v.id]; if (o && o.moves) v.moves = o.moves; globalVariantsMap[v.id] = v; });
+            let byId = function(id) { return globalVariantsMap[id]; };
+            cachedLists = { learn: data.learn.map(byId), review: data.review.map(byId), repertoire: data.repertoire };
+            $('#rep-count').text(data.repertoire.length);
             // La sessione-corso lavora su uno snapshot: riallinealo ai dati freschi, altrimenti
             // le varianti appena imparate restano "•" invece di "✓" (e le eliminate restano).
             if (sessionList) sessionList = sessionList.map(function(v) { return globalVariantsMap[v.id]; }).filter(Boolean);
@@ -1002,19 +1152,35 @@
             populateSearchCourses(data.repertoire);
             highlightActiveVar();
 
-            // Badge "N oggi" (ripassi dovuti) sulla barra nav
-            let due = data.review.length;
-            $('#due-badge').text(due + ' oggi').toggleClass('zero', due === 0);
+            updateDueBadge();
 
             // Empty state / onboarding nella vista Repertorio
             let isEmpty = data.repertoire.length === 0;
             $('#empty-state').css('display', isEmpty ? 'block' : 'none');
             $('#repertoire-lists').css('display', isEmpty ? 'none' : '');
-            if (!isEmpty && board && $('#view-train').hasClass('active')) board.resize();
 
             // Rinfresca la sidebar di sessione se attiva (force: i dati possono essere cambiati)
             if (sessionKind && $('#train-sidebar').is(':visible')) renderSessionSidebar(sessionKind, true);
         });
+    }
+    // Badge "N oggi" (ripassi dovuti) sulla barra nav
+    function updateDueBadge() { let due = (cachedLists.review || []).length; $('#due-badge').text(due + ' oggi').toggleClass('zero', due === 0); }
+
+    // Dopo un ripasso si aggiorna la sola variante (il server rimanda srs e statistiche): prima si
+    // riscaricava l'intero repertorio a ogni variante finita.
+    function onReviewed(v, r) {
+        [v, globalVariantsMap[v.id]].forEach(function(o) { if (o) { o.srs = r.srs; o.stats = r.stats; } });
+        let o = globalVariantsMap[v.id] || v, due = srsState(o).cls === 'srs-due';
+        cachedLists.learn = (cachedLists.learn || []).filter(function(x) { return x.id !== o.id; });
+        if (!due) cachedLists.review = (cachedLists.review || []).filter(function(x) { return x.id !== o.id; });
+        updateDueBadge();
+        _repDirty = true;
+        let row = '#session-list .var-container[data-var-id="' + o.id + '"]';
+        $(row + ' .flair').attr('class', 'flair done').text('✓');
+        if (sessionKind === 'review' && !due) {
+            $(row).remove();
+            $('#session-title').text('Da ripassare · ' + cachedLists.review.length);
+        }
     }
 
     // --- GESTIONE CAPITOLI ---
@@ -1142,7 +1308,7 @@
         }).join('') || '<div class="empty-msg">—</div>';
 
         // Accuratezza per colore
-        let colorLabel = { white: '⚪ Bianco', black: '⚫ Nero' };
+        let colorLabel = { white: 'Bianco', black: 'Nero' };
         let colorRows = (s.by_color || []).map(c => {
             let ac = accClass(c.accuracy, c.reviews);
             return `<div class="stat-row"><span class="s-name">${colorLabel[c.color] || c.color}</span><span class="s-meta">${c.total} var · ${c.lapses} err</span><span class="s-acc ${ac}">${c.reviews ? c.accuracy + '%' : '—'}</span></div>`;
@@ -1186,7 +1352,7 @@
     function explorePerspChanged() {
         explorePerspective = $('#explore-persp').val();
         exploreOrient = explorePerspective;
-        if (exploreBoard) exploreBoard.orientation(exploreOrient);
+        if (exploreBoard) exploreBoard.set({ orientation: exploreOrient });
         populateExploreControls();
         exploreCourse = $('#explore-course').val() || '';
         exploreReloadAll();
@@ -1198,51 +1364,21 @@
         exploreReset();
     }
 
-    function applyExploreTheme() {
-        let theme = localStorage.getItem('boardTheme') || 'green';
-        $('#explore-board').removeClass('theme-wood theme-green theme-dark theme-slate theme-blue');
-        if (theme !== 'classic') $('#explore-board').addClass('theme-' + theme);
-    }
-    function exploreOnDragStart(source, piece) {
-        if (!exploreGame || exploreGame.game_over()) return false;
-        if ((exploreGame.turn() === 'w' && piece.search(/^b/) !== -1) ||
-            (exploreGame.turn() === 'b' && piece.search(/^w/) !== -1)) return false;   // solo il lato al tratto
-        showDots('#explore-board', exploreGame, source);
-    }
-    function exploreOnDrop(source, target) {
-        if (source === target) {
-            // click reale sul pezzo (mousedown+rilascio in loco): prendi/lascia
-            _expDropTs = Date.now();
-            if (exploreSel === source) { exploreSel = null; clearDots('#explore-board'); }
-            else { exploreSel = source; showDots('#explore-board', exploreGame, source); }
-            return 'snapback';
-        }
-        exploreSel = null; clearDots('#explore-board');
-        let mv = exploreGame.move({ from: source, to: target, promotion: 'q' });
-        if (mv === null) return 'snapback';
-        exploreGo(source + target + (mv.promotion || ''));
-    }
-    // Click-to-move: la selezione del pezzo passa da exploreOnDrop (il drag intercetta il click);
-    // questo handler gestisce la DESTINAZIONE (casa vuota o cattura, dove il click arriva davvero)
-    let exploreSel = null, _expDropTs = 0;
-    $(document).on('click', '#explore-board .square-55d63', function() {
-        if (!exploreGame) return;
-        let sq = $(this).attr('data-square');
-        if (!sq) return;
-        let p = exploreGame.get(sq);
-        if (p && p.color === exploreGame.turn() && Date.now() - _expDropTs < 400) return;   // già gestito da onDrop
-        if (exploreSel && sq !== exploreSel) {
-            let mv = exploreGame.move({ from: exploreSel, to: sq, promotion: 'q' });
-            if (mv) { exploreSel = null; clearDots('#explore-board'); exploreGo(mv.from + mv.to + (mv.promotion || '')); return; }
-        }
-        if (p && p.color === exploreGame.turn() && sq !== exploreSel) { exploreSel = sq; showDots('#explore-board', exploreGame, sq); }
-        else { exploreSel = null; clearDots('#explore-board'); }
-    });
     function initExploreBoard() {
-        exploreBoard = Chessboard('explore-board', { position: 'start', draggable: true, onDragStart: exploreOnDragStart, onDrop: exploreOnDrop, pieceTheme: pieceThemeFn, orientation: exploreOrient });
-        applyExploreTheme();
+        exploreBoard = makeBoard('explore-board', function(orig, dest) {
+            let mv = exploreGame.move({ from: orig, to: dest, promotion: 'q' });
+            if (!mv) { cgPosition(exploreBoard, exploreGame, null, false); return; }
+            playMoveSound(mv);
+            exploreGo(mv.from + mv.to + (mv.promotion || ''));
+        });
+        exploreBoard.set({ orientation: exploreOrient });
         _exploreInit = true;
     }
+    // Passando su una continuazione (repertorio, database, motore) la sua freccia compare sulla board
+    function expHover(uci) { if (exploreBoard) exploreBoard.setAutoShapes(uci && uci !== '0000' ? [moveArrow(uci, 'paleBlue')] : []); }
+    // SAN -> UCI standard nella posizione corrente. Il database Lichess scrive l'arrocco "re prende
+    // torre" (e1h1) che il server rifiuta: cliccare O-O nel database non faceva nulla.
+    function sanToUci(g, san) { let mv = g.move(san); if (!mv) return null; g.undo(); return mv.from + mv.to + (mv.promotion || ''); }
     function openExplore() {
         showView('explore');
         setTimeout(function() {
@@ -1251,7 +1387,7 @@
             exploreOrient = explorePerspective;
             populateExploreControls();
             exploreCourse = $('#explore-course').val() || '';
-            if (exploreBoard) { exploreBoard.orientation(exploreOrient); exploreBoard.resize(); }
+            if (exploreBoard) exploreBoard.set({ orientation: exploreOrient });
             $('#transp-list').data('loaded', false);
             if (localStorage.getItem('dbOpen') === '1') {   // il database resta aperto fra le sessioni
                 $('#db-content').show(); $('#explore-compare').addClass('split');
@@ -1259,7 +1395,7 @@
             exploreReset();
         }, 20);
     }
-    function exploreFlip() { exploreOrient = (exploreOrient === 'white') ? 'black' : 'white'; if (exploreBoard) exploreBoard.orientation(exploreOrient); }
+    function exploreFlip() { exploreOrient = (exploreOrient === 'white') ? 'black' : 'white'; if (exploreBoard) exploreBoard.set({ orientation: exploreOrient }); }
     function exploreReset() { explorePath = []; exploreForward = []; exploreLoad(); }
     function exploreBack() { if (explorePath.length) { exploreForward.push(explorePath.pop()); exploreLoad(); } }
     function exploreGo(uci) { explorePath.push(uci); exploreForward = []; exploreLoad(); }   // nuovo ramo: svuota il redo
@@ -1279,15 +1415,12 @@
     }
 
     function renderExplore(d) {
-        // Ridisegna la board solo se la posizione differisce da quella già mostrata
-        // (dopo un drag il pezzo è già al suo posto -> niente redraw). Con animazione:
-        // chessboard.js muove i singoli pezzi (diff), non ricrea tutto.
-        if (exploreBoard && exploreBoard.fen() !== d.fen.split(' ')[0]) exploreBoard.position(d.fen);
-        try { exploreGame.load(d.fen); } catch (e) {}   // verità lato server per la validazione del drag
-        exploreSel = null; clearDots('#explore-board');
+        try { exploreGame.load(d.fen); } catch (e) {}   // verità lato server
         _exploreTopChild = (d.children && d.children.length) ? d.children[0].uci : null;
-        markLastMove('#explore-board', d.path.length ? d.path[d.path.length - 1] : null);
-        markCheck('#explore-board', exploreGame);
+        // chessground anima solo cio' che cambia: dopo una mossa giocata a mano il pezzo e' gia' li'
+        cgPosition(exploreBoard, exploreGame, d.path.length ? d.path[d.path.length - 1] : null);
+        cgMovable(exploreBoard, exploreGame, turnColor(exploreGame));
+        expHover();
         _lxFen = d.fen;
         if ($('#lx-content').is(':visible')) lxLoad();
         _dbFen = d.fen; _dbChildren = d.children || []; _dbTurn = d.turn;
@@ -1296,7 +1429,7 @@
         // breadcrumb (SAN ricostruiti dal path)
         let g = new Chess(), sans = [];
         for (let u of d.path) {
-            let mv = g.move({ from: u.slice(0,2), to: u.slice(2,4), promotion: u.length > 4 ? u[4] : 'q' });
+            let mv = playUci(g, u);
             if (mv) sans.push(mv.san);
         }
         let bc = sans.length ? sans.map((s, i) => (i % 2 === 0 ? (Math.floor(i/2)+1) + '. ' : '') + s).join(' ') : 'Posizione iniziale';
@@ -1307,10 +1440,10 @@
         // continuazioni nel repertorio (ordinate per frequenza)
         let maxCount = d.children.reduce((a, c) => Math.max(a, c.count), 1);
         $('#explore-moves').html(d.children.length ? d.children.map(c => `
-            <div class="exp-move" onclick="exploreGo('${c.uci}')">
+            <div class="exp-move" onclick="exploreGo('${c.uci}')" onmouseenter="expHover('${c.uci}')" onmouseleave="expHover()">
                 <span class="exp-san">${escHtml(c.san)}</span>
                 <span class="exp-bar-wrap"><span class="exp-bar" style="width:${Math.round(100 * c.count / maxCount)}%"></span></span>
-                <span class="exp-count">${c.count} · ${c.pct}%${c.comment ? ' <span class="exp-cmt" title="Mossa commentata">✎</span>' : ''}</span>
+                <span class="exp-count">${c.count} · ${c.pct}%${stripCmds(c.comment) ? ' <span class="exp-cmt" title="Mossa commentata">✎</span>' : ''}</span>
             </div>`).join('') : '<div class="empty-msg">Foglia: nessuna continuazione nel repertorio.</div>');
 
         // linee che terminano qui
@@ -1324,8 +1457,7 @@
 
     function openExploreLine(id, ply) {
         if (!globalVariantsMap[id]) { navTo('repertorio'); return; }
-        startReadMode(id, 'repertoire');
-        jumpToReadMove(ply);
+        startReadMode(id, 'repertoire', ply);
     }
 
     function loadTranspositions() {
@@ -1396,7 +1528,7 @@
             let evCls = mate ? (pv.mate > 0 ? 'lx-ev-w' : 'lx-ev-b')
                              : (pv.cp >= 20 ? 'lx-ev-w' : (pv.cp <= -20 ? 'lx-ev-b' : 'lx-ev-eq'));
             let firstUci = (pv.moves || '').split(' ')[0] || '';
-            return '<div class="lx-row" onclick="lxGoUci(\'' + firstUci + '\')" title="Gioca la prima mossa della linea">' +
+            return '<div class="lx-row" onclick="lxGoUci(\'' + firstUci + '\')" onmouseenter="expHover(\'' + firstUci + '\')" onmouseleave="expHover()" title="Gioca la prima mossa della linea">' +
                 '<span class="lx-ev ' + evCls + '">' + ev + '</span>' +
                 '<span class="lx-pv">' + escHtml(sans.slice(0, 9).join(' ')) + '</span></div>';
         }).join('');
@@ -1490,11 +1622,12 @@
         let mioTurno = (_dbTurn === (explorePerspective === 'white' ? 'w' : 'b'));
         let tot = d.moves.reduce(function(a, m) { return a + m.games; }, 0) || 1;
         let rows = d.moves.map(function(m) {
+            let u = sanToUci(exploreGame, m.san) || m.uci;
             let pct = 100 * m.games / tot;
             let g = m.games || 1;
             let mark = inRep(m) ? '<span class="db-ok" title="Nel repertorio">✓</span>'
                      : (!mioTurno && _dbChildren.length ? '<span class="db-gap" title="Giocata qui, nessuna risposta preparata">⚠</span>' : '');
-            return '<div class="exp-move" onclick="exploreGo(\'' + m.uci + '\')" title="' +
+            return '<div class="exp-move" onclick="exploreGo(\'' + u + '\')" onmouseenter="expHover(\'' + u + '\')" onmouseleave="expHover()" title="' +
                 (m.rating ? 'Elo medio ' + m.rating + ' · ' : '') + m.games + ' partite">' +
                 '<span class="exp-san">' + escHtml(m.san) + ' ' + mark + '</span>' +
                 '<span class="db-bar">' +
@@ -1527,58 +1660,24 @@
         return { color: (p[1] === 'b' ? 'b' : 'w'), num: parseInt(p[5] || '1', 10) || 1 };
     }
 
-    function editApplyTheme() {
-        let theme = localStorage.getItem('boardTheme') || 'green';
-        $('#edit-board').removeClass('theme-wood theme-green theme-dark theme-slate theme-blue');
-        if (theme !== 'classic') $('#edit-board').addClass('theme-' + theme);
-    }
-    function editOnDragStart(source, piece) {
-        if (editGame.game_over()) return false;
-        if ((editGame.turn() === 'w' && piece.search(/^b/) !== -1) ||
-            (editGame.turn() === 'b' && piece.search(/^w/) !== -1)) return false;   // solo il lato al tratto
-        showDots('#edit-board', editGame, source);
-    }
-    function editOnDrop(source, target) {
-        if (source === target) {
-            // click reale sul pezzo: prendi/lascia
-            _editDropTs = Date.now();
-            let had = (editSel === source);
-            editSel = null; clearDots('#edit-board');
-            if (!had) { editSel = source; showDots('#edit-board', editGame, source); }
-            return 'snapback';
-        }
-        editSel = null; clearDots('#edit-board');
-        let mv = editGame.move({ from: source, to: target, promotion: 'q' });
-        if (mv === null) return 'snapback';
-        editMoves.push({ uci: source + target + (mv.promotion || ''), san: mv.san, comment: '' });
-        renderEditMoves();
-    }
-    // Click-to-move nell'editor: selezione via editOnDrop, destinazione via click (casa vuota/cattura)
-    let editSel = null, _editDropTs = 0;
-    $(document).on('click', '#edit-board .square-55d63', function() {
-        let sq = $(this).attr('data-square');
-        if (!sq) return;
-        let p = editGame.get(sq);
-        if (p && p.color === editGame.turn() && Date.now() - _editDropTs < 400) return;   // già gestito da onDrop
-        if (editSel && sq !== editSel) {
-            let mv = editGame.move({ from: editSel, to: sq, promotion: 'q' });
-            if (mv) {
-                editMoves.push({ uci: mv.from + mv.to + (mv.promotion || ''), san: mv.san, comment: '' });
-                if (editBoard) editBoard.position(editGame.fen(), false);
-                renderEditMoves();
-                return;
-            }
-        }
-        if (p && p.color === editGame.turn() && sq !== editSel) { editSel = sq; showDots('#edit-board', editGame, sq); }
-        else { editSel = null; clearDots('#edit-board'); }
-    });
-    function editOnSnapEnd() { if (editBoard) editBoard.position(editGame.fen(), false); }
     function initEditBoard() {
-        editBoard = Chessboard('edit-board', { draggable: true, position: 'start', onDragStart: editOnDragStart, onDrop: editOnDrop, onSnapEnd: editOnSnapEnd, pieceTheme: pieceThemeFn, orientation: editOrient });
-        editApplyTheme();
+        editBoard = makeBoard('edit-board', function(orig, dest) {
+            let mv = editGame.move({ from: orig, to: dest, promotion: 'q' });
+            if (!mv) { editSync(false); return; }
+            playMoveSound(mv);
+            editMoves.push({ uci: mv.from + mv.to + (mv.promotion || ''), san: mv.san, comment: '' });
+            editSync();
+            renderEditMoves();
+        });
         _editInit = true;
     }
-    // Nuova variante pre-assegnata a un corso/capitolo (dal bottone ➕ sull'header capitolo)
+    // Board dell'editor allineata alla linea costruita: ultima mossa evidenziata, muove chi ha il tratto
+    function editSync(animate) {
+        if (!editBoard) return;
+        cgPosition(editBoard, editGame, editMoves.length ? editMoves[editMoves.length - 1].uci : null, animate);
+        cgMovable(editBoard, editGame, turnColor(editGame));
+    }
+    // Nuova variante pre-assegnata a un corso/capitolo (dal bottone + sull'header capitolo)
     function newVariationIn(course, chapter, event) {
         if (event && event.stopPropagation) event.stopPropagation();
         openEditor(null, { course: course, chapter: chapter });
@@ -1587,6 +1686,7 @@
     // openEditor(id, {fork:true})   -> "forka": pre-carica da id ma salva come NUOVA variante (originale intatto)
     // openEditor(null, {course,chapter}) -> nuova variante pre-assegnata a corso/capitolo
     function openEditor(id, opts) {
+        if (id && globalVariantsMap[id] && !globalVariantsMap[id].moves) { whenMoves(id, function() { openEditor(id, opts); }); return; }
         opts = opts || {};
         let fork = !!opts.fork;
         editId = (id && !fork) ? id : null;   // fork o creazione -> nessun id: il server genera una nuova variante
@@ -1610,7 +1710,7 @@
             $('#edit-perspective').val(v.perspective === 'black' ? 'black' : 'white');
             editOrient = (v.perspective === 'black') ? 'black' : 'white';
             (v.moves || []).forEach(function(m) {
-                let mv = editGame.move({ from: m.uci.slice(0,2), to: m.uci.slice(2,4), promotion: m.uci.length > 4 ? m.uci[4] : 'q' });
+                let mv = playUci(editGame, m.uci);
                 if (mv) editMoves.push({ uci: m.uci, san: mv.san, comment: m.comment || '' });
             });
         } else {
@@ -1625,24 +1725,25 @@
         showView('edit');
         setTimeout(function() {
             if (!_editInit) initEditBoard();
-            editBoard.orientation(editOrient);
-            editBoard.position(editGame.fen(), false);
-            editBoard.resize();
-            editApplyTheme();
+            editBoard.set({ orientation: editOrient });
+            editSync(false);
             renderEditMoves();
         }, 20);
     }
-    function editFlip() { editOrient = (editOrient === 'white') ? 'black' : 'white'; if (editBoard) editBoard.orientation(editOrient); }
+    function editFlip() { editOrient = (editOrient === 'white') ? 'black' : 'white'; if (editBoard) editBoard.set({ orientation: editOrient }); }
     function editUndo() {
         if (!editMoves.length) return;
-        editMoves.pop(); editGame.undo();
-        if (editBoard) editBoard.position(editGame.fen(), false);
+        editMoves.pop();
+        editGame = new Chess();   // si rigioca tutto: undo() non attraversa le mosse nulle
+        if (editStartFen) { try { editGame.load(editStartFen); } catch (e) {} }
+        editMoves.forEach(function(m) { playUci(editGame, m.uci); });
+        editSync();
         renderEditMoves();
     }
     function editClear() {
         editMoves = []; editGame = new Chess();
         if (editStartFen) { try { editGame.load(editStartFen); } catch (e) {} }
-        if (editBoard) editBoard.position(editGame.fen(), false);
+        editSync(false);
         renderEditMoves();
     }
     function editMoveLabel(i) {
@@ -1653,7 +1754,6 @@
         return (i % 2 === 0) ? (editStartMeta.num + Math.floor(i / 2)) + '. ' : '';
     }
     function renderEditMoves() {
-        editSel = null; clearDots('#edit-board');
         if (!editMoves.length) { $('#edit-movelist').html('<span class="empty-msg">Trascina o clicca i pezzi per costruire la linea…</span>'); return; }
         $('#edit-movelist').html(editMoves.map(function(m, i) {
             return '<span class="em-move">' + editMoveLabel(i) + escHtml(m.san) + '</span>';
@@ -1661,7 +1761,7 @@
     }
     function renderStartFenNote() {
         if (editStartFen) {
-            $('#edit-startfen-note').html('⊞ Partenza personalizzata · tratto a <b>' + (editStartMeta.color === 'b' ? 'Nero' : 'Bianco') +
+            $('#edit-startfen-note').html('Partenza personalizzata · tratto a <b>' + (editStartMeta.color === 'b' ? 'Nero' : 'Bianco') +
                 '</b> · <span class="sfn-clear" role="button" tabindex="0" onclick="editResetStart()">torna all\'iniziale</span>').show();
         } else { $('#edit-startfen-note').hide().empty(); }
     }
@@ -1669,7 +1769,7 @@
         let go = function() {
             editStartFen = null; editStartMeta = fenMeta(null);
             editMoves = []; editGame = new Chess();
-            if (editBoard) editBoard.position('start', false);
+            editSync(false);
             renderStartFenNote(); renderEditMoves();
         };
         if (editMoves.length) uiConfirm('Tornare alla posizione iniziale standard? Le mosse correnti verranno rimosse.', { danger: true, okText: 'Azzera' }).then(function(ok) { if (ok) go(); });
@@ -1700,18 +1800,12 @@
     }
 
     // --- B5: BOARD-EDITOR FEN (posizione di partenza, spare pieces) ---
-    function setupApplyTheme() {
-        let theme = localStorage.getItem('boardTheme') || 'green';
-        $('#setup-board').removeClass('theme-wood theme-green theme-dark theme-slate theme-blue');
-        if (theme !== 'classic') $('#setup-board').addClass('theme-' + theme);
-    }
     function setupBoardInit(placement) {
         if (setupBoard) { try { setupBoard.destroy(); } catch (e) {} }
         setupBoard = Chessboard('setup-board', {
             draggable: true, sparePieces: true, dropOffBoard: 'trash',
             position: placement, pieceTheme: pieceThemeFn, orientation: editOrient
         });
-        setupApplyTheme();
     }
     function setupPrefillControls(fen) {
         let p = fen ? String(fen).split(' ') : ['', 'w', 'KQkq', '-'];
@@ -1745,7 +1839,7 @@
         $('#setup-ep').val(''); $('#setup-status').text('');
     }
     function setupFlip() { editOrient = (editOrient === 'white') ? 'black' : 'white'; if (setupBoard) setupBoard.orientation(editOrient); }
-    function setupCancel() { $('#edit-setup').hide(); $('#edit-normal').show(); if (editBoard) editBoard.orientation(editOrient); }
+    function setupCancel() { $('#edit-setup').hide(); $('#edit-normal').show(); if (editBoard) editBoard.set({ orientation: editOrient }); }
     function setupComposeFen() {
         let placement = setupBoard ? setupBoard.fen() : '8/8/8/8/8/8/8/8';
         let turn = $('#setup-turn').val() === 'b' ? 'b' : 'w';
@@ -1769,7 +1863,7 @@
                 if (editStartFen) { try { editGame.load(editStartFen); } catch (e) {} }
                 $('#edit-setup').hide(); $('#edit-normal').show();
                 setTimeout(function() {
-                    if (editBoard) { editBoard.orientation(editOrient); editBoard.position(editGame.fen(), false); editBoard.resize(); }
+                    if (editBoard) { editBoard.set({ orientation: editOrient }); editSync(false); }
                     renderStartFenNote(); renderEditMoves();
                 }, 10);
                 showToast(editStartFen ? 'Posizione di partenza impostata.' : 'Posizione iniziale standard.', 'success');
@@ -1801,8 +1895,7 @@
 
     function openSearchHit(id, moveIndex) {
         if (!globalVariantsMap[id]) { showToast('Variante non disponibile.', 'error'); return; }
-        startReadMode(id, 'repertoire');
-        jumpToReadMove(moveIndex);
+        startReadMode(id, 'repertoire', moveIndex);
     }
 
     function importPGNFile() {
@@ -1830,7 +1923,7 @@
                     if (res.success) {
                         loadDueVariations();
                         if (currentVariation && currentVariation.id === id) {
-                            currentVariation = null; board.start(); $('#title').text("Seleziona una variante");
+                            currentVariation = null; resetTrainBoard(); $('#title').text("Seleziona una variante");
                             $('#status').text(""); $('#annotation-box').hide(); $('#read-controls').hide(); $('#move-progress').empty();
                         }
                     }
@@ -1851,7 +1944,7 @@
                     if (res.success) {
                         loadDueVariations();
                         if (currentVariation && (currentVariation.course || 'Varie') === course) {
-                            currentVariation = null; board.start(); $('#title').text("Seleziona una variante");
+                            currentVariation = null; resetTrainBoard(); $('#title').text("Seleziona una variante");
                             $('#status').text(""); $('#annotation-box').hide(); $('#read-controls').hide();
                         }
                     }
@@ -1867,11 +1960,9 @@
     }
 
     function highlightActiveVar() {
-        $('.var-container').css({'border-left': '1px solid var(--border-color)', 'background': 'var(--bg-card)'});
-        $('.var-item').css({'color': 'var(--text-main)', 'font-weight': 'normal'});
+        $('.var-container.is-active').removeClass('is-active');
         if (currentVariation) {
-            $(`.var-container[data-var-id="${currentVariation.id}"]`).css({'border-left': '3px solid var(--accent-blue)', 'background': 'var(--active-bg)'});
-            $(`.var-container[data-var-id="${currentVariation.id}"] .var-item`).css({'color': 'var(--accent-blue)', 'font-weight': 'bold'});
+            $(`.var-container[data-var-id="${currentVariation.id}"]`).addClass('is-active');
             scrollActiveVarIntoView();
         }
     }
@@ -1891,62 +1982,92 @@
         sb.scrollTop += (er.top - sr.top) - (sb.clientHeight - el.offsetHeight) / 2;
     }
 
-    // --- READ MODE ---
-    function startReadMode(id, modeContext) {
-        removeHighlights();
-        isPreviewing = false; 
-        currentListMode = modeContext;
-        currentVariation = globalVariantsMap[id];
-        moveIndex = 0; phase = 'READ'; waitingForAck = false;
-        pendingOppMove = null; pendingOppFen = null;
-        sessionKind = 'read'; renderSessionSidebar('read');
-        showView('train'); updateTrainHead();
-        highlightActiveVar();
+    // --- APERTURA VARIANTI: mosse e commenti arrivano a richiesta ---
+    // L'elenco e' leggero (/api/due non manda le mosse): una variante si scarica quando la apri e
+    // la successiva si pre-carica mentre studi questa, cosi' "Prossima variante" resta istantaneo.
+    let _movesReq = {}, _openSeq = 0, _stepSeq = 0;
+    function loadMoves(id) {
+        let v = globalVariantsMap[id];
+        if (!v) return $.Deferred().reject().promise();
+        if (v.moves) return $.Deferred().resolve(v).promise();
+        if (!_movesReq[id]) {
+            let req = $.getJSON('/api/variation', { id: id }).then(function(full) {
+                full.moves.forEach(function(m) { m.text = stripCmds(m.comment); m.shapes = commentShapes(m.comment); });
+                v.moves = full.moves;
+                return v;
+            });
+            req.always(function() { delete _movesReq[id]; });
+            _movesReq[id] = req;
+        }
+        return _movesReq[id];
+    }
+    // Apre una variante quando le sue mosse ci sono; se intanto ne hai aperta un'altra vince l'ultimo clic
+    function whenMoves(id, cb) {
+        let seq = ++_openSeq;
+        loadMoves(id).then(function(v) { if (seq === _openSeq) { _stepSeq++; cb(v); } });
+    }
+    function prefetchNext() { let nv = currentVariation && getNextVariation(); if (nv) loadMoves(nv.id); }
+    // Timer del training legati alla variante corrente: se nel frattempo ne apri un'altra non scattano
+    // (prima una mossa del computer in coda poteva finire sulla variante nuova).
+    function later(fn, ms) { let s = _stepSeq; window.setTimeout(function() { if (s === _stepSeq) fn(); }, ms); }
+    function lastPlayedUci() { return (currentVariation && currentVariation.moves && moveIndex > 0) ? currentVariation.moves[moveIndex - 1].uci : null; }
+    function resetTrainBoard() { cgMovable(board, game, null); cgPosition(board, new Chess(), null, false); setCtxShapes([]); $('#btn-hint').hide(); }
 
-        replayTo(game, 0);
-        board.orientation(currentVariation.perspective);
-        board.position(game.fen(), false);
-        $('#title').text("Lettura: " + currentVariation.title).attr('title', "Lettura: " + currentVariation.title);
-        $('#status').hide(); $('#read-controls').css('display', 'flex'); updateReadModeUI();
+    // --- READ MODE ---
+    function startReadMode(id, modeContext, atMove) {
+        whenMoves(id, function(v) {
+            isPreviewing = false;
+            currentListMode = modeContext;
+            currentVariation = v;
+            phase = 'READ'; waitingForAck = false;
+            pendingOppMove = null; pendingOppFen = null;
+            sessionKind = 'read'; renderSessionSidebar('read');
+            showView('train'); updateTrainHead();
+            highlightActiveVar();
+            board.set({ orientation: currentVariation.perspective });
+            $('#title').text("Lettura: " + currentVariation.title).attr('title', "Lettura: " + currentVariation.title);
+            $('#status').hide(); $('#read-controls').css('display', 'flex');
+            jumpToReadMove(atMove || 0);
+            prefetchNext();
+        });
     }
 
     function nextMoveRead() {
-        clearPreview(); 
+        clearPreview();
         if (moveIndex < currentVariation.moves.length) {
-            let move = currentVariation.moves[moveIndex];
-            game.move({from: move.uci.substring(0,2), to: move.uci.substring(2,4), promotion: move.uci.length > 4 ? move.uci[4] : 'q'});
-            board.position(game.fen());
-            moveIndex++; updateReadModeUI();
+            let m = currentVariation.moves[moveIndex];
+            let mv = playUci(game, m.uci);
+            moveIndex++;
+            cgPosition(board, game, m.uci);
+            playMoveSound(mv);
+            updateReadModeUI();
         }
     }
-    
+
     function prevMoveRead() {
-        clearPreview(); 
-        if (moveIndex > 0) { 
-            game.undo(); 
-            board.position(game.fen()); 
-            moveIndex--; 
-            updateReadModeUI(); 
+        clearPreview();
+        if (moveIndex > 0) {
+            moveIndex--;
+            replayTo(game, moveIndex);   // non undo(): dopo una mossa nulla chess.js non ha storia
+            cgPosition(board, game, lastPlayedUci());
+            updateReadModeUI();
         }
     }
 
     function jumpToReadMove(targetIndex) {
         clearPreview();
         replayTo(game, targetIndex);
-        board.position(game.fen(), false);
         moveIndex = targetIndex;
+        cgPosition(board, game, lastPlayedUci(), false);
         updateReadModeUI();
     }
 
     function updateReadModeUI() {
-        removeHighlights();
         waitingForAck = false;
         let moves = currentVariation.moves;
         let atEnd = (moveIndex >= moves.length);
-
-        // Evidenzia sulla scacchiera l'ultima mossa (from+to) e l'eventuale scacco
-        markLastMove('#board', moveIndex > 0 ? moves[moveIndex-1].uci : null);
-        markCheck('#board', game);
+        setCtxShapes(moveIndex > 0 ? moves[moveIndex - 1].shapes : []);   // frecce e cerchi dell'autore
+        syncTrainMovable();
 
         let html = `<div id="read-text" class="read-text">`;
         if (moveIndex === 0) {
@@ -1963,8 +2084,8 @@
 
             html += `<div class="rd-move"${isCurrent ? ' id="read-cur"' : ''}>`;
             html += `<span class="san-link ${moveCls}" onclick="jumpToReadMove(${i+1})">${moveStr}</span>`;
-            if (m.comment) {
-                html += ` <span class="rd-comment${isFuture ? ' is-future' : ''}">${parseCommentMoves(m.comment, i).replace(/\n/g, '<br>')}</span>`;
+            if (m.text) {
+                html += ` <span class="rd-comment${isFuture ? ' is-future' : ''}">${parseCommentMoves(m.text, i).replace(/\n/g, '<br>')}</span>`;
             }
             html += `</div>`;
         }
@@ -1973,7 +2094,7 @@
         if (atEnd && moves.length > 0) {
             html += `<hr class="anno-hr">`;
             let nextVar = getNextVariation();
-            if (nextVar) html += `<button class="btn btn-success" id="btn-next-var">Prossima Variante (Spazio)</button>`;
+            if (nextVar) html += `<button class="btn btn-success" id="btn-next-var">Prossima variante<span class="kbd">Spazio</span></button>`;
             else html += `<div class="anno-end">Hai concluso questo elenco.</div>`;
         }
 
@@ -1995,37 +2116,40 @@
 
     // --- TRAINING (CHESSABLE STYLE) ---
     function startTraining(id, modeContext) {
-        removeHighlights();
-        isPreviewing = false; 
-        currentListMode = modeContext;
-        currentVariation = globalVariantsMap[id];
-        moveIndex = 0;
-        phase = (currentVariation.srs.rep === 0) ? 'LEARN' : 'REVIEW';
-        reviewSession = (currentVariation.srs.rep !== 0);
-        madeMistake = false;
-        mistakeCount = 0;
-        mistakeReviewQueue = [];
-        mistakeReviewRound = 0;
-        currentMistakeIdxInQueue = 0;
-        consolidateRound = 0;
-        pendingOppMove = null; pendingOppFen = null;
-        waitingForAck = false;
-        showView('train'); updateTrainHead();
-        if (!sessionKind) $('#train-sidebar').hide();
-        highlightActiveVar();
+        whenMoves(id, function(v) {
+            isPreviewing = false;
+            currentListMode = modeContext;
+            currentVariation = v;
+            moveIndex = 0;
+            // Una variante gia' studiata si RIPASSA (interrogata), anche dopo un lapse: rivederla
+            // mossa per mossa come nuova regalerebbe pure una valutazione piu' generosa.
+            phase = isLearned(currentVariation) ? 'REVIEW' : 'LEARN';
+            reviewSession = isLearned(currentVariation);
+            madeMistake = false;
+            mistakeCount = 0;
+            mistakeReviewQueue = [];
+            mistakeReviewRound = 0;
+            currentMistakeIdxInQueue = 0;
+            consolidateRound = 0;
+            pendingOppMove = null; pendingOppFen = null;
+            waitingForAck = false;
+            showView('train'); updateTrainHead();
+            if (!sessionKind) $('#train-sidebar').hide();
+            highlightActiveVar();
 
-        replayTo(game, 0);
-        board.orientation(currentVariation.perspective);
-        board.position(game.fen(), false);
-        markLastMove('#board', null); markCheck('#board', null);
-        setStatus("", null); $('#read-controls').hide();
-        updateTitle(); handleStep();
+            replayTo(game, 0);
+            board.set({ orientation: currentVariation.perspective });
+            cgPosition(board, game, null, false);
+            setStatus("", null); $('#read-controls').hide();
+            updateTitle(); handleStep();
+            prefetchNext();
+        });
     }
 
     function updateTitle() {
-        let sideText = currentVariation.perspective === 'white' ? " (Lato Bianco)" : " (Lato Nero)";
-        let t = (phase === 'CONSOLIDATE') ? "Fase 2 (" + (consolidateRound + 1) + "/2): " + currentVariation.title + sideText
-                                          : (phase === 'LEARN' ? "Fase 1: " : "Ripasso: ") + currentVariation.title + sideText;
+        // il lato giocato e' gia' nella riga sotto ("giochi col ..."): qui solo fase + titolo
+        let t = (phase === 'CONSOLIDATE') ? "Fase 2 (" + (consolidateRound + 1) + "/2): " + currentVariation.title
+                                          : (phase === 'LEARN' ? "Fase 1: " : "Ripasso: ") + currentVariation.title;
         $('#title').text(t).attr('title', t);   // troncato a 2 righe via CSS: testo intero nel tooltip
     }
 
@@ -2046,8 +2170,10 @@
         return stripped !== '';
     }
 
-    function handleStep() {
-        removeHighlights();
+    // Ogni passo del training finisce riallineando chi puo' muovere (e il bottone suggerimento)
+    function handleStep() { _handleStep(); syncTrainMovable(); }
+    function _handleStep() {
+        hintLevel = 0;
         updateProgress();
 
         if (phase === 'REVIEW_ERRORS') {
@@ -2056,29 +2182,24 @@
             moveIndex = missedIdx;
 
             replayTo(game, missedIdx);
-            board.position(game.fen(), false);
-            
-            let expectedMove = currentVariation.moves[missedIdx];
+            cgPosition(board, game, lastPlayedUci(), false);
+            setCtxShapes([]);
             setStatus(`Errore ${currentMistakeIdxInQueue + 1}/${mistakeReviewQueue.length} (Ciclo ${mistakeReviewRound + 1}/3): tocca a te`, 'warn');
             $('#annotation-box').hide();
-            return; 
+            return;
         }
 
         if (moveIndex >= currentVariation.moves.length) {
+            setCtxShapes([]);
             if (phase === 'LEARN') {
                 setStatus("Spiegazione terminata!", 'info');
-                phase = 'CONSOLIDATE'; waitingForAck = true; 
+                phase = 'CONSOLIDATE'; waitingForAck = true;
                 $('#annotation-box').html(`
                     <strong style="color: var(--text-bright);">Ottimo lavoro!</strong><br><br>
                     Hai letto le idee dietro questa linea.<br>Ora giocala di fila a memoria.<br>
-                    <button class="btn btn-success" id="btn-start-consolidation">Inizia Consolidamento (Spazio)</button>
+                    <button class="btn btn-success" id="btn-start-consolidation">Inizia consolidamento<span class="kbd">Spazio</span></button>
                 `).show();
-                
-                $('#btn-start-consolidation').click(function() {
-                    clearPreview(); 
-                    $('#annotation-box').hide(); waitingForAck = false;
-                    moveIndex = 0; replayTo(game, 0); board.position(game.fen(), false); markLastMove('#board', null); markCheck('#board', null); updateTitle(); handleStep();
-                });
+                $('#btn-start-consolidation').click(restartLine);
                 return;
             } else if (phase === 'CONSOLIDATE' || phase === 'REVIEW') {
                 // Fase 2 si rigioca DUE volte: gli errori delle due passate si accumulano
@@ -2089,80 +2210,87 @@
                     $('#annotation-box').html(`
                         <strong style="color: var(--text-bright);">Passata 1 di 2 completata.</strong><br><br>
                         Rigiocala un'altra volta per fissarla.<br>
-                        <button class="btn btn-success" id="btn-start-consolidation">Seconda passata (Spazio)</button>
+                        <button class="btn btn-success" id="btn-start-consolidation">Seconda passata<span class="kbd">Spazio</span></button>
                     `).show();
-                    $('#btn-start-consolidation').click(function() {
-                        clearPreview();
-                        $('#annotation-box').hide(); waitingForAck = false;
-                        moveIndex = 0; replayTo(game, 0); board.position(game.fen(), false); markLastMove('#board', null); markCheck('#board', null); updateTitle(); handleStep();
-                    });
+                    $('#btn-start-consolidation').click(restartLine);
                     return;
                 }
                 if (mistakeReviewQueue.length > 0) {
-                    phase = 'REVIEW_ERRORS'; 
+                    phase = 'REVIEW_ERRORS';
                     // Assicura l'ordine cronologico degli errori nella variante
                     mistakeReviewQueue.sort((a, b) => a - b);
                     mistakeReviewRound = 0;
                     currentMistakeIdxInQueue = 0;
                     setStatus("Fase di revisione errori in avvio...", 'warn');
-                    setTimeout(handleStep, 1000);
+                    later(handleStep, 1000);
                     return;
                 } else { showSummary(); return; }
             }
         }
 
         let expectedMove = currentVariation.moves[moveIndex];
-        let isUserTurn = checkUserTurn(); 
-        let hasComment = expectedMove.comment && expectedMove.comment.trim() !== "";
+        let isUserTurn = checkUserTurn() && expectedMove.uci !== '0000';   // la mossa nulla si gioca da sola
         let myColorName = currentVariation.perspective === 'white' ? 'Bianco' : 'Nero';
         let oppColorName = currentVariation.perspective === 'white' ? 'Nero' : 'Bianco';
 
         if (isUserTurn) {
             setStatus(`Tocca a te (${myColorName})`, null);
             if (phase === 'LEARN') {
-                waitingForAck = true; 
+                waitingForAck = true;
                 let targetMoveHTML = `<div class="learn-prompt">Cosa giocare ora: <strong>${expectedMove.san}</strong></div>`;
-                let commentHTML = hasComment ? `<div class="learn-comment">${parseCommentMoves(expectedMove.comment, moveIndex).replace(/\n/g, '<br>')}</div>` : '';
-                $('#annotation-box').html(`${targetMoveHTML}${commentHTML}<button class="btn" id="btn-avanti">Fammi muovere (Spazio)</button>`).show();
-                
+                let commentHTML = expectedMove.text ? `<div class="learn-comment">${parseCommentMoves(expectedMove.text, moveIndex).replace(/\n/g, '<br>')}</div>` : '';
+                $('#annotation-box').html(`${targetMoveHTML}${commentHTML}<button class="btn" id="btn-avanti">Fammi muovere<span class="kbd">Spazio</span></button>`).show();
+                // la mossa da imparare come freccia, piu' le frecce dell'autore
+                setCtxShapes(expectedMove.shapes.concat([moveArrow(expectedMove.uci)]));
+
                 $('#btn-avanti').click(function() {
                     clearPreview();
                     $('#annotation-box').hide();
                     // Prima di lasciarti muovere, la mossa dell'avversario viene rianimata
                     // (input bloccato per la durata dell'animazione).
-                    if (pendingOppMove) { playPendingOppMove(); window.setTimeout(function() { waitingForAck = false; }, animSpeed + 100); }
-                    else waitingForAck = false;
+                    if (pendingOppMove) { playPendingOppMove(); later(function() { waitingForAck = false; syncTrainMovable(); }, animSpeed + 100); }
+                    else { waitingForAck = false; syncTrainMovable(); }
                 });
-            } else { waitingForAck = false; $('#annotation-box').hide(); }
+            } else { waitingForAck = false; $('#annotation-box').hide(); setCtxShapes([]); }
         } else {
             setStatus(`Mossa del computer (${oppColorName})...`, 'muted');
-            if (phase === 'LEARN' && hasRealAnnotation(expectedMove.comment)) {
+            if (phase === 'LEARN' && hasRealAnnotation(expectedMove.text)) {
                 waitingForAck = true;
                 $('#annotation-box').html(`
-                    <div class="learn-prompt is-opp">Il computer gioca: <strong>${expectedMove.san}</strong></div>
-                    <div class="learn-comment">${parseCommentMoves(expectedMove.comment, moveIndex).replace(/\n/g, '<br>')}</div>
-                    <button class="btn" id="btn-avanti">Avanti (Spazio)</button>
+                    <div class="learn-prompt is-opp">${expectedMove.uci === '0000' ? 'Nota finale' : 'Il computer gioca: <strong>' + expectedMove.san + '</strong>'}</div>
+                    <div class="learn-comment">${parseCommentMoves(expectedMove.text, moveIndex).replace(/\n/g, '<br>')}</div>
+                    <button class="btn" id="btn-avanti">Avanti<span class="kbd">Spazio</span></button>
                 `).show();
-                
-                $('#btn-avanti').click(function() { 
-                    clearPreview(); 
-                    waitingForAck = false; 
-                    $('#annotation-box').hide(); 
-                    executeComputerMove(); 
+                setCtxShapes(expectedMove.shapes);
+
+                $('#btn-avanti').click(function() {
+                    clearPreview();
+                    waitingForAck = false;
+                    $('#annotation-box').hide();
+                    executeComputerMove();
                 });
             } else {
-                waitingForAck = false; $('#annotation-box').hide(); window.setTimeout(executeComputerMove, 400);
+                waitingForAck = false; $('#annotation-box').hide(); setCtxShapes([]);
+                later(executeComputerMove, 400);
             }
         }
+    }
+
+    // Consolidamento: si rigioca la linea dall'inizio
+    function restartLine() {
+        clearPreview();
+        $('#annotation-box').hide(); waitingForAck = false;
+        moveIndex = 0; replayTo(game, 0); cgPosition(board, game, null, false);
+        updateTitle(); handleStep();
     }
 
     function executeComputerMove() {
         let expectedMove = currentVariation.moves[moveIndex];
         let prevFen = game.fen();
-        game.move({from: expectedMove.uci.substring(0,2), to: expectedMove.uci.substring(2,4), promotion: expectedMove.uci.length > 4 ? expectedMove.uci[4] : 'q'});
+        let mv = playUci(game, expectedMove.uci);
         moveIndex++;
-        board.position(game.fen());                                  // animata subito
-        markLastMove('#board', expectedMove.uci); markCheck('#board', game);
+        cgPosition(board, game, expectedMove.uci);   // animata
+        playMoveSound(mv);
         // Fase 1, se ora tocca all'utente: la si tiene da parte per rianimarla quando conferma.
         if (phase === 'LEARN' && moveIndex < currentVariation.moves.length && checkUserTurn()) {
             pendingOppMove = expectedMove; pendingOppFen = prevFen;
@@ -2177,49 +2305,44 @@
         let m = pendingOppMove, fen = pendingOppFen;
         pendingOppMove = null; pendingOppFen = null;
         if (!animSpeed) return;                  // animazione istantanea: rianimarla non si vedrebbe
-        board.position(fen, false);
-        removeHighlights();
-        window.setTimeout(function() {
-            board.position(game.fen());
-            markLastMove('#board', m.uci); markCheck('#board', game);
-        }, 60);
+        cgMovable(board, game, null);            // niente mosse mentre la rivedi (le riabilita il chiamante)
+        cgPosition(board, new Chess(fen), null, false);
+        later(function() { cgPosition(board, game, m.uci); }, 60);
     }
 
-    function evaluateUserMove(source, target, isDragDrop) {
-        clearPreview(); 
-        removeHighlights();
-        if (source === target) return false; 
-        
-        let attemptedMove = source + target; 
-        let expectedMove = currentVariation.moves[moveIndex]; 
-        
-        let move = game.move({ from: source, to: target, promotion: 'q' });
-        if (move === null) return false;
-        // Il drag ha già posizionato il pezzo: risincronizza la board SOLO per mosse
-        // che spostano più di un pezzo (arrocco/en passant/promozione), evitando il redraw totale.
-        _needBoardSync = /[ekpq]/.test(move.flags);
-        markLastMove('#board', move.from + move.to); markCheck('#board', game);
+    function evaluateUserMove(source, target) {
+        clearPreview();
+        let expectedMove = currentVariation.moves[moveIndex];
+        let isExpected = (source + target === expectedMove.uci.substring(0, 4));
+        // Promozione: se e' la mossa della linea vale il SUO pezzo (anche una sottopromozione);
+        // prima era sempre donna e la partita interna si desincronizzava dalla linea.
+        let move = game.move({ from: source, to: target, promotion: (isExpected && expectedMove.uci[4]) || 'q' });
+        if (move === null) { cgPosition(board, game, lastPlayedUci(), false); syncTrainMovable(); return false; }
 
-        if (attemptedMove !== expectedMove.uci.substring(0,4)) {
+        if (!isExpected) {
             game.undo();
-            markLastMove('#board', null); markCheck('#board', game);
             madeMistake = true;
-            
+            playSound('error');
+            cgPosition(board, game, lastPlayedUci());        // il pezzo torna al suo posto
+            setCtxShapes([moveArrow(expectedMove.uci)]);     // e la freccia mostra la mossa giusta
+
             if (phase === 'REVIEW_ERRORS') {
                 setStatus(`Sbagliato! La mossa era: ${expectedMove.san}. Riprova.`, 'bad');
-                board.position(game.fen(), false);
-                return false;
             } else {
                 if (!mistakeReviewQueue.includes(moveIndex)) { mistakeReviewQueue.push(moveIndex); mistakeCount++; }
-                
+
                 setStatus(`Sbagliato!`, 'bad');
                 let targetMoveHTML = `<div class="miss-prompt">Devi giocare: <strong>${expectedMove.san}</strong></div>`;
-                let commentHTML = expectedMove.comment ? `<div class="miss-hint"><strong>Suggerimento:</strong><br>${parseCommentMoves(expectedMove.comment, moveIndex).replace(/\n/g, '<br>')}</div>` : '';
+                let commentHTML = expectedMove.text ? `<div class="miss-hint"><strong>Suggerimento:</strong><br>${parseCommentMoves(expectedMove.text, moveIndex).replace(/\n/g, '<br>')}</div>` : '';
                 $('#annotation-box').html(targetMoveHTML + commentHTML).show();
-                board.position(game.fen(), false); 
-                return false; 
             }
+            syncTrainMovable();
+            return false;
         }
+
+        playMoveSound(move);
+        cgPosition(board, game, move.from + move.to);   // allinea arrocco, en passant e promozione
+        setCtxShapes([]);
 
         if (phase === 'REVIEW_ERRORS') {
             currentMistakeIdxInQueue++;
@@ -2235,14 +2358,13 @@
                 setStatus("Corretto!", 'good');
             }
 
-            if (!isDragDrop) board.position(game.fen(), false); 
-            setTimeout(handleStep, 600); 
+            cgMovable(board, game, null);
+            later(handleStep, 600);
             return true;
         } else {
             setStatus("Corretto!", 'good');
             $('#annotation-box').hide();
-            moveIndex++; 
-            if (!isDragDrop) board.position(game.fen(), false); 
+            moveIndex++;
             handleStep();
             return true;
         }
@@ -2289,40 +2411,44 @@
 
         if (move) {
             isPreviewing = true;
-            board.position(previewGame.fen(), false);
-            // Evidenzia la casa d'arrivo dell'ALTERNATIVA (non quella della mossa principale)
-            removeHighlights();
-            $('#board .square-' + move.to).addClass('highlight-square');
+            cgMovable(board, game, null);
+            board.setAutoShapes([]);
+            cgPosition(board, previewGame, move.from + move.to);   // l'alternativa scorre sulla board
+            playMoveSound(move);
             // Marca il SAN cliccato e smorza l'evidenziazione della mossa principale
             $('.san-link').removeClass('preview-active');
             if (event && event.currentTarget) $(event.currentTarget).addClass('preview-active');
             $('#annotation-box').addClass('previewing');
             if ($('#preview-alert').length === 0) {
-                $('#annotation-box').append(`<div id="preview-alert" class="preview-alert" onclick="clearPreview()">👀 Mossa secondaria visibile.<br>Clicca qui o interagisci per tornare alla linea principale.</div>`);
+                $('#annotation-box').append(`<div id="preview-alert" class="preview-alert" onclick="clearPreview()">Anteprima di una mossa secondaria · clicca qui per tornare alla linea principale</div>`);
             }
         } else {
             console.log("Preview: mossa (" + san + ") non giocabile.");
         }
     }
 
+    // Riepilogo: clic su una mossa = mostra quella posizione (la partita interna resta alla fine)
     function jumpToMove(targetIndex) {
         clearPreview();
-        replayTo(game, targetIndex);
-        board.position(game.fen(), false);
+        let g = new Chess();
+        replayTo(g, targetIndex);
+        cgPosition(board, g, targetIndex > 0 ? currentVariation.moves[targetIndex - 1].uci : null, false);
+        setCtxShapes(targetIndex > 0 ? currentVariation.moves[targetIndex - 1].shapes : []);
     }
 
     function showSummary() {
-        setStatus("Riepilogo Variante", 'info');
-        
-        let html = `<div class="summary-title">Variante Completata!</div>`;
+        setStatus("Riepilogo variante", 'info');
+        setCtxShapes([]);
+
+        let html = `<div class="summary-title">Variante completata!</div>`;
         html += `<div class="summary-moves">`;
-        
+
         for(let i=0; i<currentVariation.moves.length; i++) {
             let m = currentVariation.moves[i];
             let moveStr = `${moveLabel(i)} ${m.san}`;
 
             html += `<strong class="san-link" onclick="jumpToMove(${i + 1})">${moveStr}</strong> `;
-            if (m.comment) { html += `<span class="anno-comment">{ ${parseCommentMoves(m.comment, i)} }</span> `; }
+            if (m.text) { html += `<span class="anno-comment">{ ${parseCommentMoves(m.text, i)} }</span> `; }
         }
         html += `</div><hr class="anno-hr">`;
 
@@ -2339,17 +2465,18 @@
             html += `<div class="review-recent">Valutata <strong style="color:${qualityColor(q)}">${qualityLabel(q)}</strong>
                      (${mistakeCount === 0 ? 'nessun errore' : mistakeCount + (mistakeCount === 1 ? ' errore' : ' errori')})
                      · prossimo ripasso ${giorni ? 'tra ' + intervalLabel(giorni) : 'oggi stesso'}</div>`;
+            let reviewed = currentVariation;
             $.ajax({
                 url: '/api/review', type: 'POST', contentType: 'application/json',
-                data: JSON.stringify({ id: currentVariation.id, quality: q }),
-                success: function() { loadDueVariations(); },
-                error: function() { if (currentVariation) currentVariation.reviewedFlag = false; }
+                data: JSON.stringify({ id: reviewed.id, quality: q }),
+                success: function(r) { onReviewed(reviewed, r); },
+                error: function() { reviewed.reviewedFlag = false; }
             });
         }
 
         // READ, fine apprendimento o già valutata: solo navigazione
         let nextVar = getNextVariation();
-        if (nextVar) html += `<button class="btn btn-success" id="btn-next-var">Prossima Variante (Spazio)</button>`;
+        if (nextVar) html += `<button class="btn btn-success" id="btn-next-var">Prossima variante<span class="kbd">Spazio</span></button>`;
         else html += `<div class="anno-end">Hai concluso questo elenco.</div>`;
 
         $('#annotation-box').html(html).show();
@@ -2371,18 +2498,19 @@
         if (!currentVariation || currentVariation.reviewedFlag) return;
         currentVariation.reviewedFlag = true;
         let nextVar = getNextVariation();   // catturata prima del reload delle liste
+        let reviewed = currentVariation;
         $('#quality-buttons').hide();
 
         $.ajax({
             url: '/api/review', type: 'POST', contentType: 'application/json',
-            data: JSON.stringify({ id: currentVariation.id, quality: q }),
-            success: function() { loadDueVariations(); },
-            error: function() { if (currentVariation) currentVariation.reviewedFlag = false; $('#quality-buttons').show(); $('#post-review').empty(); waitingForAck = false; }
+            data: JSON.stringify({ id: reviewed.id, quality: q }),
+            success: function(r) { onReviewed(reviewed, r); },
+            error: function() { reviewed.reviewedFlag = false; $('#quality-buttons').show(); $('#post-review').empty(); waitingForAck = false; }
         });
 
         let pr = $('#post-review');
         if (nextVar) {
-            pr.html(`<button class="btn btn-success" id="btn-next-var">Prossima Variante (Spazio)</button>`);
+            pr.html(`<button class="btn btn-success" id="btn-next-var">Prossima variante<span class="kbd">Spazio</span></button>`);
             $('#btn-next-var').click(function() { clearPreview(); startTraining(nextVar.id, currentListMode); });
             waitingForAck = true;
         } else {
@@ -2391,64 +2519,48 @@
         }
     }
 
-    // --- DRAG E DROP SULLA SCACCHIERA ---
-    let _needBoardSync = false;   // true solo per arrocco/en passant/promozione (redraw necessario)
-    let _selfDropTs = 0;          // timestamp dell'ultimo click-su-pezzo gestito da onDrop (anti doppio-toggle)
-    function onDragStart (source, piece) {
-        if (isPreviewing) { clearPreview(); return false; }
-        _needBoardSync = false;
-        removeHighlights();
-        if (phase === 'READ' || waitingForAck || game.game_over() || !currentVariation) return false;
-        let requiredColorPrefix = currentVariation.perspective === 'white' ? '^w' : '^b';
-        if (piece.search(requiredColorPrefix) === -1) return false;
-        if (checkUserTurn()) showDots('#board', game, source);   // mosse legali visibili durante il drag
+    // --- MOSSE DELL'UTENTE SULLA BOARD DI TRAINING (drag o click: chessground gestisce entrambi) ---
+    function canUserMove() {
+        if (!currentVariation || !currentVariation.moves || phase === 'READ' || isPreviewing || game.game_over()) return false;
+        if (moveIndex >= currentVariation.moves.length || !checkUserTurn()) return false;
+        // in Fase 1 la mossa si puo' giocare direttamente, senza premere "Fammi muovere"
+        return !waitingForAck || (phase === 'LEARN' && $('#btn-avanti').is(':visible'));
+    }
+    function syncTrainMovable() {
+        let can = canUserMove();
+        cgMovable(board, game, can ? currentVariation.perspective : null);
+        $('#btn-hint').toggle(can && phase !== 'LEARN');
+    }
+    function onUserMove(orig, dest) {
+        if (!canUserMove()) { cgPosition(board, game, lastPlayedUci(), false); return; }
+        if (waitingForAck) {   // Fase 1: giocata dal prompt, la mossa avversaria non va rianimata
+            $('#annotation-box').hide(); waitingForAck = false; pendingOppMove = null; pendingOppFen = null;
+        }
+        evaluateUserMove(orig, dest);
     }
 
-    function onDrop (source, target) {
-        if (!currentVariation || waitingForAck) { clearDots('#board'); return 'snapback'; }
-        if (source === target) {
-            // mousedown+rilascio sulla stessa casa = CLICK reale sul pezzo (chessboard.js non
-            // genera click sulle case coi pezzi: il drag lo intercetta) -> prendi/lascia
-            _selfDropTs = Date.now();
-            if (selectedSquare === source) removeHighlights();
-            else if (checkUserTurn()) highlightSquare(source);
-            else clearDots('#board');
-            return 'snapback';
-        }
-        let success = evaluateUserMove(source, target, true);
-        if (!success) return 'snapback';
+    // Suggerimento a due livelli (come Chessable): prima il pezzo, poi la mossa. Conta come errore.
+    let hintLevel = 0;
+    function showHint() {
+        if (!canUserMove() || phase === 'LEARN') return;
+        let m = currentVariation.moves[moveIndex];
+        hintLevel = Math.min(hintLevel + 1, 2);
+        madeMistake = true;
+        if (phase !== 'REVIEW_ERRORS' && !mistakeReviewQueue.includes(moveIndex)) { mistakeReviewQueue.push(moveIndex); mistakeCount++; }
+        setCtxShapes(hintLevel === 1 ? [{ orig: m.uci.slice(0, 2), brush: 'yellow' }] : [moveArrow(m.uci, 'yellow')]);
+        setStatus(hintLevel === 1 ? 'Suggerimento: muovi il pezzo cerchiato' : 'Suggerimento: ' + m.san, 'warn');
     }
-    
-    function onSnapEnd () { if (_needBoardSync) { board.position(game.fen(), false); _needBoardSync = false; } }
-    
+
+    // Esplora: apre su Lichess la posizione mostrata (anche in anteprima di una mossa secondaria)
+    function exploreAnalyze() {
+        let g = isPreviewing ? previewGame : exploreGame;
+        if (g) window.open("https://lichess.org/analysis/standard/" + g.fen().replace(/ /g, '_'), '_blank');
+    }
+
     function analyzeOnLichess() {
         let g = isPreviewing ? previewGame : game;
         if (g) { window.open("https://lichess.org/analysis/standard/" + g.fen().replace(/ /g, '_'), '_blank'); }
     }
-
-    $('#board').on('click', '.square-55d63', function() {
-        if (isPreviewing) { clearPreview(); return; } 
-
-        if (phase === 'READ' || waitingForAck || !currentVariation || game.game_over()) return;
-        if (!checkUserTurn()) return;
-
-        let square = $(this).attr('data-square');
-        let piece = game.get(square);
-        let userColor = currentVariation.perspective === 'white' ? 'w' : 'b';
-        // click su un proprio pezzo appena gestito da onDrop (stessa casa): evita il doppio toggle
-        if (piece && piece.color === userColor && Date.now() - _selfDropTs < 400) return;
-
-        if (selectedSquare === null) {
-            if (piece && piece.color === userColor) highlightSquare(square);
-        } else {
-            if (selectedSquare === square) removeHighlights();
-            else if (piece && piece.color === userColor) highlightSquare(square);
-            else {
-                let success = evaluateUserMove(selectedSquare, square, false); 
-                if (success || madeMistake) removeHighlights(); 
-            }
-        }
-    });
 
     // TASTIERA
     let _lastSpaceTs = 0;   // debounce Spazio: blocca auto-ripetizione e pressioni ravvicinate (anti-restart variante)
@@ -2456,13 +2568,29 @@
         // Mai intercettare scorciatoie mentre si digita in un campo o con un modale aperto
         let tag = (event.target && event.target.tagName) || '';
         if (/^(INPUT|SELECT|TEXTAREA)$/.test(tag) || (event.target && event.target.isContentEditable) || $('#modal-overlay').length) return;
+        // Menu tema aperto: Esc chiude, frecce scorrono le voci; dentro il menu nessun'altra scorciatoia
+        if (!document.getElementById('theme-list').hidden) {
+            if (event.key === 'Escape') { event.preventDefault(); toggleThemeMenu(false); $('#theme-btn').focus(); return; }
+            if ($(event.target).closest('#theme-list').length) {
+                if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    let items = $('#theme-list [data-set-theme]'), i = items.index(event.target);
+                    items.eq((i + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length).focus();
+                }
+                return;
+            }
+        }
         // Esplora: ← indietro, → avanti (redo o continuazione più comune), f gira.
         if ($('#view-explore').hasClass('active')) {
             if (event.code === 'ArrowLeft') { event.preventDefault(); exploreBack(); return; }
             if (event.code === 'ArrowRight') { event.preventDefault(); exploreForwardStep(); return; }
             if (event.key === 'f' || event.key === 'F') { event.preventDefault(); exploreFlip(); return; }
         }
-        if (event.key === 'f' || event.key === 'F') { if (board) { event.preventDefault(); board.flip(); } return; }
+        if (event.key === '?') { event.preventDefault(); showShortcuts(); return; }
+        // Le scorciatoie del training valgono solo nella sua vista: prima, dopo una lettura,
+        // Spazio e frecce restavano "rubati" anche nel Repertorio (e la pagina non scorreva).
+        if (!$('#view-train').hasClass('active')) return;
+        if (event.key === 'f' || event.key === 'F') { event.preventDefault(); flipBoard(); return; }
         if (phase === 'READ') {
             if (event.code === 'ArrowRight') { event.preventDefault(); nextMoveRead(); }
             else if (event.code === 'Space') {
@@ -2474,9 +2602,13 @@
             else if (event.code === 'ArrowLeft') { event.preventDefault(); prevMoveRead(); }
         } else {
             // (tasti 1-4 dell'autovalutazione: sospesi insieme ai pulsanti qualità)
+            if ((event.key === 'h' || event.key === 'H') && $('#btn-hint').is(':visible')) { event.preventDefault(); showHint(); return; }
             if (event.code === 'Space' || event.key === ' ') {
+                // Spazio appartiene al training: mai l'attivazione nativa del bottone col focus
+                // (l'ultima voce di menu cliccata faceva ripartire la sessione).
+                event.preventDefault();
                 // Una pressione = un'azione: ignora l'auto-ripetizione del tasto tenuto premuto.
-                if (event.repeat) { event.preventDefault(); return; }
+                if (event.repeat) return;
                 let _now = Date.now();
                 let _gap = _now - _lastSpaceTs;   // tempo dall'ULTIMA pressione di Spazio (aggiornato sempre)
                 _lastSpaceTs = _now;
@@ -2486,14 +2618,23 @@
                 let btnNext = $('#btn-next-var');
 
                 // Avanzamento lettura: risponde a ogni pressione.
-                if (btnAvanti.length && btnAvanti.is(':visible')) { event.preventDefault(); btnAvanti.click(); }
+                if (btnAvanti.length && btnAvanti.is(':visible')) { btnAvanti.click(); }
                 // Consolidamento / prossima variante: SOLO pressione isolata (preceduta da una pausa).
                 // Durante uno "spam" i gap restano piccoli -> non riparte mai la variante da mossa 1.
-                else if (btnConsolidamento.length && btnConsolidamento.is(':visible')) { event.preventDefault(); if (_gap > 500) btnConsolidamento.click(); }
-                else if (btnNext.length && btnNext.is(':visible')) { event.preventDefault(); if (_gap > 500) btnNext.click(); }
+                else if (btnConsolidamento.length && btnConsolidamento.is(':visible')) { if (_gap > 500) btnConsolidamento.click(); }
+                else if (btnNext.length && btnNext.is(':visible')) { if (_gap > 500) btnNext.click(); }
             }
         }
     });
+
+    // I bottoni cliccati col mouse non tengono il focus: Spazio (avanti nel training) non deve
+    // riattivare l'ultimo bottone premuto. Da tastiera restano raggiungibili col Tab.
+    $(document).on('mousedown', '.navlink, .lichess-btn, .btn-delete, .btn-read, .icon-btn', function(e) { e.preventDefault(); });
+
+    function showShortcuts() {
+        uiAlert('Spazio — avanti / conferma\n← → — mossa precedente / successiva (lettura ed Esplora)\nF — gira la scacchiera\nH — suggerimento durante il ripasso\n' +
+                'Tasto destro sulla scacchiera — frecce e cerchi (un clic li cancella)\nEsc — chiude menu e finestre', { title: 'Scorciatoie da tastiera' });
+    }
 
     // Errori AJAX visibili (niente fallimenti silenziosi)
     $(document).ajaxError(function(ev, xhr) {
@@ -2546,6 +2687,7 @@
 
     $(document).ready(function() {
         initTheme(); initBoard(); initBoardSize(); initAnimSpeed(); initPanelSizes();
+        $('#sound-toggle').prop('checked', soundOn);
         loadDueVariations();
         navTo('repertorio');   // vista iniziale
     });

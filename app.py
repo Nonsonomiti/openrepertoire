@@ -115,22 +115,33 @@ def pick_header_roles(headers_list):
 def default_stats():
     return {'reviews': 0, 'correct': 0, 'lapses': 0, 'last_quality': None, 'history': []}
 
+def mai_studiata(v):
+    """Vera solo se la variante non e' MAI stata ripassata. Basta srs.rep == 0 per dirlo: un lapse
+       lo riazzera (SM-2), ma una variante gia' studiata non torna 'da imparare'. rep > 0 senza
+       ripassi registrati = dati di prima delle statistiche: e' studiata (come la vede il client)."""
+    return not ((v.get('stats') or {}).get('reviews') or (v.get('srs') or {}).get('rep'))
+
 # Calibrazione SRS per un repertorio di aperture (non flashcard di vocaboli):
-#  - LEARN_STEPS: i primi ripassi corretti sono ravvicinati. SM-2 puro saltava da 1 a 6 giorni,
-#    un buco troppo largo per una linea vista una volta sola.
+#  - LEARN_STEPS: i primi ripassi corretti sono ravvicinati, in giorni (frazionari ammessi).
+#    Il primo e' a ore, non l'indomani: una linea vista una volta sola va rivista PRIMA di
+#    dormirci sopra, e' li' che si consolida (Chessable fa lo stesso).
 #  - MAX_INTERVAL: tetto a ~6 mesi. Senza tetto SM-2 arriva a 1 anno dopo 6 ripassi e continua a
 #    crescere (2-3 anni): una linea del repertorio va rivista almeno un paio di volte l'anno,
 #    anche se la ricordi bene.
-# Linea sempre corretta: 1 -> 3 -> 7 -> 20 -> 58 -> 174 -> 180 giorni (tetto dopo ~9 mesi).
-LEARN_STEPS = [1, 3, 7]
+#  - RELEARN_STEP: dopo un errore grave la variante NON va rimessa in scadenza "adesso", o resta
+#    incollata nella lista di oggi anche dopo averla ripassata (sembra un bug). Torna fra poco,
+#    come il passo di riapprendimento di Anki.
+# Linea sempre corretta: 6h -> 1g -> 3g -> 7g -> 18g -> 49g -> 141g -> 180g (tetto).
+LEARN_STEPS = [0.25, 1, 3, 7]
+RELEARN_STEP = 10 / 1440.0        # 10 minuti
 MAX_INTERVAL = 180
 
 def update_srs(srs, quality):
     rep, interval, ease = srs.get('rep', 0), srs.get('interval', 0), srs.get('ease', 2.5)
 
     if quality < 3:
-        rep = 0          # lapse: azzera la sequenza (SM-2) -> torna subito in coda, poi riparte da 1 giorno
-        interval = 0
+        rep = 0                      # lapse: azzera la sequenza (SM-2), si riparte dai passi brevi
+        interval = RELEARN_STEP      # ma fra 10 minuti, non adesso: esce dalla lista di oggi
     else:
         interval = LEARN_STEPS[rep] if rep < len(LEARN_STEPS) else int(round(interval * ease))
         interval = min(interval, MAX_INTERVAL)
@@ -287,20 +298,35 @@ def get_due():
     if dirty:
         save_data(data)
 
+    # Elenco LEGGERO: senza mosse e commenti (il 95% dei byte), che arrivano da /api/variation
+    # solo quando una variante si apre. learn/review sono id, non copie: prima la risposta pesava
+    # ~80 MB e si riscaricava dopo ogni variante.
     learn = []
     review = []
     repertoire = []
 
     for vid, vdata in data.items():
-        vdata['id'] = vid
-        repertoire.append(vdata)
-        
-        if vdata['srs']['rep'] == 0:
-            learn.append(vdata)
+        light = {k: v for k, v in vdata.items() if k != 'moves'}
+        light['id'] = vid
+        repertoire.append(light)
+
+        # "Mai studiata" != "sbagliata di recente": quando sbagli troppo SM-2 azzera rep, ma la
+        # variante resta imparata. Deve tornare in Ripassa (scade subito), non in Impara.
+        if mai_studiata(vdata):
+            learn.append(vid)
         elif datetime.fromisoformat(vdata['srs']['next_review']) <= now:
-            review.append(vdata)
-            
+            review.append(vid)
+
     return jsonify({"learn": learn, "review": review, "repertoire": repertoire})
+
+@app.route('/api/variation', methods=['GET'])
+def get_variation():
+    """Mosse e commenti di UNA variante (caricati quando la apri)."""
+    vid = request.args.get('id')
+    v = load_data().get(vid)
+    if not v:
+        return jsonify({"error": "Variante non trovata."}), 404
+    return jsonify({"id": vid, "moves": v.get('moves') or [], "startFen": v.get('startFen')})
 
 @app.route('/api/review', methods=['POST'])
 def review():
@@ -310,6 +336,8 @@ def review():
     if not isinstance(vid, str) or isinstance(quality, bool) or not isinstance(quality, int) or not (0 <= quality <= 5):
         return jsonify({"success": False, "error": "Dati di valutazione non validi."}), 400
     data = load_data()
+    if vid not in data:
+        return jsonify({"success": False, "error": "Variante non trovata (eliminata?)."}), 404
 
     if vid in data:
         data[vid]['srs'] = update_srs(data[vid]['srs'], quality)
@@ -326,7 +354,8 @@ def review():
         data[vid]['stats'] = st
         save_data(data)
 
-    return jsonify({"success": True})
+    # Il client aggiorna la variante sul posto invece di riscaricare tutto l'elenco
+    return jsonify({"success": True, "srs": data[vid]['srs'], "stats": data[vid]['stats']})
 
 @app.route('/api/review_now', methods=['POST'])
 def review_now():
@@ -348,7 +377,7 @@ def review_now():
         if chapter and (v.get('chapter') or 'Generale') != chapter:
             continue
         srs = v.get('srs') or {}
-        if srs.get('rep', 0) <= 0:
+        if mai_studiata(v):
             continue                      # mai imparata: sta gia' in "Impara"
         try:
             if datetime.fromisoformat(srs['next_review']) <= now:
@@ -416,7 +445,7 @@ def stats():
                 'reviews': st.get('reviews', 0)
             })
 
-        if srs.get('rep', 0) == 0:
+        if mai_studiata(v):
             learn += 1
             continue
         try:
@@ -454,7 +483,7 @@ def stats():
                                          'correct': 0, 'lapses': 0})
         bk['total'] += 1; bk['reviews'] += r; bk['correct'] += c; bk['lapses'] += l
 
-        if srs.get('rep', 0) == 0:
+        if mai_studiata(v):
             bc['learn'] += 1
         else:
             try:
@@ -620,11 +649,20 @@ def search_position():
     return jsonify({"matches": matches})
 
 # ===== B1/B2: indice ad albero delle posizioni (trie) + trasposizioni, con cache su mtime e filtro =====
-_index_cache = {'mtime': None, 'by_filter': {}}
+_index_cache = {'mtime': None, 'sig': None, 'by_filter': {}}
 
 def _pos_key(board):
-    # FEN normalizzato: placement + tratto + arrocchi + en-passant (esclude i contatori di mossa)
-    return ' '.join(board.fen().split(' ')[:4])
+    # Chiave di trasposizione = le prime 4 parti del FEN (pezzi, tratto, arrocchi, en passant legale)
+    # ma senza costruire la stringa: board.fen() a ogni mossa era il 70% del tempo dell'albero.
+    return (board.pawns, board.knights, board.bishops, board.rooks, board.queens, board.kings,
+            board.occupied_co[chess.WHITE], board.occupied_co[chess.BLACK], board.turn,
+            board.clean_castling_rights(), board.ep_square if board.has_legal_en_passant() else None)
+
+def _data_sig(data):
+    # Cio' che conta per l'albero: quali varianti (l'id e' l'hash delle mosse), con che corso,
+    # colore, titolo. Un ripasso cambia solo srs/statistiche e l'albero resta valido.
+    return hash(tuple((vid, v.get('course'), v.get('perspective'), v.get('title'), v.get('startFen'))
+                      for vid, v in data.items()))
 
 def _board_for(v):
     try:
@@ -642,7 +680,10 @@ def _build_index(course=None, perspective=None):
         mtime = None
     if _index_cache['mtime'] != mtime:
         _index_cache['mtime'] = mtime
-        _index_cache['by_filter'] = {}
+        sig = _data_sig(load_data())
+        if sig != _index_cache['sig']:
+            _index_cache['sig'] = sig
+            _index_cache['by_filter'] = {}
     fkey = (course or '', perspective or '')
     if fkey in _index_cache['by_filter']:
         return _index_cache['by_filter'][fkey]
@@ -663,9 +704,12 @@ def _build_index(course=None, perspective=None):
                 break
             k = _pos_key(board)
             try:
-                san = board.san(chess.Move.from_uci(uci))
-            except Exception:
-                san = m.get('san', '')
+                mv = chess.Move.from_uci(uci)
+            except ValueError:
+                break
+            if mv and board.piece_at(mv.from_square) is None:   # (mv falso = mossa nulla "--", valida)
+                break                    # dati incoerenti: la linea si ferma qui
+            san = m.get('san') or board.san(mv)   # la SAN salvata all'import: ricalcolarla costava
             node = children.setdefault(k, {})
             ch = node.get(uci)
             if ch is None:
@@ -677,17 +721,14 @@ def _build_index(course=None, perspective=None):
             r = reach.get(k)
             if r is None:
                 r = {'by_var': {}, 'paths': set(), 'owner_moves': set(),
-                     'fen': board.fen(), 'turn': ('w' if board.turn else 'b')}
+                     'turn': ('w' if board.turn else 'b')}
                 reach[k] = r
             if vid not in r['by_var']:
                 r['by_var'][vid] = len(path)
             r['paths'].add(tuple(path))
             if board.turn == persp_white:   # mossa del LATO dell'utente da questa posizione
                 r['owner_moves'].add(uci)
-            try:
-                board.push_uci(uci)
-            except Exception:
-                break
+            board.push(mv)           # mosse gia' validate all'import/salvataggio
             path.append(uci)
         ends.setdefault(_pos_key(board), []).append(vid)
 
@@ -751,7 +792,7 @@ def api_transpositions():
                        'course': data.get(vid, {}).get('course', '')}
                       for vid, ply in list(by_var.items())[:12]]
         sans = [c['san'] for c in idx['children'].get(key, {}).values()]
-        items.append({'key': key, 'fen': r['fen'], 'turn': r['turn'],
+        items.append({'turn': r['turn'],
                       'reached_by': reached_by, 'reached_count': len(by_var),
                       'conflict': len(r['owner_moves']) >= 2, 'continuations': sans})
     items.sort(key=lambda x: (-int(x['conflict']), -x['reached_count']))
@@ -933,7 +974,7 @@ def save_variation():
             mv = chess.Move.from_uci(uci)
         except Exception:
             return jsonify({"success": False, "error": "Mossa %d non valida (%s)." % (i + 1, uci)}), 400
-        if mv not in board.legal_moves:
+        if mv and mv not in board.legal_moves:   # mv falso = mossa nulla "--" dei corsi: ammessa
             return jsonify({"success": False, "error": "Mossa %d illegale (%s)." % (i + 1, uci)}), 400
         comment = (m.get('comment') if isinstance(m, dict) else '') or ''
         moves_data.append({"uci": uci, "san": board.san(mv), "comment": comment})
@@ -1045,7 +1086,7 @@ def export_pgn():
                         mv = chess.Move.from_uci(m.get('uci', ''))
                     except Exception:
                         break
-                    if mv not in board.legal_moves:
+                    if mv and mv not in board.legal_moves:   # le mosse nulle "--" passano
                         break
                     node = node.variation(mv) if node.has_variation(mv) else node.add_variation(mv)
                     if not strip and m.get('comment') and not node.comment:
@@ -1072,7 +1113,7 @@ def export_pgn():
             for m in (v.get('moves') or []):
                 try:
                     mv = chess.Move.from_uci(m.get('uci', ''))
-                    if mv not in board.legal_moves:
+                    if mv and mv not in board.legal_moves:   # le mosse nulle "--" passano (prima la variante spariva dall'export)
                         ok = False; break
                     node = node.add_variation(mv)
                     board.push(mv)

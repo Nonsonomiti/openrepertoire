@@ -27,3 +27,6 @@ ROADMAP_CHESSBASE.md
 
 # Ignora il token personale di Lichess (opening explorer)
 lichess_token.txt
+
+# Ignora il server di test
+test_app.py
