@@ -46,6 +46,9 @@ if errorlevel 1 (
 )
 
 :: ================= 3) AVVIO SERVER (senza finestra) =================
+:: Chiude l'istanza vecchia sulla porta (come i lanciatori macOS e Linux): riaprire il
+:: lanciatore riavvia l'app, e cosi' prende le impostazioni nuove (accesso dal telefono)
+for /f "tokens=5" %%A in ('netstat -ano ^| findstr /R /C:":5001 .*LISTENING"') do taskkill /PID %%A /F >nul 2>&1
 :: pythonw.exe accanto all'interprete usato sopra = stesso ambiente delle dipendenze
 set "PYW="
 for /f "delims=" %%P in ('"%PY%" -c "import sys,os;print(os.path.join(os.path.dirname(sys.executable),'pythonw.exe'))" 2^>nul') do (

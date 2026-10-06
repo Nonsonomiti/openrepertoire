@@ -4,7 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>openrepertoire — Vortichess</title>
-    
+    <!-- dal telefono: "Aggiungi alla schermata Home" la apre a tutto schermo, come un'app -->
+    <link rel="manifest" href="/static/manifest.webmanifest">
+    <link rel="apple-touch-icon" href="/static/img/icon-180.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Repertorio">
+
     <link rel="stylesheet" href="/static/css/chessboard.min.css">   <!-- solo per l'editor di posizione (pezzi a lato) -->
     <link rel="stylesheet" href="/static/css/chessground.base.css">
     <script src="/static/js/jquery.min.js"></script>
@@ -22,16 +28,39 @@
             <div class="logo"></div>
             <div class="wm"><div class="n">openrepertoire</div><div class="s">powered by Vortichess</div></div>
         </div>
-        <nav id="topnav" aria-label="Sezioni">
+        <!-- Due aree separate: i corsi (PGN importati) e le funzioni personali (partite, avversari...) -->
+        <div id="area-switch" class="area-switch" role="group" aria-label="Area">
+            <button data-area="corsi" aria-pressed="true" onclick="setArea('corsi')">Corsi</button>
+            <button data-area="personale" aria-pressed="false" onclick="setArea('personale')">Personale</button>
+        </div>
+        <nav id="topnav" class="topnav" aria-label="Sezioni dei corsi">
             <button class="navlink" data-nav="impara" onclick="navTo('impara')">Impara</button>
             <button class="navlink" data-nav="repertorio" onclick="navTo('repertorio')">Repertorio</button>
             <button class="navlink" data-nav="esplora" onclick="navTo('esplora')">Esplora</button>
             <button class="navlink" data-nav="ripassa" onclick="navTo('ripassa')">Ripassa</button>
             <button class="navlink" data-nav="stats" onclick="navTo('stats')">Statistiche</button>
         </nav>
+        <nav id="topnav-p" class="topnav" aria-label="Sezioni personali" hidden>
+            <button class="navlink" data-nav="partite" onclick="navTo('partite')">Partite</button>
+            <button class="navlink" data-nav="avversario" onclick="navTo('avversario')">Avversario</button>
+            <button class="navlink" data-nav="costruisci" onclick="navTo('costruisci')">Costruisci</button>
+            <button class="navlink" data-nav="sparring" onclick="navTo('sparring')">Sparring</button>
+            <button class="navlink" data-nav="finali" onclick="navTo('finali')">Finali</button>
+        </nav>
         <div class="spacer"></div>
         <span id="due-badge" class="zero">0 oggi</span>
-        <button class="icon-btn kbd-help" onclick="showShortcuts()" title="Scorciatoie da tastiera (?)" aria-label="Scorciatoie da tastiera">?</button>
+        {% if local %}<!-- dal telefono non servono: accesso dalla rete, cartella dei dati, chiudi l'app -->
+        <button class="icon-btn" onclick="showPhone()" title="Usa dal telefono" aria-label="Usa dal telefono"><i class="ico i-phone"></i></button>
+        <div class="top-menu">
+            <button class="icon-btn" id="more-btn" onclick="toggleMoreMenu()" title="Altro" aria-label="Altro" aria-haspopup="menu" aria-expanded="false"><i class="ico i-more"></i></button>
+            <div id="more-list" class="theme-list" role="menu" aria-label="Altro" hidden>
+                <button role="menuitem" onclick="toggleMoreMenu(false); showShortcuts()">Scorciatoie da tastiera</button>
+                <button role="menuitem" onclick="toggleMoreMenu(false); showDataDir()">Cartella dei dati</button>
+                <button role="menuitem" onclick="toggleMoreMenu(false); quitApp()">Chiudi l'app</button>
+                <div class="menu-ver">openrepertoire {{ version }}</div>
+            </div>
+        </div>
+        {% endif %}
         <div class="theme-menu">
             <button class="icon-btn" id="theme-btn" onclick="toggleThemeMenu()" title="Tema" aria-label="Scegli il tema" aria-haspopup="menu" aria-expanded="false"><i class="ico i-theme"></i></button>
             <div id="theme-list" class="theme-list" role="menu" aria-label="Tema" hidden>
@@ -56,6 +85,7 @@
                     <div id="board-card"><div id="board"></div></div>
                     <div class="board-actions">
                         <button class="lichess-btn" onclick="flipBoard()">Gira</button>
+                        <button class="lichess-btn" id="btn-blind" onclick="toggleBlind()" aria-pressed="false" title="Nasconde i pezzi: giochi la linea a memoria (B)">Alla cieca</button>
                         <button class="lichess-btn" onclick="analyzeOnLichess()">Analizza su Lichess ↗</button>
                         <button class="lichess-btn board-size-btn" onclick="nudgeBoardSize(-40)" title="Rimpicciolisci scacchiera" aria-label="Rimpicciolisci scacchiera">−</button>
                         <button class="lichess-btn board-size-btn" onclick="nudgeBoardSize(40)" title="Ingrandisci scacchiera" aria-label="Ingrandisci scacchiera">+</button>
@@ -115,6 +145,7 @@
                                 <option value="auto">Tattica / Strategia (colore dal FEN)</option>
                             </select>
                             <input type="file" id="pgn-file" accept=".pgn" style="color:var(--text-faint); margin-top: 8px; width: 100%;">
+                            <label class="exp-sel-lab" style="margin-top:10px;"><input type="checkbox" id="pgn-tree"><span>Ogni ramo è una linea da studiare <span style="opacity:.7;">(repertori tuoi con varianti; nei corsi i rami sono idee dell'autore e restano nel commento)</span></span></label>
                             <button class="btn" onclick="importPGNFile()">Carica file</button>
                         </div>
                     </div>
@@ -173,6 +204,7 @@
                             <label class="edit-lab">Velocità animazione · <span id="anim-speed-val">200 ms</span></label>
                             <input type="range" id="anim-speed-slider" min="0" max="800" step="20" value="200" oninput="$('#anim-speed-val').text(animSpeedLabel(this.value))" onchange="changeAnimSpeed()" style="width: 100%;">
                             <label class="exp-sel-lab" style="margin-top:14px;"><input type="checkbox" id="sound-toggle" onchange="toggleSound(this.checked)"><span>Suoni delle mosse</span></label>
+                            <label class="exp-sel-lab"><input type="checkbox" id="skip-toggle" onchange="toggleSkipKnown(this.checked)"><span>Nel ripasso salta l'inizio già giocato bene oggi <span style="opacity:.7;">(le linee che condividono le prime mosse partono da dove cambiano)</span></span></label>
                         </div>
                     </div>
                 </div>
@@ -240,6 +272,7 @@
                                 </select>
                             </div>
                             <div id="db-list"></div>
+                            <div id="db-games"></div>
                         </div>
                     </div>
                     </div>
@@ -330,7 +363,7 @@
                             <option value="black">Nero</option>
                         </select>
                         <button class="btn" style="margin-top:14px;" onclick="editSave()">Salva variante</button>
-                        <button class="btn btn-read" style="margin-top:6px;" onclick="navTo('repertorio')">Annulla</button>
+                        <button class="btn btn-read" style="margin-top:6px;" onclick="navTo(editBack)">Annulla</button>
                         <div id="edit-status" class="edit-status"></div>
                     </div>
                 </div>
@@ -340,6 +373,223 @@
         <section id="view-stats" class="view">
             <h1 class="view-title">Statistiche e scadenze</h1>
             <div id="stats-body"></div>
+        </section>
+
+        <!-- ===== AREA PERSONALE (logica in static/js/personal.js) ===== -->
+        <section id="view-games" class="view">
+            <h1 class="view-title">Le tue partite</h1>
+            <div class="panel-box" id="games-acc">
+                <div class="panel-title" role="button" tabindex="0" onclick="$('#acc-content').slideToggle(200)"><div id="acc-head">Account e download</div> <span>▼</span></div>
+                <div id="acc-content" class="px-collapsible">
+                    <p class="panel-hint" style="margin-top:0;">Scarica le tue partite da Lichess o Chess.com: sono pubbliche, basta il nome utente. L'app le confronta col repertorio e ti mostra dove hai dimenticato una linea e dove gli avversari ti portano fuori dalla preparazione.</p>
+                    <div class="px-form">
+                        <div class="exp-ctrl px-grow"><label class="exp-ctrl-lab" for="acc-lichess">Lichess</label><input id="acc-lichess" class="import-select" placeholder="nome utente" autocomplete="off" spellcheck="false" autocapitalize="off"></div>
+                        <div class="exp-ctrl px-grow"><label class="exp-ctrl-lab" for="acc-chesscom">Chess.com</label><input id="acc-chesscom" class="import-select" placeholder="nome utente" autocomplete="off" spellcheck="false" autocapitalize="off"></div>
+                        <div class="exp-ctrl"><label class="exp-ctrl-lab" for="acc-max">Partite (le più recenti)</label>
+                            <select id="acc-max" class="import-select"><option value="100">100</option><option value="300" selected>300</option><option value="1000">1000</option><option value="3000">3000</option></select></div>
+                        <button class="btn px-form-btn" id="acc-sync" onclick="gmSync()">Scarica</button>
+                    </div>
+                    <div id="acc-status" class="edit-status"></div>
+                    <div id="acc-list"></div>
+                </div>
+            </div>
+            <div id="games-main" style="display:none;">
+                <div class="px-controls">
+                    <div class="exp-ctrl"><label class="exp-ctrl-lab" for="games-color">Colore</label>
+                        <select id="games-color" class="import-select" onchange="gmColorChanged()"><option value="white">Bianco</option><option value="black">Nero</option></select></div>
+                    <div class="exp-ctrl"><label class="exp-ctrl-lab" for="games-account">Account</label>
+                        <select id="games-account" class="import-select" onchange="gmReload()"><option value="">Tutti</option></select></div>
+                </div>
+                <div id="games-kpis" class="kpi-grid px-kpis"></div>
+                <div id="games-other" class="px-sum-row px-note"></div>
+                <div class="px-wrap">
+                    <div class="px-left">
+                        <div class="px-board-card"><div id="games-board" class="px-board"></div></div>
+                        <div class="board-actions">
+                            <button class="lichess-btn" onclick="gm.nav.reset()">Inizio</button>
+                            <button class="lichess-btn" onclick="gm.nav.back()">← Indietro</button>
+                            <button class="lichess-btn" onclick="gm.nav.flip()">Gira</button>
+                        </div>
+                        <div id="games-crumb" class="explore-breadcrumb"></div>
+                    </div>
+                    <div class="px-right">
+                        <div class="panel-box">
+                            <div class="panel-title">Da questa posizione, nelle tue partite</div>
+                            <div id="games-moves"></div>
+                        </div>
+                        <div class="panel-box">
+                            <div class="panel-title">Dove hai deviato tu <span class="px-badge" id="games-devs-n"></span></div>
+                            <div id="games-devs" class="px-list"></div>
+                        </div>
+                        <div class="panel-box">
+                            <div class="panel-title">Dove l'avversario è uscito dal repertorio <span class="px-badge" id="games-exits-n"></span></div>
+                            <div id="games-exits" class="px-list"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="view-opp" class="view">
+            <h1 class="view-title">Prepara l'avversario</h1>
+            <div class="panel-box">
+                <div class="px-form">
+                    <div class="exp-ctrl"><label class="exp-ctrl-lab" for="opp-site">Sito</label>
+                        <select id="opp-site" class="import-select"><option value="lichess">Lichess</option><option value="chesscom">Chess.com</option></select></div>
+                    <div class="exp-ctrl px-grow"><label class="exp-ctrl-lab" for="opp-user">Nome utente dell'avversario</label>
+                        <input id="opp-user" class="import-select" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="nome utente" onkeydown="if (event.key === 'Enter') opScan(false)"></div>
+                    <div class="exp-ctrl"><label class="exp-ctrl-lab" for="opp-color">Io gioco col</label>
+                        <select id="opp-color" class="import-select" onchange="opColorChanged()"><option value="white">Bianco</option><option value="black">Nero</option></select></div>
+                    <div class="exp-ctrl"><label class="exp-ctrl-lab" for="opp-max">Partite</label>
+                        <select id="opp-max" class="import-select"><option value="100">100</option><option value="300" selected>300</option><option value="1000">1000</option></select></div>
+                    <button class="btn px-form-btn" onclick="opScan(false)">Analizza</button>
+                </div>
+                <div id="opp-recent" class="px-chips"></div>
+                <div id="opp-status" class="edit-status"></div>
+            </div>
+            <div id="opp-main" style="display:none;">
+                <div id="opp-summary" class="px-summary"></div>
+                <div class="px-wrap">
+                    <div class="px-left">
+                        <div class="px-board-card"><div id="opp-board" class="px-board"></div></div>
+                        <div class="board-actions">
+                            <button class="lichess-btn" onclick="op.nav.reset()">Inizio</button>
+                            <button class="lichess-btn" onclick="op.nav.back()">← Indietro</button>
+                            <button class="lichess-btn" onclick="op.nav.flip()">Gira</button>
+                        </div>
+                        <div id="opp-crumb" class="explore-breadcrumb"></div>
+                    </div>
+                    <div class="px-right">
+                        <div class="panel-box">
+                            <div class="panel-title">Da questa posizione, nelle sue partite</div>
+                            <div id="opp-moves"></div>
+                        </div>
+                        <div class="panel-box">
+                            <div class="panel-title">Dove esce dal tuo repertorio <span class="px-badge" id="opp-exits-n"></span></div>
+                            <div id="opp-exits" class="px-list"></div>
+                        </div>
+                        <div class="panel-box">
+                            <div class="panel-title">Le tue linee da ripassare contro di lui</div>
+                            <div id="opp-lines" class="px-list"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="view-build" class="view">
+            <h1 class="view-title">Costruisci il tuo repertorio</h1>
+            <div class="px-controls">
+                <div class="exp-ctrl"><label class="exp-ctrl-lab" for="build-color">Colore</label>
+                    <select id="build-color" class="import-select" onchange="bdSettingsChanged(true)"><option value="white">Bianco</option><option value="black">Nero</option></select></div>
+                <div class="exp-ctrl px-grow"><label class="exp-ctrl-lab" for="build-course">Salva nel corso</label>
+                    <input id="build-course" class="import-select" placeholder="Il mio repertorio" maxlength="120" list="dl-build-courses" autocomplete="off"></div>
+                <datalist id="dl-build-courses"></datalist>
+                <div class="exp-ctrl"><label class="exp-ctrl-lab" for="build-db">Database</label>
+                    <select id="build-db" class="import-select" onchange="bdSettingsChanged()"><option value="lichess">Online (Lichess)</option><option value="masters">Maestri (OTB)</option></select></div>
+                <div class="exp-ctrl build-online"><label class="exp-ctrl-lab" for="build-ratings">Livello</label>
+                    <select id="build-ratings" class="import-select px-ratings" onchange="bdSettingsChanged()"></select></div>
+                <div class="exp-ctrl build-online"><label class="exp-ctrl-lab" for="build-speeds">Cadenze</label>
+                    <select id="build-speeds" class="import-select px-speeds" onchange="bdSettingsChanged()"></select></div>
+                <div class="exp-ctrl"><label class="exp-ctrl-lab" for="build-thr">Risposte da coprire</label>
+                    <select id="build-thr" class="import-select" onchange="bdRender()"><option value="2">da 2% in su</option><option value="5" selected>da 5% in su</option><option value="10">da 10% in su</option><option value="20">da 20% in su</option></select></div>
+            </div>
+            <div class="px-wrap">
+                <div class="px-left">
+                    <div class="px-board-card"><div id="build-board" class="px-board"></div></div>
+                    <div class="board-actions">
+                        <button class="lichess-btn" onclick="bd.nav.reset()">Inizio</button>
+                        <button class="lichess-btn" onclick="bd.nav.back()">← Indietro</button>
+                        <button class="lichess-btn" onclick="bd.nav.flip()">Gira</button>
+                    </div>
+                    <div id="build-crumb" class="explore-breadcrumb"></div>
+                    <div class="px-save-row">
+                        <button class="btn" id="build-save" onclick="bdSave()">Salva questa linea</button>
+                        <button class="btn btn-read" onclick="bdSparring()">Sparring da qui</button>
+                    </div>
+                    <div id="build-status" class="edit-status"></div>
+                </div>
+                <div class="px-right">
+                    <div class="panel-box">
+                        <div class="panel-title" id="build-head">Mosse</div>
+                        <div id="build-cov"></div>
+                        <div id="build-moves"></div>
+                        <div id="build-meta" class="lx-meta"></div>
+                    </div>
+                    <p class="panel-hint">Quando tocca a te scegli la tua mossa; quando tocca all'avversario l'app ti mostra le sue risposte più giocate e segna quelle ancora da coprire. Arrivato in fondo, «Salva questa linea»: torni al bivio dell'avversario per coprire la risposta successiva. Le linee finiscono nel corso scelto e si studiano da Corsi, come le altre.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="view-spar" class="view">
+            <h1 class="view-title">Sparring contro il database</h1>
+            <div class="px-controls">
+                <div class="exp-ctrl"><label class="exp-ctrl-lab" for="spar-color">Gioco col</label>
+                    <select id="spar-color" class="import-select"><option value="white">Bianco</option><option value="black">Nero</option></select></div>
+                <div class="exp-ctrl"><label class="exp-ctrl-lab" for="spar-ratings">Livello avversario</label>
+                    <select id="spar-ratings" class="import-select px-ratings"></select></div>
+                <div class="exp-ctrl"><label class="exp-ctrl-lab" for="spar-speeds">Cadenze</label>
+                    <select id="spar-speeds" class="import-select px-speeds"></select></div>
+                <div class="exp-ctrl px-grow"><span class="exp-ctrl-lab">Partenza</span><div id="spar-start" class="px-start-lab">Posizione iniziale</div></div>
+                <button class="btn px-form-btn" onclick="spStart()">Nuova partita</button>
+            </div>
+            <div class="px-wrap">
+                <div class="px-left">
+                    <div class="px-board-card"><div id="spar-board" class="px-board"></div></div>
+                    <div class="board-actions">
+                        <button class="lichess-btn" onclick="spFlip()">Gira</button>
+                        <button class="lichess-btn" onclick="spEnd('Partita interrotta.')">Termina</button>
+                    </div>
+                </div>
+                <div class="px-right">
+                    <div class="panel-box">
+                        <div id="spar-status" class="px-status">Premi «Nuova partita».</div>
+                        <div id="spar-moves" class="edit-movelist"></div>
+                    </div>
+                    <div id="spar-summary"></div>
+                    <div class="panel-box">
+                        <div class="panel-title">Diario</div>
+                        <div id="spar-log" class="px-list"><div class="empty-msg">L'avversario sceglie le mosse come i giocatori veri del livello scelto, in proporzione a quanto sono giocate. Le tue mosse vengono confrontate col repertorio finché c'è; quando il database finisce, finisce la partita.</div></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="view-end" class="view">
+            <h1 class="view-title">Finali teorici</h1>
+            <div class="px-wrap">
+                <div class="px-left">
+                    <div class="px-board-card"><div id="end-board" class="px-board"></div></div>
+                    <div class="board-actions">
+                        <button class="lichess-btn" onclick="egRestart()">Ricomincia</button>
+                        <button class="lichess-btn" onclick="egFlip()">Gira</button>
+                        <button class="lichess-btn" id="end-hint" onclick="egHint()" title="Mostra la mossa migliore. Conta come errore.">Suggerimento<span class="kbd">H</span></button>
+                    </div>
+                </div>
+                <div class="px-right">
+                    <div class="panel-box">
+                        <div id="end-title" class="px-ex-title">Scegli una posizione</div>
+                        <div id="end-goal" class="px-ex-goal"></div>
+                        <div id="end-status" class="px-status"></div>
+                        <div id="end-moves" class="edit-movelist" style="display:none;"></div>
+                        <div id="end-after"></div>
+                    </div>
+                    <div class="panel-box">
+                        <div class="panel-title">Posizioni <span class="px-badge" id="end-due-n"></span></div>
+                        <button class="btn" id="end-due-btn" onclick="egStartDue()" style="margin-bottom:10px;">Allena quelle da ripassare</button>
+                        <div id="end-list" class="px-list"></div>
+                    </div>
+                    <div class="panel-box">
+                        <div class="panel-title" role="button" tabindex="0" onclick="$('#end-add').slideToggle(200)">Aggiungi una posizione <span>▼</span></div>
+                        <div id="end-add" class="px-collapsible" style="display:none;">
+                            <input id="end-fen" class="import-select" placeholder="FEN (al massimo 7 pezzi)" autocomplete="off" spellcheck="false" autocapitalize="off">
+                            <input id="end-name" class="import-select" placeholder="Nome (facoltativo)" maxlength="120">
+                            <button class="btn" onclick="egAdd()">Aggiungi</button>
+                            <p class="panel-hint">Il FEN si prepara con l'<a href="https://lichess.org/editor" target="_blank" rel="noopener">editor di posizione di Lichess</a>. Giochi tu il lato che ha il tratto: la tablebase decide se l'obiettivo è vincere o tenere la patta.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </section>
 
     </div>
@@ -382,7 +632,7 @@
     let cachedLists = { learn: [], review: [], repertoire: [] };
     let currentListMode = '';
     let sessionKind = null;   // 'learn' | 'review' | 'read' | 'course' | null — sessione attiva
-    let sessionList = null, sessionCourse = '';   // "Impara" ristretta a un corso (snapshot fuori da cachedLists)
+    let sessionList = null, sessionCourse = '', sessionTitle = null;   // "Impara" ristretta a un corso o a una scelta (snapshot fuori da cachedLists)
     // Lista attiva per progresso/next: la sessione-corso usa lo snapshot, gli altri modi cachedLists[modo]
     function activeList() { return (currentListMode === 'course' ? (sessionList || []) : (cachedLists[currentListMode] || [])); }
     
@@ -440,6 +690,13 @@
 
     // ===== NAVIGAZIONE A VISTE =====
     function showView(v) {
+        // cambiando vista si riparte dall'alto: lo scorrimento della vista lunga di prima lasciava
+        // quella nuova fuori schermo (pagina vuota)
+        if (!$('#view-' + v).hasClass('active')) {
+            document.getElementById('views').scrollTop = 0;
+            // frecce su una scacchiera nascosta: chessground le ridisegna con misure zero (NaN)
+            extraBoards.forEach(function(cg) { cg.setAutoShapes([]); });
+        }
         $('.view').removeClass('active');
         $('#view-' + v).addClass('active');
         // dimensioni fissate dopo il cambio vista; poi la mossa corrente (lettura) torna in vista nel box
@@ -450,9 +707,36 @@
         $('.navlink').removeClass('active').removeAttr('aria-current');
         $('.navlink[data-nav="' + nav + '"]').addClass('active').attr('aria-current', 'page');
     }
+    // Due aree: Corsi (i PGN importati: impari, ripassi, gestisci) e Personale (partite, avversari,
+    // costruzione dal database, sparring, finali). Ognuna ha la sua barra e ricorda l'ultima sezione.
+    const PERSONAL_NAVS = { partite: 'openGames', avversario: 'openOpponent', costruisci: 'openBuilder', sparring: 'openSparring', finali: 'openEndgames' };
+    let currentArea = 'corsi';
+    function areaOf(nav) { return PERSONAL_NAVS[nav] ? 'personale' : 'corsi'; }
+    function showArea(area) {
+        currentArea = area;
+        $('#area-switch button').each(function() { this.setAttribute('aria-pressed', this.dataset.area === area); });
+        $('#topnav').prop('hidden', area !== 'corsi');
+        $('#topnav-p').prop('hidden', area !== 'personale');
+    }
+    function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+    function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+    function setArea(area) {
+        if (area === currentArea) return;
+        let last = lsGet('lastNav_' + area) || (area === 'corsi' ? 'repertorio' : 'partite');
+        // tornando ai corsi una sessione in corso riprende da dove era, non riparte da capo
+        if ((last === 'impara' || last === 'ripassa') && currentVariation) {
+            showArea(area); setNavActive(last); showView('train'); lsSet('area', area);
+            return;
+        }
+        navTo(last);
+    }
     function navTo(nav) {
+        let area = areaOf(nav);
+        if (area !== currentArea) showArea(area);
+        lsSet('area', area); lsSet('lastNav_' + area, nav);
         setNavActive(nav);
-        if (nav === 'repertorio') { showView('repertoire'); if (_repDirty) renderRepertoire(); }
+        if (PERSONAL_NAVS[nav]) window[PERSONAL_NAVS[nav]]();
+        else if (nav === 'repertorio') { showView('repertoire'); if (_repDirty) renderRepertoire(); }
         else if (nav === 'stats') openStats();
         else if (nav === 'esplora') openExplore();
         else if (nav === 'impara') startQueue('learn');
@@ -506,12 +790,25 @@
         if (!all.length) { showToast('Nessuna variante in questo corso.', 'error'); return; }
         sessionList = all;
         sessionCourse = course;
+        sessionTitle = null;
         sessionKind = 'course';
         setNavActive('impara');   // è una sessione "Impara" (ristretta al corso): evidenzia Impara nella nav
         showView('train');
         renderSessionSidebar('course', true);
         let firstNew = all.find(function(v) { return !isLearned(v); });
         startTraining((firstNew || all[0]).id, 'course');
+    }
+    // Sessione su varianti scelte da fuori (dall'area Personale: le linee che servono contro un
+    // avversario). Stesso allenamento della sessione-corso, con un titolo suo.
+    function startCustomSession(ids, title) {
+        let all = ids.map(function(id) { return globalVariantsMap[id]; }).filter(Boolean);
+        if (!all.length) { showToast('Nessuna variante da allenare.', 'error'); return; }
+        sessionList = all; sessionCourse = ''; sessionTitle = title; sessionKind = 'course';
+        showArea('corsi'); lsSet('area', 'corsi'); lsSet('lastNav_corsi', 'ripassa');
+        setNavActive('ripassa');
+        showView('train');
+        renderSessionSidebar('course', true);
+        startTraining(all[0].id, 'course');
     }
     // Sidebar di sessione: Impara/Repertorio = tutte (✓ se imparate); Ripassa = solo dovute, per capitolo.
     // Guard _sidebarKind: rirenderizza solo se cambia tipo (o force), per non ricostruire 569 voci ad ogni mossa.
@@ -523,7 +820,7 @@
                 $('#session-title').text('Da ripassare · ' + (cachedLists.review || []).length);
                 renderList(cachedLists.review || [], 'session-list', 'review');
             } else if (kind === 'course') {
-                $('#session-title').text('Impara · ' + (sessionCourse || '') + ' · ' + (sessionList || []).length);
+                $('#session-title').text((sessionTitle || 'Impara · ' + (sessionCourse || '')) + ' · ' + (sessionList || []).length);
                 renderList(sessionList || [], 'session-list', 'course');
             } else if (kind === 'read') {
                 $('#session-title').text('Repertorio · ✓ = imparata');
@@ -612,6 +909,12 @@
 
     // ===== FLIP & INDICATORE PROGRESSO =====
     function flipBoard() { if (board) board.toggleOrientation(); }
+    // Alla cieca: i pezzi spariscono (case, frecce e ultima mossa restano), la linea si gioca a memoria
+    function toggleBlind() {
+        let on = !$('#board').hasClass('blind');
+        $('#board').toggleClass('blind', on);
+        $('#btn-blind').attr('aria-pressed', on).toggleClass('is-on', on);
+    }
     function updateProgress() {
         let el = $('#move-progress');
         if (!currentVariation) { el.empty(); return; }
@@ -748,7 +1051,7 @@
         animSpeed = parseInt($('#anim-speed-slider').val());
         localStorage.setItem('animSpeed', animSpeed);
         $('#anim-speed-val').text(animSpeedLabel(animSpeed));
-        [board, exploreBoard, editBoard].forEach(function(cg) { if (cg) cg.set({ animation: { enabled: animSpeed > 0, duration: animSpeed } }); });
+        [board, exploreBoard, editBoard].concat(extraBoards).forEach(function(cg) { if (cg) cg.set({ animation: { enabled: animSpeed > 0, duration: animSpeed } }); });
     }
     function initAnimSpeed() {
         $('#anim-speed-slider').val(animSpeed);
@@ -757,9 +1060,10 @@
 
     // Tema case: una classe sul contenitore di ogni scacchiera (i colori sono variabili CSS)
     const BOARD_THEMES = 'theme-wood theme-green theme-dark theme-slate theme-blue';
+    let extraBoards = [];   // scacchiere dell'area Personale (personal.js): stesse impostazioni delle altre
     function changeBoardTheme() {
         let theme = $('#board-theme-select').val();
-        $('#board, #explore-board, #edit-board, #setup-board').removeClass(BOARD_THEMES).addClass(theme !== 'classic' ? 'theme-' + theme : '');
+        $('#board, #explore-board, #edit-board, #setup-board, .px-board').removeClass(BOARD_THEMES).addClass(theme !== 'classic' ? 'theme-' + theme : '');
         localStorage.setItem('boardTheme', theme);
     }
 
@@ -1164,7 +1468,7 @@
         });
     }
     // Badge "N oggi" (ripassi dovuti) sulla barra nav
-    function updateDueBadge() { let due = (cachedLists.review || []).length; $('#due-badge').text(due + ' oggi').toggleClass('zero', due === 0); }
+    function updateDueBadge() { let due = (cachedLists.review || []).length; $('#due-badge').html(due + '<span class="due-lab"> oggi</span>').attr('title', due + ' da ripassare oggi').toggleClass('zero', due === 0); }
 
     // Dopo un ripasso si aggiorna la sola variante (il server rimanda srs e statistiche): prima si
     // riscaricava l'intero repertorio a ogni variante finita.
@@ -1266,6 +1570,8 @@
             ['Totale varianti', s.total], ['Da imparare', s.learn], ['Da ripassare oggi', s.due_today],
             ['Ripassi totali', s.reviews_total], ['Precisione', s.accuracy + '%'], ['Errori totali', s.lapses_total]
         ];
+        // Serie: giorni consecutivi con almeno un ripasso (corsi o finali)
+        let streakHtml = s.streak ? `<div class="stats-streak"><b>${s.streak}</b> ${s.streak === 1 ? 'giorno' : 'giorni di fila'} di studio${s.studied_today ? '' : ' · ripassa qualcosa oggi per non interrompere la serie'}</div>` : '';
         let kpiHtml = kpis.map(k => `<div class="kpi"><div class="kpi-val">${k[1]}</div><div class="kpi-lab">${k[0]}</div></div>`).join('');
 
         let today = new Date(); today.setHours(0, 0, 0, 0);
@@ -1315,6 +1621,7 @@
         }).join('') || '<div class="empty-msg">—</div>';
 
         $('#stats-body').html(`
+            ${streakHtml}
             <div class="kpi-grid">${kpiHtml}</div>
             <h3 class="stats-h">Tasso di richiamo · ultimi 14 giorni (${ret.overall}%)</h3>
             <div class="bar-chart retention" role="group" aria-label="Tasso di richiamo, ultimi 14 giorni">${retBars}</div>
@@ -1565,6 +1872,7 @@
         if (db === 'lichess') { p.speeds = $('#db-speeds').val(); p.ratings = $('#db-ratings').val(); }
         let myReq = ++_dbReq;
         $('#db-list').html('<div class="empty-msg">Interrogo il database…</div>');
+        $('#db-games').empty();
         $.get('/api/explorer', p, function(d) { if (myReq === _dbReq) dbRender(d); })
             .fail(function() { if (myReq === _dbReq) $('#db-list').html('<div class="empty-msg">Server non raggiungibile.</div>'); });
     }
@@ -1608,6 +1916,7 @@
         return String(n);
     }
     function dbRender(d) {
+        $('#db-games').html(d.error || !d.moves || !d.moves.length ? '' : modelGamesHtml(d, exploreGame));   // fuori dall'elenco che scorre
         if (d.error === 'no_token') { $('#db-list').html(dbTokenBox('')); return; }
         if (d.error === 'bad_token') { $('#db-list').html(dbTokenBox('Il token salvato non è più valido.')); return; }
         if (d.error) { $('#db-list').html('<div class="empty-msg">' + dbErrMsg(d.error) + '</div>'); return; }
@@ -1649,6 +1958,18 @@
         $('#db-list').html(head + rows + '<div class="lx-meta">' + fmtGames(d.total) + ' partite' +
             (d.opening ? ' · ' + escHtml(d.opening) : '') + ' · barra: vittorie Bianco / patte / vittorie Nero · clic = gioca la mossa</div>');
     }
+    // Partite modello (solo database Maestri): le migliori che passano da qui, si aprono su Lichess
+    function modelGamesHtml(d, g) {
+        if (!d.games || !d.games.length) return '';
+        return '<div class="db-games"><div class="db-games-h">Partite modello</div>' + d.games.map(function(m) {
+            let res = m.winner === 'white' ? '1-0' : (m.winner === 'black' ? '0-1' : '½-½');
+            let mv = null;
+            if (m.uci) { try { mv = new Chess(g.fen()).move({ from: m.uci.slice(0, 2), to: m.uci.slice(2, 4), promotion: m.uci[4] }); } catch (e) {} }
+            return '<a class="db-game" href="https://lichess.org/' + encodeURIComponent(m.id) + '" target="_blank" rel="noopener">' +
+                '<span>' + escHtml(m.white || '?') + (m.wr ? ' ' + m.wr : '') + ' – ' + escHtml(m.black || '?') + (m.br ? ' ' + m.br : '') + '</span>' +
+                '<span class="db-game-meta">' + (mv ? escHtml(mv.san) + ' · ' : '') + res + (m.year ? ' · ' + m.year : '') + ' ↗</span></a>';
+        }).join('') + '</div>';
+    }
 
     // --- B4: EDITOR DI VARIANTE (costruzione mosse sulla scacchiera) ---
     let editBoard = null, editGame = new Chess(), editMoves = [], editId = null, editStartFen = null, editOrient = 'white', _editInit = false;
@@ -1685,10 +2006,14 @@
     // openEditor(id)                -> modifica variante (le mosse cambiate la ri-collocano, srs/stats trasferiti)
     // openEditor(id, {fork:true})   -> "forka": pre-carica da id ma salva come NUOVA variante (originale intatto)
     // openEditor(null, {course,chapter}) -> nuova variante pre-assegnata a corso/capitolo
+    // openEditor(null, {moves:[uci], perspective, title, back}) -> nuova variante gia' avviata (dall'area
+    //   Personale: la risposta da preparare); back = la sezione in cui tornare dopo il salvataggio
+    let editBack = 'repertorio';
     function openEditor(id, opts) {
         if (id && globalVariantsMap[id] && !globalVariantsMap[id].moves) { whenMoves(id, function() { openEditor(id, opts); }); return; }
         opts = opts || {};
         let fork = !!opts.fork;
+        editBack = opts.back || 'repertorio';
         editId = (id && !fork) ? id : null;   // fork o creazione -> nessun id: il server genera una nuova variante
         editMoves = [];
         editGame = new Chess();
@@ -1714,10 +2039,15 @@
                 if (mv) editMoves.push({ uci: m.uci, san: mv.san, comment: m.comment || '' });
             });
         } else {
-            $('#edit-title').val('');
+            $('#edit-title').val(opts.title || '');
             $('#edit-course').val(opts.course || '');
             $('#edit-chapter').val((opts.chapter && opts.chapter !== 'Generale') ? opts.chapter : '');
-            $('#edit-perspective').val('white'); editOrient = 'white';
+            editOrient = (opts.perspective === 'black') ? 'black' : 'white';
+            $('#edit-perspective').val(editOrient);
+            (opts.moves || []).forEach(function(u) {
+                let mv = playUci(editGame, u);
+                if (mv) editMoves.push({ uci: u, san: mv.san, comment: '' });
+            });
         }
         editStartMeta = fenMeta(editStartFen);
         $('#edit-setup').hide(); $('#edit-normal').show();
@@ -1793,7 +2123,7 @@
             success: function(res) {
                 showToast(res.rekeyed ? 'Variante salvata (ricollocata per le nuove mosse).' : 'Variante salvata.', 'success');
                 loadDueVariations();
-                navTo('repertorio');
+                navTo(editBack);   // le viste personali, riaprendosi, ricaricano i loro elenchi
             }
             // 400/409 mostrati dal gestore $.ajaxError globale (toast)
         });
@@ -1906,7 +2236,7 @@
         reader.onload = function(e) {
             $.ajax({
                 url: '/api/import', type: 'POST', contentType: 'application/json',
-                data: JSON.stringify({ pgn: e.target.result, course: fileInput.files[0].name.replace(/\.[^/.]+$/, ""), perspective: perspectiveInput.value }),
+                data: JSON.stringify({ pgn: e.target.result, course: fileInput.files[0].name.replace(/\.[^/.]+$/, ""), perspective: perspectiveInput.value, tree: $('#pgn-tree').is(':checked') }),
                 success: function(res) { let msg = `${res.imported} varianti importate` + (res.skipped ? ` · ${res.skipped} linee saltate (mosse illegali)` : ''); showToast(msg, 'success'); fileInput.value = ""; loadDueVariations(); }
             });
         };
@@ -2114,6 +2444,41 @@
         updateProgress();
     }
 
+    // --- RIPASSO: SALTA L'INIZIO GIA' GIOCATO BENE OGGI (opzione in Personalizza) ---
+    // Le linee di un corso condividono le prime mosse: ripassandone venti di fila si rigioca venti volte
+    // lo stesso tronco. Le tue mosse giocate giuste al primo colpo oggi si ricordano per posizione, e una
+    // linea riparte dalla prima tua mossa non ancora fatta oggi (almeno una tocca sempre a te).
+    let skipKnown = lsGet('skipKnown') === '1', _known = null;
+    function toggleSkipKnown(on) { skipKnown = !!on; lsSet('skipKnown', on ? '1' : '0'); }
+    function knownToday() {
+        let day = new Date().toDateString();
+        if (!_known || _known.day !== day) {
+            let s = null; try { s = JSON.parse(lsGet('knownToday')); } catch (e) {}
+            _known = { day: day, keys: new Set(s && s.day === day ? s.keys : []) };
+        }
+        return _known;
+    }
+    function knownKey(fen, uci) { return fen.split(' ').slice(0, 4).join(' ') + '|' + uci; }
+    function rememberKnown(fen, uci) {
+        let k = knownToday();
+        k.keys.add(knownKey(fen, uci));
+        lsSet('knownToday', JSON.stringify({ day: k.day, keys: Array.from(k.keys) }));
+    }
+    function knownPrefix(v) {   // -> { idx: da dove ripartire, skipped: tue mosse saltate }
+        let keys = knownToday().keys, g = new Chess(), user = v.perspective === 'white' ? 'w' : 'b';
+        if (v.startFen) g.load(v.startFen);
+        let skipped = 0, lastUser = -1;
+        for (let i = 0; i < v.moves.length; i++) {
+            let m = v.moves[i];
+            if (g.turn() === user && m.uci !== '0000') {
+                if (!keys.has(knownKey(g.fen(), m.uci))) return { idx: i, skipped: skipped };
+                skipped++; lastUser = i;
+            }
+            playUci(g, m.uci);
+        }
+        return { idx: lastUser, skipped: skipped - 1 };   // tutta nota: si rigioca solo la tua ultima mossa
+    }
+
     // --- TRAINING (CHESSABLE STYLE) ---
     function startTraining(id, modeContext) {
         whenMoves(id, function(v) {
@@ -2139,7 +2504,13 @@
 
             replayTo(game, 0);
             board.set({ orientation: currentVariation.perspective });
-            cgPosition(board, game, null, false);
+            let skip = (skipKnown && phase === 'REVIEW') ? knownPrefix(currentVariation) : null;
+            if (skip && skip.skipped > 0) {
+                moveIndex = skip.idx;
+                replayTo(game, moveIndex);
+                $('#train-chips').append('<span>Saltate ' + skip.skipped + (skip.skipped === 1 ? ' mossa già giocata' : ' mosse già giocate') + ' oggi</span>');
+            }
+            cgPosition(board, game, lastPlayedUci(), false);
             setStatus("", null); $('#read-controls').hide();
             updateTitle(); handleStep();
             prefetchNext();
@@ -2313,6 +2684,7 @@
     function evaluateUserMove(source, target) {
         clearPreview();
         let expectedMove = currentVariation.moves[moveIndex];
+        let fenBefore = game.fen();
         let isExpected = (source + target === expectedMove.uci.substring(0, 4));
         // Promozione: se e' la mossa della linea vale il SUO pezzo (anche una sottopromozione);
         // prima era sempre donna e la partita interna si desincronizzava dalla linea.
@@ -2364,6 +2736,7 @@
         } else {
             setStatus("Corretto!", 'good');
             $('#annotation-box').hide();
+            if (phase === 'REVIEW' && !mistakeReviewQueue.includes(moveIndex)) rememberKnown(fenBefore, expectedMove.uci);   // giusta al primo colpo
             moveIndex++;
             handleStep();
             return true;
@@ -2591,6 +2964,7 @@
         // Spazio e frecce restavano "rubati" anche nel Repertorio (e la pagina non scorreva).
         if (!$('#view-train').hasClass('active')) return;
         if (event.key === 'f' || event.key === 'F') { event.preventDefault(); flipBoard(); return; }
+        if (event.key === 'b' || event.key === 'B') { event.preventDefault(); toggleBlind(); return; }
         if (phase === 'READ') {
             if (event.code === 'ArrowRight') { event.preventDefault(); nextMoveRead(); }
             else if (event.code === 'Space') {
@@ -2632,7 +3006,7 @@
     $(document).on('mousedown', '.navlink, .lichess-btn, .btn-delete, .btn-read, .icon-btn', function(e) { e.preventDefault(); });
 
     function showShortcuts() {
-        uiAlert('Spazio — avanti / conferma\n← → — mossa precedente / successiva (lettura ed Esplora)\nF — gira la scacchiera\nH — suggerimento durante il ripasso\n' +
+        uiAlert('Spazio — avanti / conferma\n← → — mossa precedente / successiva (lettura, Esplora, Partite, Avversario, Costruisci)\nF — gira la scacchiera\nH — suggerimento (ripasso e finali)\nB — alla cieca (pezzi nascosti)\n' +
                 'Tasto destro sulla scacchiera — frecce e cerchi (un clic li cancella)\nEsc — chiude menu e finestre', { title: 'Scorciatoie da tastiera' });
     }
 
@@ -2688,9 +3062,12 @@
     $(document).ready(function() {
         initTheme(); initBoard(); initBoardSize(); initAnimSpeed(); initPanelSizes();
         $('#sound-toggle').prop('checked', soundOn);
+        $('#skip-toggle').prop('checked', skipKnown);
         loadDueVariations();
-        navTo('repertorio');   // vista iniziale
+        // vista iniziale: il Repertorio, o l'ultima sezione dell'area Personale se eri li'
+        navTo(lsGet('area') === 'personale' ? (lsGet('lastNav_personale') || 'partite') : 'repertorio');
     });
 </script>
+<script src="/static/js/personal.js"></script>
 </body>
 </html>

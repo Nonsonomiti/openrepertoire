@@ -2,6 +2,9 @@
 repertoire.json
 repertoire.json.bak
 repertoire.json.tmp
+# area Personale (partite, avversari, finali) e impostazioni (PIN del telefono)
+personal.json*
+settings.json*
 
 # Ignora i file di sistema del Mac
 .DS_Store
@@ -30,3 +33,6 @@ lichess_token.txt
 
 # Ignora il server di test
 test_app.py
+# pacchetti .app / .exe (PyInstaller)
+build/
+dist/

@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, Response
+from flask import Flask, render_template, request, jsonify, Response, redirect
 import chess
 import chess.pgn
 import io
@@ -6,46 +6,90 @@ import json
 import os
 import re
 import hashlib
+import mimetypes
+import hmac
+import secrets
+import socket
 import ssl
+import subprocess
+import sys
+import threading
+import time
+import webbrowser
+import http.client
 import urllib.request
 import urllib.parse
 import urllib.error
 from datetime import datetime, timedelta
 
+__version__ = '1.0.0'
+
 # --- BLINDATURA DEI PERCORSI ---
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+mimetypes.add_type('application/manifest+json', '.webmanifest')   # Python 3.9 non lo conosce
+
+# App impacchettata (.app / .exe, PyInstaller): templates e static stanno dentro il pacchetto, i dati
+# nella cartella dell'utente (il pacchetto si sposta, si aggiorna, su macOS e' pure di sola lettura).
+# Dal codice sorgente i dati restano accanto ad app.py, come sempre. OPENREP_DATA_DIR li sposta ovunque.
+FROZEN = getattr(sys, 'frozen', False)
+RES_DIR = getattr(sys, '_MEIPASS', BASE_DIR)
+
+def _user_data_dir():
+    home = os.path.expanduser('~')
+    if sys.platform == 'darwin':
+        return os.path.join(home, 'Library', 'Application Support', 'OpenRepertoire')
+    if os.name == 'nt':
+        return os.path.join(os.environ.get('APPDATA') or home, 'OpenRepertoire')
+    return os.path.join(os.environ.get('XDG_DATA_HOME') or os.path.join(home, '.local', 'share'), 'openrepertoire')
+
+DATA_DIR = os.environ.get('OPENREP_DATA_DIR') or (_user_data_dir() if FROZEN else BASE_DIR)
+os.makedirs(DATA_DIR, exist_ok=True)
 
 app = Flask(__name__,
-            template_folder=os.path.join(BASE_DIR, 'templates'),
-            static_folder=os.path.join(BASE_DIR, 'static'),
-            instance_path=BASE_DIR)   # evita os.getcwd() (avvio robusto da qualsiasi cwd)
+            template_folder=os.path.join(RES_DIR, 'templates'),
+            static_folder=os.path.join(RES_DIR, 'static'),
+            instance_path=DATA_DIR)   # evita os.getcwd() (avvio robusto da qualsiasi cwd)
 
-DATA_FILE = os.path.join(BASE_DIR, "repertoire.json")
+DATA_FILE = os.path.join(DATA_DIR, "repertoire.json")
+# Area "Personale" (partite, avversari, finali) in un file a parte: i corsi restano in repertoire.json
+PERSONAL_FILE = os.path.join(DATA_DIR, "personal.json")
+SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")   # piccolo: letto a ogni richiesta (accesso dal telefono)
 app.config['MAX_CONTENT_LENGTH'] = 8 * 1024 * 1024   # tetto upload PGN: 8 MB
 app.config['TEMPLATES_AUTO_RELOAD'] = True   # ricarica index.html senza riavvio del server
 # -------------------------------
 
-def load_data():
+def load_data(path=None):
     # Prova il file principale, poi il backup .bak se corrotto/mancante
-    for path in (DATA_FILE, DATA_FILE + ".bak"):
-        if os.path.exists(path):
+    path = path or DATA_FILE
+    for p in (path, path + ".bak"):
+        if os.path.exists(p):
             try:
-                with open(path, 'r') as f:
+                with open(p, 'r') as f:
                     return json.load(f)
             except (ValueError, OSError):
                 continue
     return {}
 
-def save_data(data):
+def save_data(data, path=None):
     # Scrittura atomica: tmp + fsync + rename, con backup del precedente in .bak
-    tmp = DATA_FILE + ".tmp"
+    path = path or DATA_FILE
+    tmp = path + ".tmp"
     with open(tmp, 'w') as f:
         json.dump(data, f, separators=(',', ':'))
         f.flush()
         os.fsync(f.fileno())
-    if os.path.exists(DATA_FILE):
-        os.replace(DATA_FILE, DATA_FILE + ".bak")
-    os.replace(tmp, DATA_FILE)
+    if os.path.exists(path):
+        os.replace(path, path + ".bak")
+    os.replace(tmp, path)
+
+def load_personal():
+    p = load_data(PERSONAL_FILE)
+    for k in ('games', 'accounts', 'opponents', 'endgames'):
+        p.setdefault(k, {})
+    return p
+
+def save_personal(p):
+    save_data(p, PERSONAL_FILE)
 
 def derive_chapter(title):
     # Deduce un sottocapitolo dal titolo grezzo del PGN (Chessable-style)
@@ -154,7 +198,8 @@ def update_srs(srs, quality):
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    # local: dal computer (non dal telefono) compaiono anche cartella dei dati e "chiudi l'app"
+    return render_template('index.html', local=request.remote_addr in LOCAL_ADDRS, version=__version__)
 
 @app.route('/api/import', methods=['POST'])
 def import_pgn():
@@ -164,6 +209,7 @@ def import_pgn():
         return jsonify({"success": False, "error": "PGN mancante o non valido."}), 400
     course_name = req.get('course', 'Varie')
     perspective = req.get('perspective', 'white')
+    tree = bool(req.get('tree'))   # ogni ramo del PGN = una linea (default: solo la principale)
 
     pgn_io = io.StringIO(pgn_text)
     data = load_data()
@@ -220,42 +266,17 @@ def import_pgn():
             else:
                 var_perspective = 'white'
 
-        moves_data = []
-        node = game
-        
-        # Scorre SOLO la linea principale (variazioni[0]); salta i game con mosse illegali
+        # Linea principale (diramazioni ripiegate a testo) oppure, con tree, una linea per ramo.
+        # I game con mosse illegali si saltano.
         try:
-            while node.variations:
-                main_node = node.variations[0]
-
-                combined_comment = main_node.comment if main_node.comment else ""
-
-                # Se ci sono diramazioni, le esporta come TESTO e le accoda ai commenti
-                if len(node.variations) > 1:
-                    alt_lines = []
-                    for alt_node in node.variations[1:]:
-                        exporter = chess.pgn.StringExporter(headers=False, variations=False, comments=False)
-                        alt_text = alt_node.accept(exporter)
-                        alt_text = alt_text.replace('\n', ' ') # Rimuove a capo per pulizia
-                        alt_lines.append(f"Altra opzione: {alt_text}")
-
-                    if alt_lines:
-                        if combined_comment:
-                            combined_comment += "\n\n" + "\n".join(alt_lines)
-                        else:
-                            combined_comment = "\n".join(alt_lines)
-
-                moves_data.append({
-                    "uci": main_node.move.uci(),
-                    "san": main_node.san(),
-                    "comment": combined_comment
-                })
-                node = main_node
+            lines = _tree_lines(game) if tree else [(_main_line(game), None)]
         except Exception:
             skipped += 1
             continue
 
-        if moves_data:
+        for moves_data, branch in lines:
+            if not moves_data:
+                continue
             moves_str = (start_fen or "") + "".join([m["uci"] for m in moves_data])
             moves_hash = hashlib.md5(moves_str.encode()).hexdigest()[:10]
             var_id = f"var_{moves_hash}"
@@ -264,7 +285,7 @@ def import_pgn():
                 data[var_id] = {
                     "course": hdr_course or course_name,
                     "chapter": chapter,
-                    "title": title,
+                    "title": title + (" · " + branch if branch else ""),
                     "moves": moves_data,
                     "perspective": var_perspective,
                     "startFen": start_fen,
@@ -272,9 +293,60 @@ def import_pgn():
                     "srs": {'rep': 0, 'interval': 0, 'ease': 2.5, 'next_review': datetime.now().isoformat()}
                 }
                 imported += 1
-                
+
     save_data(data)
     return jsonify({"success": True, "imported": imported, "skipped": skipped})
+
+def _main_line(game):
+    """Solo la linea principale (variazioni[0]): le diramazioni diventano TESTO accodato al commento
+       ("Altra opzione: ..."), come servono i corsi in cui i rami sono idee dell'autore, non linee."""
+    moves_data = []
+    node = game
+    while node.variations:
+        main_node = node.variations[0]
+        combined_comment = main_node.comment if main_node.comment else ""
+        if len(node.variations) > 1:
+            alt_lines = []
+            for alt_node in node.variations[1:]:
+                exporter = chess.pgn.StringExporter(headers=False, variations=False, comments=False)
+                alt_text = alt_node.accept(exporter).replace('\n', ' ')
+                alt_lines.append(f"Altra opzione: {alt_text}")
+            combined_comment = (combined_comment + "\n\n" if combined_comment else "") + "\n".join(alt_lines)
+        moves_data.append({"uci": main_node.move.uci(), "san": main_node.san(), "comment": combined_comment})
+        node = main_node
+    return moves_data
+
+def _tree_lines(game):
+    """Import ad albero (repertori propri: ChessBase/SCID/studi con rami): ogni foglia del PGN e' una
+       linea dalla radice alla foglia, coi commenti di ogni mossa. Ritorna [(mosse, etichetta)]:
+       etichetta = le mosse in cui la linea lascia la principale ("8...Qb6 10.Rb1"), None per la
+       principale."""
+    leaves = []
+    stack = [(game, [], ())]
+    while stack:
+        node, path, branch = stack.pop()
+        if not node.variations:
+            if path:
+                leaves.append((path, branch))
+            continue
+        for i in range(len(node.variations) - 1, -1, -1):   # al contrario: la principale esce per prima
+            child = node.variations[i]
+            stack.append((child, path + [child], branch + (child,) if i else branch))
+    lines = []
+    for path, branch in leaves:
+        board = game.board()
+        marks = set(map(id, branch))
+        moves, labels = [], []
+        for n in path:
+            san = board.san(n.move)
+            if id(n) in marks:
+                labels.append("%d%s%s" % (board.fullmove_number, '.' if board.turn else '...', san))
+            # il commento prima di un ramo ("( {perche'} 8...Qb6") spiega proprio quel ramo
+            comment = "\n".join(c for c in (n.starting_comment, n.comment) if c)
+            moves.append({"uci": n.move.uci(), "san": san, "comment": comment})
+            board.push(n.move)
+        lines.append((moves, " ".join(labels) or None))
+    return lines
 
 @app.route('/api/due', methods=['GET'])
 def get_due():
@@ -339,23 +411,26 @@ def review():
     if vid not in data:
         return jsonify({"success": False, "error": "Variante non trovata (eliminata?)."}), 404
 
-    if vid in data:
-        data[vid]['srs'] = update_srs(data[vid]['srs'], quality)
-        st = data[vid].get('stats') or default_stats()
-        st['reviews'] = st.get('reviews', 0) + 1
-        if quality >= 3:
-            st['correct'] = st.get('correct', 0) + 1
-        else:
-            st['lapses'] = st.get('lapses', 0) + 1
-        st['last_quality'] = quality
-        hist = st.get('history') or []
-        hist.append({'date': datetime.now().isoformat(), 'q': quality})
-        st['history'] = hist[-20:]   # mantiene le ultime 20 valutazioni
-        data[vid]['stats'] = st
-        save_data(data)
+    apply_review(data[vid], quality)
+    save_data(data)
 
     # Il client aggiorna la variante sul posto invece di riscaricare tutto l'elenco
     return jsonify({"success": True, "srs": data[vid]['srs'], "stats": data[vid]['stats']})
+
+def apply_review(v, quality):
+    """Una valutazione (0-5) su una scheda (variante o finale): cadenza SM-2 + statistiche."""
+    v['srs'] = update_srs(v.get('srs') or {}, quality)
+    st = v.get('stats') or default_stats()
+    st['reviews'] = st.get('reviews', 0) + 1
+    if quality >= 3:
+        st['correct'] = st.get('correct', 0) + 1
+    else:
+        st['lapses'] = st.get('lapses', 0) + 1
+    st['last_quality'] = quality
+    hist = st.get('history') or []
+    hist.append({'date': datetime.now().isoformat(), 'q': quality})
+    st['history'] = hist[-20:]   # mantiene le ultime 20 valutazioni
+    v['stats'] = st
 
 @app.route('/api/review_now', methods=['POST'])
 def review_now():
@@ -365,14 +440,19 @@ def review_now():
     req = request.get_json(silent=True) or {}
     course = req.get('course')
     chapter = req.get('chapter') or None
-    if not isinstance(course, str) or not course:
+    # ids: varianti precise (dalle partite: le linee che hai dimenticato giocando)
+    ids = set(x for x in req.get('ids') if isinstance(x, str)) if isinstance(req.get('ids'), list) else None
+    if not ids and (not isinstance(course, str) or not course):
         return jsonify({"success": False, "error": "Corso mancante."}), 400
 
     data = load_data()
     now = datetime.now()
     count = 0
-    for v in data.values():
-        if (v.get('course') or 'Varie') != course:
+    for vid, v in data.items():
+        if ids:
+            if vid not in ids:
+                continue
+        elif (v.get('course') or 'Varie') != course:
             continue
         if chapter and (v.get('chapter') or 'Generale') != chapter:
             continue
@@ -468,6 +548,7 @@ def stats():
     by_color = {}
     RET_DAYS = 14
     ret_buckets = {}   # 'YYYY-MM-DD' -> [reviews, recalled(q>=3)]
+    study_days = set()   # giorni con almeno un ripasso (corsi + finali): da qui la serie
 
     for v in data.values():
         course = v.get('course') or 'Varie'
@@ -497,6 +578,7 @@ def stats():
                 hd = datetime.fromisoformat(h['date']).date()
             except Exception:
                 continue
+            study_days.add(hd)
             if 0 <= (today - hd).days < RET_DAYS:
                 b = ret_buckets.setdefault(hd.isoformat(), [0, 0])
                 b[0] += 1
@@ -521,12 +603,26 @@ def stats():
     by_course_list = sorted(by_course.values(), key=lambda x: x['total'], reverse=True)
     by_color_list = [by_color[k] for k in ('white', 'black') if k in by_color]
 
+    for e in load_personal()['endgames'].values():
+        for h in (e.get('stats') or {}).get('history', []):
+            try:
+                study_days.add(datetime.fromisoformat(h['date']).date())
+            except Exception:
+                pass
+    # Serie: giorni consecutivi di studio fino a oggi. Se oggi non hai ancora studiato conta da ieri
+    # (la serie e' ancora viva fino a stasera).
+    streak, d = 0, (today if today in study_days else today - timedelta(days=1))
+    while d in study_days:
+        streak += 1
+        d -= timedelta(days=1)
+
     return jsonify({
         'total': total, 'learn': learn, 'due_today': due_today,
         'reviews_total': reviews_total, 'accuracy': accuracy, 'lapses_total': lapses_total,
         'upcoming': upcoming, 'hardest': hardest[:10],
         'by_course': by_course_list, 'by_color': by_color_list,
-        'retention': {'overall': retention_overall, 'series': retention_series}
+        'retention': {'overall': retention_overall, 'series': retention_series},
+        'streak': streak, 'studied_today': today in study_days
     })
 
 @app.route('/api/set_chapter', methods=['POST'])
@@ -804,7 +900,7 @@ def api_transpositions():
 #   1) variabile d'ambiente LICHESS_TOKEN, oppure
 #   2) lichess_token.txt accanto ad app.py, scritto dall'app quando lo incolli nel pannello.
 # Chi clona la repo trova tutto cablato: incolla il token una volta e la feature va.
-TOKEN_FILE = os.path.join(BASE_DIR, "lichess_token.txt")
+TOKEN_FILE = os.path.join(DATA_DIR, "lichess_token.txt")
 EXPLORER_HOST = "https://explorer.lichess.org/"
 # Le stesse posizioni si rivisitano in continuazione (avanti/indietro sull'albero): senza cache
 # si martella l'API per niente. Chiave = URL completo, quindi i filtri fanno parte della chiave.
@@ -833,26 +929,49 @@ def _ssl_context():
         return ssl.create_default_context()
 
 _SSL_CTX = _ssl_context()
+USER_AGENT = 'openrepertoire (+https://github.com/Nonsonomiti/openrepertoire)'   # Chess.com lo chiede
+
+class _IPv4HTTPS(urllib.request.HTTPSHandler):
+    """Connessione solo IPv4: legando il socket a 0.0.0.0 gli indirizzi IPv6 falliscono subito e si passa
+       ai v4."""
+    def https_open(self, req):
+        return self.do_open(lambda host, **kw: http.client.HTTPSConnection(host, source_address=('0.0.0.0', 0), **kw),
+                            req, context=self._context)
+
+def http_get(url, headers=None, timeout=20):
+    """GET verso i siti esterni, prima in IPv4. Su reti con l'IPv6 rotto (hotspot del telefono, certi
+       router) Python, che non ha il "happy eyeballs" di browser e curl, resterebbe appeso minuti sui
+       tentativi IPv6; e Lichess limita certi indirizzi IPv6 ("una richiesta alla volta"). Senza IPv4
+       (reti solo IPv6) si riprova normale."""
+    req = urllib.request.Request(url, headers=dict({'User-Agent': USER_AGENT}, **(headers or {})))
+    try:
+        return urllib.request.build_opener(_IPv4HTTPS(context=_SSL_CTX)).open(req, timeout=timeout)
+    except urllib.error.HTTPError:
+        raise                                  # il server ha risposto: l'errore e' suo, non della rete
+    except (urllib.error.URLError, OSError):
+        return urllib.request.urlopen(req, timeout=timeout, context=_SSL_CTX)
+
+def _net_error(e):
+    """Errore di rete -> codice per il client (che lo traduce). Va riportato TESTUALE: "non
+       raggiungibile" e basta non si debugga."""
+    if isinstance(e, urllib.error.HTTPError):
+        return {401: 'bad_token', 403: 'bad_token', 404: 'not_found', 429: 'rate_limit'}.get(e.code, 'http_%d' % e.code)
+    if isinstance(e, urllib.error.URLError):
+        if isinstance(e.reason, ssl.SSLCertVerificationError):
+            return 'ssl_cert'
+        return 'rete: %s' % str(e.reason)[:120]
+    return '%s: %s' % (type(e).__name__, str(e)[:120])
 
 def explorer_get(db, params, token):
     """Chiama l'explorer. Ritorna (json, None) oppure (None, codice_errore)."""
     url = EXPLORER_HOST + db + '?' + urllib.parse.urlencode(params)
     if url in _explorer_cache:
         return _explorer_cache[url], None
-    req = urllib.request.Request(url, headers={'Authorization': 'Bearer ' + token,
-                                               'Accept': 'application/json'})
     try:
-        with urllib.request.urlopen(req, timeout=10, context=_SSL_CTX) as r:
+        with http_get(url, {'Authorization': 'Bearer ' + token, 'Accept': 'application/json'}, timeout=10) as r:
             body = json.loads(r.read().decode('utf-8'))
-    except urllib.error.HTTPError as e:
-        return None, {401: 'bad_token', 403: 'bad_token', 429: 'rate_limit'}.get(e.code, 'http_%d' % e.code)
-    # Da qui in giu' l'errore va riportato TESTUALE: "non raggiungibile" e basta non si debugga
-    except urllib.error.URLError as e:
-        if isinstance(e.reason, ssl.SSLCertVerificationError):
-            return None, 'ssl_cert'
-        return None, 'rete: %s' % str(e.reason)[:120]
     except Exception as e:
-        return None, '%s: %s' % (type(e).__name__, str(e)[:120])
+        return None, _net_error(e)
     if len(_explorer_cache) > 400:
         _explorer_cache.clear()
     _explorer_cache[url] = body
@@ -872,7 +991,8 @@ def api_explorer():
     if not token:
         return jsonify({'error': 'no_token'})
     params = {k: request.args[k] for k in EXPLORER_PARAMS if request.args.get(k)}
-    params.update({'fen': fen, 'topGames': 0, 'recentGames': 0, 'moves': params.get('moves', 12)})
+    # Maestri: anche le partite modello (le migliori che passano di qui), da aprire su Lichess
+    params.update({'fen': fen, 'topGames': 4 if db == 'masters' else 0, 'recentGames': 0, 'moves': params.get('moves', 12)})
     if db == 'masters':
         params.pop('speeds', None); params.pop('ratings', None)   # filtri validi solo per il db online
     body, err = explorer_get(db, params, token)
@@ -882,6 +1002,10 @@ def api_explorer():
     return jsonify({
         'total': tot,
         'opening': (body.get('opening') or {}).get('name'),
+        'games': [{'id': g.get('id'), 'uci': g.get('uci'), 'year': g.get('year'), 'winner': g.get('winner'),
+                   'white': (g.get('white') or {}).get('name'), 'wr': (g.get('white') or {}).get('rating'),
+                   'black': (g.get('black') or {}).get('name'), 'br': (g.get('black') or {}).get('rating')}
+                  for g in (body.get('topGames') or [])],
         'moves': [{'uci': m.get('uci'), 'san': m.get('san'),
                    'games': m.get('white', 0) + m.get('draws', 0) + m.get('black', 0),
                    'white': m.get('white', 0), 'draws': m.get('draws', 0), 'black': m.get('black', 0),
@@ -984,6 +1108,23 @@ def save_variation():
     moves_str = (start_fen or "") + "".join(m["uci"] for m in moves_data)
     new_id = "var_" + hashlib.md5(moves_str.encode()).hexdigest()[:10]
     old_id = req.get('id')
+    extended = None
+    # extend (dal costruttore): la linea che allunga una linea dello STESSO corso la sostituisce
+    # (stessa scheda: srs e statistiche passano) invece di lasciare la vecchia come doppione troncato.
+    # Mai su un altro corso: i corsi importati non si toccano.
+    if not old_id and req.get('extend'):
+        for vid, v in data.items():
+            ms = v.get('moves') or []
+            if ((v.get('course') or 'Varie') == course and (v.get('perspective') or 'white') == perspective
+                    and (v.get('startFen') or None) == start_fen and 0 < len(ms) < len(moves_data)
+                    and all(ms[i].get('uci') == moves_data[i]['uci'] for i in range(len(ms)))
+                    and (extended is None or len(ms) > len(data[extended]['moves']))):
+                extended = vid
+        if extended:
+            old_id = extended
+            for i, m in enumerate(data[extended]['moves']):   # i commenti della linea vecchia restano
+                if m.get('comment') and not moves_data[i]['comment']:
+                    moves_data[i]['comment'] = m['comment']
     editing = bool(old_id) and old_id in data
 
     # Re-keying: l'identità (var_id) dipende da startFen+mosse. Collisione con ALTRA variante -> rifiuta.
@@ -1007,7 +1148,8 @@ def save_variation():
         "stats": stats, "srs": srs
     }
     save_data(data)
-    return jsonify({"success": True, "id": new_id, "rekeyed": bool(editing and new_id != old_id)})
+    return jsonify({"success": True, "id": new_id, "rekeyed": bool(editing and new_id != old_id and not extended),
+                    "extended": extended})
 
 # ===== Export PGN (backup / condivisione): ricostruisce il PGN da moves+comment =====
 @app.route('/api/export', methods=['GET'])
@@ -1137,6 +1279,748 @@ def export_pgn():
                     headers={'Content-Disposition': 'attachment; filename="%s"' % fname,
                              'X-Export-Count': str(len(games))})
 
+# =====================================================================================
+# ===== AREA PERSONALE: le tue partite, l'avversario, i finali (dati in personal.json) =====
+# I corsi non si toccano: qui il repertorio si LEGGE (indice _build_index) per confrontarlo con le
+# partite giocate davvero. Nelle varianti non finisce nessun testo.
+
+GAME_PLIES = 60          # dell'apertura basta l'inizio: personal.json resta piccolo
+MAX_OPPONENTS = 8        # avversari preparati che restano salvati (i piu' recenti)
+USER_RE = re.compile(r'[A-Za-z0-9][A-Za-z0-9_\-]{1,29}')
+CC_DRAWS = {'agreed', 'repetition', 'stalemate', 'insufficient', '50move', 'timevsinsufficient'}
+
+def new_srs():
+    return {'rep': 0, 'interval': 0, 'ease': 2.5, 'next_review': datetime.now().isoformat()}
+
+def _lichess_record(g, user):
+    """Partita dell'export Lichess (NDJSON) -> record compatto dal punto di vista di `user`."""
+    if g.get('variant') != 'standard' or g.get('initialFen') or g.get('status') in ('created', 'started', 'aborted', 'noStart'):
+        return None
+    players, me, color = g.get('players') or {}, user.lower(), None
+    for c in ('white', 'black'):
+        u = (players.get(c) or {}).get('user') or {}
+        if (u.get('id') or (u.get('name') or '').lower()) == me:
+            color = c
+    if not color:
+        return None
+    opp = players.get('black' if color == 'white' else 'white') or {}
+    sans, ucis, board = [], [], chess.Board()
+    for s in (g.get('moves') or '').split()[:GAME_PLIES]:
+        try:
+            mv = board.parse_san(s)
+        except ValueError:
+            break
+        sans.append(s); ucis.append(mv.uci()); board.push(mv)
+    if not ucis:
+        return None
+    winner = g.get('winner')
+    return {'site': 'lichess', 'id': g.get('id'), 'url': 'https://lichess.org/%s%s' % (g.get('id'), '/black' if color == 'black' else ''),
+            'user': me, 'color': color,
+            'opp': (opp.get('user') or {}).get('name') or ('Stockfish %s' % opp['aiLevel'] if opp.get('aiLevel') else '?'),
+            'rating': (players.get(color) or {}).get('rating'), 'opp_rating': opp.get('rating'),
+            'result': 'draw' if not winner else ('win' if winner == color else 'loss'),
+            'speed': g.get('speed') or '', 'ts': g.get('createdAt') or 0,
+            'opening': (g.get('opening') or {}).get('name') or '',
+            'uci': ' '.join(ucis), 'san': ' '.join(sans)}
+
+def _chesscom_record(g, user):
+    """Partita dell'archivio mensile Chess.com -> stesso record di _lichess_record."""
+    if g.get('rules') != 'chess':
+        return None
+    setup = g.get('initial_setup') or ''
+    if setup and setup.split(' ')[0] != chess.STARTING_BOARD_FEN:
+        return None
+    me = user.lower()
+    w, b = g.get('white') or {}, g.get('black') or {}
+    if (w.get('username') or '').lower() == me:
+        color, mine, opp = 'white', w, b
+    elif (b.get('username') or '').lower() == me:
+        color, mine, opp = 'black', b, w
+    else:
+        return None
+    try:
+        game = chess.pgn.read_game(io.StringIO(g.get('pgn') or ''))
+    except Exception:
+        game = None
+    if game is None:
+        return None
+    sans, ucis, board = [], [], game.board()
+    for mv in game.mainline_moves():
+        if len(ucis) >= GAME_PLIES:
+            break
+        sans.append(board.san(mv)); ucis.append(mv.uci()); board.push(mv)
+    if not ucis:
+        return None
+    res = mine.get('result')
+    # ECOUrl: ".../openings/Sicilian-Defense-Open-Dragon-6...a6-7.Be3" -> "Sicilian Defense Open Dragon"
+    eco = re.sub(r'-+', ' ', (game.headers.get('ECOUrl') or '').rstrip('/').split('/')[-1])
+    eco = re.split(r'\.\.\.|\s\d+\.', eco)[0].strip()
+    return {'site': 'chesscom', 'id': (g.get('url') or '').rstrip('/').split('/')[-1] or g.get('uuid') or '',
+            'url': g.get('url') or '', 'user': me, 'color': color,
+            'opp': opp.get('username') or '?', 'rating': mine.get('rating'), 'opp_rating': opp.get('rating'),
+            'result': 'win' if res == 'win' else ('draw' if res in CC_DRAWS else 'loss'),
+            'speed': g.get('time_class') or '', 'ts': (g.get('end_time') or 0) * 1000,
+            'opening': eco, 'uci': ' '.join(ucis), 'san': ' '.join(sans)}
+
+def _opening_family(name):
+    """La famiglia di un'apertura: "Sicilian Defense: Alapin" (Lichess) o "Sicilian Defense French
+       Variation" (Chess.com, senza i due punti) -> "Sicilian Defense"."""
+    name = (name or '').split(':')[0]
+    m = re.match(r'(.*?\b(?:Defense|Defence|Opening|Game|Attack|Gambit|System))\b', name)
+    return (m.group(1) if m else name).strip()
+
+def fetch_lichess_games(user, max_games, since=None):
+    """Partite di un utente Lichess, dalla piu' recente. Sono pubbliche: il token, se c'e', alza solo il
+       limite di velocita'. Ritorna (record, errore)."""
+    params = {'max': max_games, 'moves': 'true', 'opening': 'true', 'clocks': 'false', 'evals': 'false'}
+    if since:
+        params['since'] = int(since) + 1
+    url = 'https://lichess.org/api/games/user/%s?%s' % (urllib.parse.quote(user), urllib.parse.urlencode(params))
+    tok = lichess_token()
+    # Poi senza token: un token scaduto (401) o il limite di Lichess ("una richiesta alla volta",
+    # 429) non devono bloccare la funzione.
+    attempts = [bool(tok), False]
+    err = None
+    for i, auth in enumerate(attempts):
+        headers = {'Accept': 'application/x-ndjson'}
+        if auth:
+            headers['Authorization'] = 'Bearer ' + tok
+        out = []
+        try:
+            with http_get(url, headers, timeout=60) as r:
+                for raw in r:
+                    raw = raw.strip()
+                    rec = _lichess_record(json.loads(raw), user) if raw else None
+                    if rec:
+                        out.append(rec)
+            return out, None
+        except urllib.error.HTTPError as e:
+            err = _net_error(e)
+            if e.code not in (401, 429) or i == len(attempts) - 1:
+                return out, err
+            if e.code == 429:
+                time.sleep(1.5)
+        except Exception as e:
+            return out, _net_error(e)
+    return [], err
+
+def fetch_chesscom_games(user, max_games, since=None):
+    """Partite Chess.com dagli archivi mensili pubblici, dal mese piu' recente."""
+    base = 'https://api.chess.com/pub/player/%s/games/' % urllib.parse.quote(user.lower())
+    try:
+        with http_get(base + 'archives', timeout=20) as r:
+            archives = json.load(r).get('archives') or []
+    except Exception as e:
+        return [], _net_error(e)
+    out = []
+    for aurl in reversed(archives):
+        try:
+            with http_get(aurl, timeout=30) as r:
+                month = json.load(r).get('games') or []
+        except Exception as e:
+            return out, _net_error(e)
+        for g in reversed(month):
+            if since and (g.get('end_time') or 0) * 1000 <= since:
+                return out, None
+            rec = _chesscom_record(g, user)
+            if rec:
+                out.append(rec)
+                if len(out) >= max_games:
+                    return out, None
+    return out, None
+
+FETCHERS = {'lichess': fetch_lichess_games, 'chesscom': fetch_chesscom_games}
+
+def _fetch_args(req):
+    site, user = req.get('site'), (req.get('user') or '').strip()
+    if site not in FETCHERS or not USER_RE.fullmatch(user):
+        return None
+    try:
+        n = max(1, min(int(req.get('max') or 300), 3000))
+    except (TypeError, ValueError):
+        n = 300
+    return site, user, n
+
+def _move_label(ply, san):   # partite: sempre dalla posizione iniziale
+    return '%d%s%s' % (ply // 2 + 1, '.' if ply % 2 == 0 else '...', san)
+
+def _game_brief(g):
+    return {'url': g.get('url'), 'opp': g.get('opp'), 'opp_rating': g.get('opp_rating'), 'result': g.get('result'),
+            'speed': g.get('speed'), 'date': datetime.fromtimestamp(g['ts'] / 1000).strftime('%Y-%m-%d') if g.get('ts') else ''}
+
+def _follow(ucis, idx, my_white):
+    """Segue una partita (mosse UCI dalla posizione iniziale) nell'albero del repertorio.
+       -> (esito, ply, chiave, board): 'end' = restando nel repertorio la preparazione e' finita (o la
+       partita); 'dev' = qui ho giocato io una mossa fuori repertorio; 'exit' = qui l'avversario ha
+       giocato una mossa che il repertorio non copre. board = la posizione a quel ply."""
+    board = chess.Board()
+    children = idx['children']
+    for ply, u in enumerate(ucis):
+        k = _pos_key(board)
+        kids = [x for x in (children.get(k) or ()) if x != '0000']   # la mossa nulla chiude la linea
+        if not kids:
+            return 'end', ply, k, board
+        if u not in kids:
+            return ('dev' if board.turn == my_white else 'exit'), ply, k, board
+        board.push_uci(u)
+    return 'end', len(ucis), None, board
+
+def _lines_through(idx, key, limit=5):
+    """Varianti del repertorio che passano dalla posizione: le piu' corte, il cuore della linea."""
+    by_var = (idx['reach'].get(key) or {}).get('by_var') or {}
+    data = idx['data']
+    return sorted(by_var, key=lambda vid: len(data.get(vid, {}).get('moves') or []))[:limit]
+
+def _exit_bucket(exits, idx, k, ucis, sans, ply, board):
+    """Un'uscita dal repertorio raggruppata per (posizione, mossa): da qui si prepara la risposta."""
+    b = exits.get((k, ucis[ply]))
+    if b is None:
+        vids = _lines_through(idx, k, 1)
+        sample = idx['data'].get(vids[0], {}) if vids else {}
+        b = exits[(k, ucis[ply])] = {'ply': ply, 'path': ucis[:ply + 1], 'fen': board.fen(), 'count': 0,
+                                     'move': _move_label(ply, sans[ply]), 'games': [],
+                                     'course': sample.get('course') or '', 'chapter': sample.get('chapter') or ''}
+    return b
+
+def _games_report(games, color):
+    """Le partite (giocate col colore `color`) contro il repertorio di quel colore: dove hai deviato tu
+       (linee da ripassare) e dove e' uscito l'avversario (risposte da preparare)."""
+    idx = _build_index(None, color)
+    my_white = (color == 'white')
+    devs, exits, depth, other = {}, {}, [], {}
+    tally = {'games': len(games), 'in_rep': 0, 'covered': 0, 'dev': 0, 'exit': 0}
+    for g in sorted(games, key=lambda x: -(x.get('ts') or 0)):   # i campioni mostrati = i piu' recenti
+        ucis, sans = g['uci'].split(), g['san'].split()
+        st, ply, k, board = _follow(ucis, idx, my_white)
+        if st == 'end' and ply == 0:
+            continue                       # mai entrata nel repertorio di questo colore
+        if st == 'dev' and ply == 0:       # un'altra prima mossa: un'altra apertura, non una linea dimenticata
+            lab = _move_label(0, sans[0])
+            other[lab] = other.get(lab, 0) + 1
+            continue
+        tally['in_rep'] += 1
+        depth.append(ply)
+        if st == 'end':
+            tally['covered'] += 1
+            continue
+        tally[st] += 1
+        if st == 'dev':
+            b = devs.get(k)
+            if b is None:
+                kids = idx['children'].get(k) or {}
+                b = devs[k] = {'ply': ply, 'path': ucis[:ply], 'fen': board.fen(), 'count': 0, 'played': {},
+                               'expected': [_move_label(ply, c['san']) for x, c in kids.items() if x != '0000'],
+                               'games': [], 'var_ids': _lines_through(idx, k)}
+            lab = _move_label(ply, sans[ply])
+            b['played'][lab] = b['played'].get(lab, 0) + 1
+        else:
+            b = _exit_bucket(exits, idx, k, ucis, sans, ply, board)
+        b['count'] += 1
+        if len(b['games']) < 5:
+            b['games'].append(_game_brief(g))
+    devs_l = sorted(devs.values(), key=lambda b: (-b['count'], b['ply']))[:60]
+    for b in devs_l:
+        b['played'] = [{'move': m, 'count': n} for m, n in sorted(b['played'].items(), key=lambda kv: -kv[1])]
+    tally['avg_ply'] = round(sum(depth) / len(depth), 1) if depth else 0
+    return {'tally': tally, 'devs': devs_l, 'exits': sorted(exits.values(), key=lambda b: (-b['count'], b['ply']))[:60],
+            'other': [{'move': m, 'count': n} for m, n in sorted(other.items(), key=lambda kv: -kv[1])]}
+
+def _games_tree(games, path, rep_color):
+    """Mosse giocate nelle partite dalla posizione dopo `path` (anche per trasposizione, a parita' di
+       mosse), con i risultati, piu' le mosse del repertorio `rep_color` da quella posizione."""
+    board, applied = chess.Board(), []
+    for u in path:
+        try:
+            board.push_uci(u)
+        except ValueError:
+            break
+        applied.append(u)
+    tk, n = _pos_key(board), len(applied)
+    moves = {}
+    for g in games:
+        ucis = g['uci'].split()
+        if len(ucis) <= n:
+            continue
+        b = chess.Board()
+        for u in ucis[:n]:
+            b.push_uci(u)
+        if _pos_key(b) != tk:
+            continue
+        u = ucis[n]
+        m = moves.get(u)
+        if m is None:
+            m = moves[u] = {'uci': u, 'san': g['san'].split()[n], 'games': 0, 'white': 0, 'draws': 0, 'black': 0}
+        m['games'] += 1
+        if g['result'] == 'draw':
+            m['draws'] += 1
+        elif (g['result'] == 'win') == (g['color'] == 'white'):
+            m['white'] += 1
+        else:
+            m['black'] += 1
+    kids = _build_index(None, rep_color)['children'].get(tk) or {}
+    return {'fen': board.fen(), 'path': applied, 'turn': 'w' if board.turn else 'b',
+            'mine': board.turn == (rep_color == 'white'),
+            'moves': sorted(moves.values(), key=lambda m: -m['games']),
+            'rep': [{'uci': x, 'san': c['san']} for x, c in kids.items() if x != '0000']}
+
+def _opponent_report(games, my_color):
+    """L'avversario col colore opposto al mio: dove le sue partite escono dal MIO repertorio
+       (risposte da preparare) e quali mie linee servono davvero contro di lui."""
+    opp_color = 'black' if my_color == 'white' else 'white'
+    gs = [g for g in games if g.get('color') == opp_color]
+    score, openings = {'win': 0, 'draw': 0, 'loss': 0}, {}
+    for g in gs:
+        score[g['result']] += 1
+        fam = _opening_family(g.get('opening'))
+        if fam:
+            openings[fam] = openings.get(fam, 0) + 1
+    idx = _build_index(None, my_color)
+    data = idx['data']
+    cov = {'covered': 0, 'exit': 0, 'dev': 0, 'out': 0}
+    exits, reached = {}, {}
+    for g in sorted(gs, key=lambda x: -(x.get('ts') or 0)):
+        ucis, sans = g['uci'].split(), g['san'].split()
+        st, ply, k, board = _follow(ucis, idx, my_color == 'white')
+        if ply == 0 and st != 'exit':      # i suoi avversari hanno aperto in un altro modo: non dice nulla
+            cov['out'] += 1
+            continue
+        cov['covered' if st == 'end' else st] += 1
+        if k is not None:
+            reached.setdefault(k, [0, ply])[0] += 1
+        if st == 'exit':
+            b = _exit_bucket(exits, idx, k, ucis, sans, ply, board)
+            b['count'] += 1
+            if len(b['games']) < 5:
+                b['games'].append(_game_brief(g))
+    # Linee da ripassare: dalle posizioni del mio repertorio dove le sue partite arrivano piu' spesso e
+    # piu' a fondo. Dove la mia preparazione finisce, le linee che finiscono li'; altrove le piu' corte.
+    lines, seen = [], set()
+    for k, (cnt, ply) in sorted(reached.items(), key=lambda kv: -(kv[1][0] * (kv[1][1] + 1))):
+        for vid in ((idx['ends'].get(k) or [])[:3] or _lines_through(idx, k, 2)):
+            if vid in seen or vid not in data:
+                continue
+            seen.add(vid)
+            lines.append({'id': vid, 'title': data[vid].get('title', ''), 'course': data[vid].get('course', ''),
+                          'count': cnt, 'ply': ply})
+        if len(lines) >= 25:
+            break
+    return {'games': len(gs), 'score': score, 'coverage': cov,
+            'openings': [{'name': n, 'count': c} for n, c in sorted(openings.items(), key=lambda kv: -kv[1])[:6]],
+            'exits': sorted(exits.values(), key=lambda b: (-b['count'], b['ply']))[:40], 'lines': lines[:25]}
+
+def _games_of(p, color, account=''):
+    return [g for g in p['games'].values()
+            if g.get('color') == color and (not account or g['site'] + ':' + g['user'] == account)]
+
+def _color_arg(v):
+    return v if v in ('white', 'black') else 'white'
+
+@app.route('/api/personal/state', methods=['GET'])
+def personal_state():
+    p = load_personal()
+    by_color = {'white': 0, 'black': 0}
+    for g in p['games'].values():
+        by_color[g['color']] = by_color.get(g['color'], 0) + 1
+    opps = sorted(p['opponents'].items(), key=lambda kv: kv[1].get('fetched') or '', reverse=True)
+    return jsonify({'accounts': sorted(p['accounts'].values(), key=lambda a: (a['site'], a['user'])),
+                    'games': len(p['games']), 'by_color': by_color,
+                    'opponents': [{'key': k, 'name': o.get('name'), 'site': o.get('site'), 'n': len(o.get('games') or []),
+                                   'fetched': o.get('fetched')} for k, o in opps]})
+
+@app.route('/api/games/sync', methods=['POST'])
+def games_sync():
+    """Scarica le TUE partite (Lichess o Chess.com) in personal.json: di default solo quelle nuove
+       dall'ultima volta; full=1 riprende le ultime N (per andare piu' indietro)."""
+    req = request.get_json(silent=True) or {}
+    args = _fetch_args(req)
+    if not args:
+        return jsonify({'success': False, 'error': 'Nome utente non valido.'}), 400
+    site, user, n = args
+    p = load_personal()
+    key = site + ':' + user.lower()
+    acc = p['accounts'].get(key) or {}
+    recs, err = FETCHERS[site](user, n, None if req.get('full') else acc.get('last_ts'))
+    if err and not recs:
+        return jsonify({'success': False, 'error': err})
+    added = 0
+    for r in recs:
+        gid = site + ':' + r['id']
+        if gid not in p['games']:
+            p['games'][gid] = r
+            added += 1
+    mine = [g for g in p['games'].values() if g['site'] == site and g['user'] == user.lower()]
+    p['accounts'][key] = {'key': key, 'site': site, 'user': user.lower(), 'name': user, 'count': len(mine),
+                          'last_ts': max((g['ts'] for g in mine), default=None),
+                          'synced': datetime.now().isoformat(timespec='seconds')}
+    save_personal(p)
+    return jsonify({'success': True, 'added': added, 'count': len(mine), 'error': err})
+
+@app.route('/api/games/remove', methods=['POST'])
+def games_remove():
+    key = (request.get_json(silent=True) or {}).get('key')
+    p = load_personal()
+    if key not in p['accounts']:
+        return jsonify({'success': False, 'error': 'Account non trovato.'}), 404
+    site, user = key.split(':', 1)
+    p['games'] = {k: g for k, g in p['games'].items() if not (g['site'] == site and g['user'] == user)}
+    del p['accounts'][key]
+    save_personal(p)
+    return jsonify({'success': True})
+
+@app.route('/api/games/report', methods=['GET'])
+def games_report():
+    color = _color_arg(request.args.get('color'))
+    return jsonify(_games_report(_games_of(load_personal(), color, request.args.get('account') or ''), color))
+
+@app.route('/api/games/tree', methods=['POST'])
+def games_tree():
+    req = request.get_json(silent=True) or {}
+    color = _color_arg(req.get('color'))
+    path = req.get('path') if isinstance(req.get('path'), list) else []
+    return jsonify(_games_tree(_games_of(load_personal(), color, req.get('account') or ''), path, color))
+
+@app.route('/api/opponent/scan', methods=['POST'])
+def opponent_scan():
+    """Partite pubbliche dell'avversario (salvate: le ultime MAX_OPPONENTS) contro il mio repertorio."""
+    req = request.get_json(silent=True) or {}
+    args = _fetch_args(req)
+    if not args:
+        return jsonify({'success': False, 'error': 'Nome utente non valido.'}), 400
+    site, user, n = args
+    my_color = _color_arg(req.get('color'))
+    key = site + ':' + user.lower()
+    p = load_personal()
+    o = p['opponents'].get(key)
+    if not o or req.get('refresh'):
+        recs, err = FETCHERS[site](user, n)
+        if err and not recs:
+            return jsonify({'success': False, 'error': err})
+        o = p['opponents'][key] = {'site': site, 'user': user.lower(), 'name': user, 'games': recs,
+                                   'fetched': datetime.now().isoformat(timespec='seconds')}
+        for old in sorted(p['opponents'], key=lambda k: p['opponents'][k].get('fetched') or '')[:-MAX_OPPONENTS]:
+            del p['opponents'][old]
+        save_personal(p)
+    rep = _opponent_report(o['games'], my_color)
+    rep.update({'success': True, 'key': key, 'name': o.get('name'), 'site': site, 'fetched': o.get('fetched'),
+                'total': len(o['games'])})
+    return jsonify(rep)
+
+@app.route('/api/opponent/tree', methods=['POST'])
+def opponent_tree():
+    req = request.get_json(silent=True) or {}
+    o = load_personal()['opponents'].get(req.get('key'))
+    if not o:
+        return jsonify({'error': 'Avversario non trovato: rianalizzalo.'}), 404
+    my_color = _color_arg(req.get('color'))
+    opp_color = 'black' if my_color == 'white' else 'white'
+    path = req.get('path') if isinstance(req.get('path'), list) else []
+    return jsonify(_games_tree([g for g in o['games'] if g.get('color') == opp_color], path, my_color))
+
+@app.route('/api/opponent/remove', methods=['POST'])
+def opponent_remove():
+    key = (request.get_json(silent=True) or {}).get('key')
+    p = load_personal()
+    if p['opponents'].pop(key, None) is None:
+        return jsonify({'success': False, 'error': 'Avversario non trovato.'}), 404
+    save_personal(p)
+    return jsonify({'success': True})
+
+# ----- Finali contro la tablebase (la tablebase la interroga il browser: tablebase.lichess.ovh) -----
+# Posizioni classiche verificate con la tablebase (chi muove vince / tiene la patta). Solo FEN e nome.
+ENDGAME_CATALOG = [
+    ("Matto di donna", "8/8/8/4k3/8/8/8/3QK3 w - - 0 1", "win"),
+    ("Matto di torre", "8/8/8/4k3/8/8/8/4K2R w - - 0 1", "win"),
+    ("Re e pedone: l'opposizione", "8/8/4k3/8/4K3/8/4P3/8 w - - 0 1", "win"),
+    ("Re e pedone: la difesa", "4k3/8/8/4K3/4P3/8/8/8 b - - 0 1", "draw"),
+    ("Donna contro pedone in settima", "8/8/8/8/8/8/1kp5/3K3Q w - - 0 1", "win"),
+    ("Posizione di Lucena", "1K1k4/1P6/8/8/8/8/r7/2R5 w - - 0 1", "win"),
+    ("Posizione di Philidor", "4k3/8/r7/4PK2/8/8/8/7R b - - 0 1", "draw"),
+    ("Posizione di Vancura", "R7/6k1/P4r2/8/8/8/8/6K1 b - - 0 1", "draw"),
+    ("Matto con i due alfieri", "8/8/8/4k3/8/8/8/2B1KB2 w - - 0 1", "win"),
+    ("Matto di alfiere e cavallo", "8/8/8/4k3/8/8/8/2B1K1N1 w - - 0 1", "win"),
+    ("Donna contro torre", "8/8/8/3rk3/8/8/8/3QK3 w - - 0 1", "win"),
+]
+
+def _eg_id(fen):
+    return 'eg_' + hashlib.md5(' '.join(fen.split()[:4]).encode()).hexdigest()[:10]
+
+@app.route('/api/endgames', methods=['GET'])
+def endgames_list():
+    p = load_personal()
+    if not p.get('endgames_seeded'):    # le classiche arrivano una volta sola: se ne elimini una non torna
+        for title, fen, goal in ENDGAME_CATALOG:
+            p['endgames'].setdefault(_eg_id(fen), {'fen': fen, 'title': title, 'goal': goal, 'builtin': True,
+                                                   'srs': new_srs(), 'stats': default_stats()})
+        p['endgames_seeded'] = True
+        save_personal(p)
+    return jsonify({'endgames': [dict(e, id=eid) for eid, e in p['endgames'].items()]})
+
+@app.route('/api/endgames/add', methods=['POST'])
+def endgames_add():
+    req = request.get_json(silent=True) or {}
+    goal = req.get('goal')
+    if goal not in ('win', 'draw'):
+        return jsonify({'success': False, 'error': 'Obiettivo non valido.'}), 400
+    try:
+        board = chess.Board((req.get('fen') or '').strip())
+    except ValueError:
+        return jsonify({'success': False, 'error': 'FEN non valido.'}), 400
+    if not board.is_valid():
+        return jsonify({'success': False, 'error': 'Posizione illegale.'}), 400
+    if chess.popcount(board.occupied) > 7:
+        return jsonify({'success': False, 'error': 'Al massimo 7 pezzi (il limite della tablebase).'}), 400
+    if board.is_game_over():
+        return jsonify({'success': False, 'error': 'In questa posizione la partita è già finita.'}), 400
+    board.halfmove_clock = 0
+    fen = board.fen()
+    p = load_personal()
+    eid = _eg_id(fen)
+    if eid in p['endgames']:
+        return jsonify({'success': False, 'error': 'Questa posizione c\'è già.'}), 409
+    p['endgames'][eid] = {'fen': fen, 'title': (req.get('title') or '').strip()[:120] or 'Posizione', 'goal': goal,
+                          'builtin': False, 'srs': new_srs(), 'stats': default_stats()}
+    save_personal(p)
+    return jsonify({'success': True, 'id': eid})
+
+@app.route('/api/endgames/delete', methods=['POST'])
+def endgames_delete():
+    eid = (request.get_json(silent=True) or {}).get('id')
+    p = load_personal()
+    if p['endgames'].pop(eid, None) is None:
+        return jsonify({'success': False, 'error': 'Posizione non trovata.'}), 404
+    save_personal(p)
+    return jsonify({'success': True})
+
+@app.route('/api/endgames/review', methods=['POST'])
+def endgames_review():
+    req = request.get_json(silent=True) or {}
+    q = req.get('quality')
+    if isinstance(q, bool) or not isinstance(q, int) or not (0 <= q <= 5):
+        return jsonify({'success': False, 'error': 'Valutazione non valida.'}), 400
+    p = load_personal()
+    e = p['endgames'].get(req.get('id'))
+    if not e:
+        return jsonify({'success': False, 'error': 'Posizione non trovata.'}), 404
+    apply_review(e, q)
+    save_personal(p)
+    return jsonify({'success': True, 'srs': e['srs'], 'stats': e['stats']})
+
+# ----- Accesso dal telefono (stessa rete Wi-Fi) -----
+# Di serie il server ascolta solo su 127.0.0.1. Con l'accesso attivo (settings.json) si accende anche un
+# server sulla rete locale (lan_start, piu' sotto): chi non e' il computer stesso deve inserire un PIN,
+# poi un cookie lo ricorda.
+LOCAL_ADDRS = ('127.0.0.1', '::1', '::ffff:127.0.0.1')
+LOCAL_HOSTS = ('127.0.0.1', 'localhost', '[::1]')
+_settings_cache = {'mtime': None, 'data': {}}
+_pin_fails = {}              # ip -> (tentativi falliti, bloccato fino a)
+
+def load_settings():
+    try:
+        m = os.path.getmtime(SETTINGS_FILE)
+    except OSError:
+        return {}
+    if _settings_cache['mtime'] != m:
+        _settings_cache['data'] = load_data(SETTINGS_FILE)
+        _settings_cache['mtime'] = m
+    return _settings_cache['data']
+
+def save_settings(s):
+    save_data(s, SETTINGS_FILE)
+    for f in (SETTINGS_FILE, SETTINGS_FILE + '.bak'):   # contiene il PIN
+        try:
+            os.chmod(f, 0o600)
+        except OSError:
+            pass
+
+LOGIN_PAGE = '''<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>openrepertoire</title>
+<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#161615;color:#cfccc5;font:15px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+form{box-sizing:border-box;width:min(340px,calc(100vw - 32px));padding:24px;background:#1f1f1d;border:1px solid #2c2b28;border-radius:14px}
+h1{margin:0 0 6px;font-size:18px;color:#edebe6}p{margin:0 0 18px;font-size:13px;line-height:1.5;color:#a29f97}
+input{box-sizing:border-box;width:100%;padding:12px;font-size:22px;letter-spacing:.3em;text-align:center;color:#edebe6;background:#1a1a19;border:1px solid #3b3a36;border-radius:8px}
+button{width:100%;margin-top:12px;padding:12px;font-size:15px;font-weight:600;color:#fff;background:#557a3e;border:0;border-radius:8px}
+.m{margin-top:12px;min-height:18px;font-size:13px;color:#e5806f}</style></head><body>
+<form method="post" action="/login"><h1>openrepertoire</h1><p>Inserisci il PIN che vedi sul computer (icona del telefono in alto).</p>
+<input name="pin" inputmode="numeric" autocomplete="one-time-code" maxlength="6" autofocus>
+<button type="submit">Entra</button><div class="m">{{msg}}</div></form></body></html>'''
+
+@app.before_request
+def lan_gate():
+    if request.remote_addr in LOCAL_ADDRS:
+        # Dal Mac stesso si entra senza PIN, ma solo coi nomi locali: un sito ostile non puo' farsi
+        # passare per l'app ridirigendo il suo dominio su 127.0.0.1 (DNS rebinding).
+        host = request.host if request.host.endswith(']') else request.host.rsplit(':', 1)[0]
+        if host.lower() in LOCAL_HOSTS:
+            return None
+        return Response('Host non ammesso.', 403, mimetype='text/plain')
+    s = load_settings()
+    if not (s.get('lan') and s.get('pin') and s.get('secret')):
+        return Response('Accesso dalla rete disattivato.', 403, mimetype='text/plain')
+    if hmac.compare_digest(request.cookies.get('orep_auth', ''), s['secret']):
+        return None
+    ip, msg = request.remote_addr, ''
+    fails, until = _pin_fails.get(ip, (0, 0))
+    if request.method == 'POST' and request.path == '/login':
+        if time.time() < until:
+            msg = 'Troppi tentativi: riprova tra un minuto.'
+        elif hmac.compare_digest((request.form.get('pin') or '').strip(), s['pin']):
+            _pin_fails.pop(ip, None)
+            resp = redirect('/')
+            resp.set_cookie('orep_auth', s['secret'], max_age=365 * 86400, httponly=True, samesite='Lax')
+            return resp
+        else:
+            fails += 1
+            _pin_fails[ip] = (fails, time.time() + 60 if fails >= 5 else 0)
+            msg = 'PIN errato.'
+    if request.path.startswith('/api/'):
+        return jsonify({'error': 'Serve il PIN.'}), 401
+    return Response(LOGIN_PAGE.replace('{{msg}}', msg), 401, mimetype='text/html')
+
+def lan_ip():
+    """L'indirizzo del computer sulla rete locale (connect su UDP non manda pacchetti)."""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(('192.0.2.1', 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return None if ip.startswith('127.') else ip
+    except OSError:
+        return None
+
+def lan_urls(ip, port):
+    urls = ['http://%s:%s' % (ip, port)] if ip else []
+    host = socket.gethostname()
+    if host.endswith('.local'):
+        urls.append('http://%s:%s' % (host, port))
+    return urls
+
+# Il server di sempre resta su 127.0.0.1. Per il telefono se ne accende un SECONDO, legato
+# all'indirizzo di rete del computer e sulla stessa porta (indirizzi diversi: nessun conflitto):
+# l'accesso si accende e si spegne al volo, senza riavviare l'app.
+_lan = {'srv': None, 'ip': None, 'port': None, 'error': None}
+_lan_lock = threading.Lock()
+
+def _lan_stop_locked():
+    if _lan['srv']:
+        _lan['srv'].shutdown()
+        _lan['srv'].server_close()
+    _lan.update(srv=None, ip=None, port=None)
+
+def lan_stop():
+    with _lan_lock:
+        _lan_stop_locked()
+
+def lan_start(port):
+    """Accende (o riallinea, se il computer ha cambiato rete) il server per il telefono."""
+    with _lan_lock:
+        ip = lan_ip()
+        if _lan['srv'] and _lan['ip'] == ip and _lan['port'] == port:
+            return True
+        _lan_stop_locked()
+        if not ip:
+            _lan['error'] = 'no_network'
+            return False
+        try:
+            from werkzeug.serving import make_server
+            srv = make_server(ip, int(port), app, threaded=True)
+        except OSError as e:
+            _lan['error'] = str(e)[:120]
+            return False
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        _lan.update(srv=srv, ip=ip, port=port, error=None)
+        return True
+
+@app.route('/api/lan', methods=['GET', 'POST'])
+def api_lan():
+    if request.remote_addr not in LOCAL_ADDRS:   # il PIN si legge solo dal computer
+        return jsonify({'error': 'Solo dal computer.'}), 403
+    s = dict(load_settings())
+    if request.method == 'POST':
+        req = request.get_json(silent=True) or {}
+        if 'enabled' in req:
+            s['lan'] = bool(req['enabled'])
+        if req.get('new_pin') or (s.get('lan') and not s.get('pin')):
+            s['pin'] = '%06d' % secrets.randbelow(10 ** 6)
+            s['secret'] = secrets.token_hex(16)   # PIN nuovo = i telefoni gia' collegati rientrano col nuovo
+        save_settings(s)
+    port = int(request.host.rsplit(':', 1)[-1]) if ':' in request.host.split(']')[-1] else 80
+    on = bool(s.get('lan'))
+    # Il debugger di Werkzeug (OPENREP_DEBUG) non va mai in rete: in quel caso niente server per il telefono
+    if on and not app.debug:
+        lan_start(port)
+    elif not on:
+        lan_stop()
+    return jsonify({'enabled': on, 'running': bool(_lan['srv']), 'error': _lan['error'] if on else None,
+                    'pin': s.get('pin') if on else None, 'urls': lan_urls(_lan['ip'] or lan_ip(), port) if on else []})
+
+# ----- Servizio: c'e' gia' un'istanza? chiudi l'app, apri la cartella dei dati -----
+@app.route('/api/ping')
+def api_ping():
+    return jsonify({'app': 'openrepertoire', 'version': __version__})
+
+@app.route('/api/quit', methods=['POST'])
+def api_quit():
+    """Chiude l'app (solo dal computer): prima parte la risposta, poi il processo esce."""
+    if request.remote_addr not in LOCAL_ADDRS:
+        return jsonify({'error': 'Solo dal computer.'}), 403
+    threading.Timer(0.4, lambda: os._exit(0)).start()
+    return jsonify({'success': True})
+
+@app.route('/api/data_dir', methods=['GET', 'POST'])
+def api_data_dir():
+    """Dove stanno i dati; POST apre la cartella nel Finder / Esplora risorse (solo dal computer)."""
+    if request.remote_addr not in LOCAL_ADDRS:
+        return jsonify({'error': 'Solo dal computer.'}), 403
+    if request.method == 'POST':
+        try:
+            if sys.platform == 'darwin':
+                subprocess.Popen(['open', DATA_DIR])
+            elif os.name == 'nt':
+                os.startfile(DATA_DIR)
+            else:
+                subprocess.Popen(['xdg-open', DATA_DIR])
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)[:120], 'path': DATA_DIR})
+    return jsonify({'success': True, 'path': DATA_DIR})
+
+def _ours_on(port):
+    """Su quella porta risponde gia' openrepertoire? (app aperta due volte: basta il browser)"""
+    try:
+        with urllib.request.urlopen('http://127.0.0.1:%d/api/ping' % port, timeout=1.5) as r:
+            return json.loads(r.read().decode('utf-8')).get('app') == 'openrepertoire'
+    except Exception:
+        return False
+
+def _free_port(port):
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        s.bind(('127.0.0.1', port))
+        return port
+    except OSError:
+        s.bind(('127.0.0.1', 0))      # occupata da altro: una libera qualsiasi
+        return s.getsockname()[1]
+    finally:
+        s.close()
+
+def _frozen_logs():
+    """L'app impacchettata non ha terminale (su Windows stdout e' None e Flask si pianterebbe):
+       i messaggi del server vanno in un file nella cartella dei dati, azzerato oltre i 2 MB."""
+    path = os.path.join(DATA_DIR, 'openrepertoire.log')
+    big = os.path.exists(path) and os.path.getsize(path) > 2 * 1024 * 1024
+    sys.stdout = sys.stderr = open(path, 'w' if big else 'a', buffering=1, encoding='utf-8')
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))   # PORT env -> avvio su porta libera (preview/multi-istanza)
-    app.run(port=port, debug=os.environ.get('OPENREP_DEBUG') == '1')
+    debug = os.environ.get('OPENREP_DEBUG') == '1' and not FROZEN
+    if FROZEN:
+        # .app / .exe: niente lanciatore, il browser lo apre l'app. Gia' aperta: solo il browser.
+        _frozen_logs()
+        if _ours_on(port):
+            webbrowser.open('http://127.0.0.1:%d' % port)
+            sys.exit(0)
+        port = _free_port(port)
+        if not os.environ.get('OPENREP_NO_BROWSER'):
+            threading.Timer(1.0, webbrowser.open, ['http://127.0.0.1:%d' % port]).start()
+    if load_settings().get('lan') and not debug:   # mai il debugger di Werkzeug sulla rete
+        lan_start(port)
+    app.run(host='127.0.0.1', port=port, debug=debug, threaded=True)
