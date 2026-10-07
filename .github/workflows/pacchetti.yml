@@ -67,14 +67,16 @@ jobs:
 
       - name: Zip (macOS)
         if: runner.os == 'macOS'
-        run: ditto -c -k --keepParent dist/OpenRepertoire.app "${{ matrix.asset }}"
+        run: |
+          mkdir pkg && ditto dist/OpenRepertoire.app pkg/OpenRepertoire.app && cp LICENSE pkg/
+          ditto -c -k --sequesterRsrc pkg "${{ matrix.asset }}"   # metadati in __MACOSX: con qualsiasi unzip la firma resta valida
       - name: Zip (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: Compress-Archive -Path dist\OpenRepertoire.exe -DestinationPath "${{ matrix.asset }}"
+        run: Compress-Archive -Path dist\OpenRepertoire.exe, LICENSE -DestinationPath "${{ matrix.asset }}"
       - name: Archivio (Linux)
         if: runner.os == 'Linux'
-        run: tar -czf "${{ matrix.asset }}" -C dist OpenRepertoire   # tar conserva il permesso di esecuzione
+        run: tar -czf "${{ matrix.asset }}" LICENSE -C dist OpenRepertoire   # tar conserva il permesso di esecuzione
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset }}

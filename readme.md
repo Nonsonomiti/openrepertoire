@@ -39,4 +39,6 @@ scorciatoie: premi "?" nell'app (o menu "⋯" → scorciatoie da tastiera). tast
 
 per costruire i pacchetti da soli: `pip install pyinstaller` e poi `pyinstaller packaging/openrepertoire.spec` (escono in dist/). su github li costruisce e li prova il workflow "pacchetti" a ogni push, e un tag v* li allega a una release.
 
+licenza: gpl-3.0 (file LICENSE, incluso anche nei pacchetti). l'app contiene chessground di lichess e python-chess, entrambi gpl-3.0: chi la ridistribuisce, anche modificata, deve farlo con la stessa licenza e col codice sorgente. usa anche flask (bsd-3), chess.js (bsd-2), certifi (mpl-2.0), chessboard.js, jquery e qrcode-generator (mit).
+
 per segnalazioni di bug / suggerimenti @nonsonomiti instagram 
