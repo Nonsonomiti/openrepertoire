@@ -33,6 +33,14 @@ mimetypes.add_type('application/manifest+json', '.webmanifest')   # Python 3.9 n
 # Dal codice sorgente i dati restano accanto ad app.py, come sempre. OPENREP_DATA_DIR li sposta ovunque.
 FROZEN = getattr(sys, 'frozen', False)
 RES_DIR = getattr(sys, '_MEIPASS', BASE_DIR)
+if FROZEN and 'LD_LIBRARY_PATH' in os.environ:
+    # Linux: PyInstaller mette le sue librerie in LD_LIBRARY_PATH; browser e xdg-open (processi figli) devono
+    # usare quelle di sistema. Questo processo non cambia: il linker legge la variabile solo all'avvio.
+    _lp = os.environ.pop('LD_LIBRARY_PATH_ORIG', None)
+    if _lp is None:
+        del os.environ['LD_LIBRARY_PATH']
+    else:
+        os.environ['LD_LIBRARY_PATH'] = _lp
 
 def _user_data_dir():
     home = os.path.expanduser('~')

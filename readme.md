@@ -9,8 +9,9 @@ come scaricare e utilizzare:
 scarica l'app per il tuo sistema dalla pagina releases (https://github.com/Nonsonomiti/openrepertoire/releases), senza installare python:
 - windows: OpenRepertoire-Windows.zip → estrai OpenRepertoire.exe e aprilo. la prima volta windows può dire "windows ha protetto il pc" (l'app non è firmata): ulteriori informazioni → esegui comunque.
 - mac: OpenRepertoire-macOS-AppleSilicon.zip (mac con chip m1/m2/m3/m4) o OpenRepertoire-macOS-Intel.zip → estrai OpenRepertoire.app e spostala in applicazioni. la prima volta macos la blocca (non è firmata da apple): impostazioni di sistema → privacy e sicurezza → "apri comunque". in alternativa, da terminale: `xattr -dr com.apple.quarantine /Applications/OpenRepertoire.app`.
+- linux: OpenRepertoire-Linux.tar.gz → estrai OpenRepertoire e aprilo (doppio clic, o `./OpenRepertoire` da terminale).
 
-l'app si apre nel browser e resta attiva in sottofondo (sul mac non ha icona nel dock); riaprendola si riapre la pagina. per chiuderla: menu "⋯" in alto → chiudi l'app. i tuoi dati stanno in una cartella tua, che trovi dal menu "⋯" → cartella dei dati (mac: libreria/application support/openrepertoire, windows: %appdata%\openrepertoire). se prima usavi la versione col codice, copia lì repertoire.json (e personal.json, lichess_token.txt) che avevi accanto ad app.py.
+l'app si apre nel browser e resta attiva in sottofondo (sul mac non ha icona nel dock); riaprendola si riapre la pagina. per chiuderla: menu "⋯" in alto → chiudi l'app. i tuoi dati stanno in una cartella tua, che trovi dal menu "⋯" → cartella dei dati (mac: libreria/application support/openrepertoire, windows: %appdata%\openrepertoire, linux: ~/.local/share/openrepertoire). se prima usavi la versione col codice, copia lì repertoire.json (e personal.json, lichess_token.txt) che avevi accanto ad app.py.
 
 in alternativa, col codice: scaricalo e avvia il lanciatore del tuo sistema (MacOS_start_app.command, Windows_start_app.bat, start.sh). richiede python3; flask e python-chess si installano da soli. in questo caso i dati restano accanto ad app.py.
 

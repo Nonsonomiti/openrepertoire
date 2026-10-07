@@ -2,6 +2,7 @@
 # macOS   -> dist/OpenRepertoire.app  (niente icona nel Dock: e' un server, l'interfaccia e' il browser;
 #                                       si chiude dal menu "..." dell'app)
 # Windows -> dist/OpenRepertoire.exe  (un solo file, senza finestra)
+# Linux   -> dist/OpenRepertoire      (un solo file; l'icona viene ignorata)
 # I dati non stanno nel pacchetto ma nella cartella dell'utente (vedi DATA_DIR in app.py).
 import os
 import re

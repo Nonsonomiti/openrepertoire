@@ -1,4 +1,4 @@
-# Pacchetti dell'app senza Python da installare: Windows (.exe), macOS Apple Silicon e Intel (.app).
+# Pacchetti dell'app senza Python da installare: Windows (.exe), macOS Apple Silicon e Intel (.app), Linux.
 # Ogni push su main li costruisce e li prova (scaricabili dagli artefatti dell'esecuzione);
 # un tag v* (es. v1.0.0) li pubblica anche nella release di quel tag.
 name: pacchetti
@@ -24,6 +24,8 @@ jobs:
             asset: OpenRepertoire-macOS-AppleSilicon.zip
           - os: macos-15-intel
             asset: OpenRepertoire-macOS-Intel.zip
+          - os: ubuntu-22.04     # glibc piu' vecchia: il pacchetto gira anche sulle distribuzioni meno recenti
+            asset: OpenRepertoire-Linux.tar.gz
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -36,11 +38,12 @@ jobs:
         run: pyinstaller packaging/openrepertoire.spec --noconfirm
 
       # Prova vera: si avvia il pacchetto, deve rispondere con pagina, file statici e API, poi si chiude
-      - name: Prova (macOS)
-        if: runner.os == 'macOS'
+      - name: Prova (macOS / Linux)
+        if: runner.os != 'Windows'
         run: |
           export OPENREP_NO_BROWSER=1 OPENREP_DATA_DIR="$RUNNER_TEMP/dati"
-          dist/OpenRepertoire.app/Contents/MacOS/OpenRepertoire &
+          B=dist/OpenRepertoire; [ "$RUNNER_OS" = macOS ] && B=dist/OpenRepertoire.app/Contents/MacOS/OpenRepertoire
+          "$B" &
           for i in $(seq 1 60); do curl -sf http://127.0.0.1:5001/api/ping && break; sleep 1; done
           curl -sf http://127.0.0.1:5001/api/ping || { cat "$OPENREP_DATA_DIR/openrepertoire.log"; exit 1; }
           curl -sf -o /dev/null http://127.0.0.1:5001/
@@ -69,6 +72,9 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: Compress-Archive -Path dist\OpenRepertoire.exe -DestinationPath "${{ matrix.asset }}"
+      - name: Archivio (Linux)
+        if: runner.os == 'Linux'
+        run: tar -czf "${{ matrix.asset }}" -C dist OpenRepertoire   # tar conserva il permesso di esecuzione
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset }}
