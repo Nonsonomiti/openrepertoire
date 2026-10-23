@@ -456,6 +456,22 @@ cg-board square.check { background: radial-gradient(ellipse at center, rgba(255,
 .transp-badge.ok { color: var(--accent-green); background: var(--accent-soft); }
 .transp-line { padding: 2px 0; color: var(--text-dim); cursor: pointer; }
 .transp-line:hover { color: var(--text-bright); }
+/* Note sulle posizioni */
+.note-box { padding: 12px 14px; }
+.note-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; }
+.note-tags .panel-title { margin: 0 6px 0 0; cursor: default; }
+#note-save { margin-left: auto; padding: 4px 12px; }
+.note-tag { padding: 3px 10px; font-size: 12px; font-weight: 500; color: var(--text-dim); background: transparent; border: 1px solid var(--border-color); border-radius: var(--radius-pill); cursor: pointer; }
+.note-tag.on, .note-chip { color: var(--accent-orange); background: var(--accent-orange-soft); border-color: transparent; }
+.note-tag[data-tag="chiave"].on, .note-chip.chiave { color: var(--accent-green); background: var(--accent-soft); }
+.note-tag[data-tag="analisi"].on, .note-chip.analisi { color: var(--accent-red); background: var(--accent-red-soft); }
+.note-chip { display: inline-block; margin-right: 4px; padding: 1px 7px; font-size: 11px; font-weight: 600; border-radius: var(--radius-pill); }
+#note-text { width: 100%; box-sizing: border-box; min-height: 44px; height: 44px; resize: vertical; margin-top: 0; }
+.note-item { padding: 8px 2px; font-size: var(--fs-sm); border-bottom: 1px solid var(--border-color); cursor: pointer; }
+.note-item:hover { background: var(--bg-elev2); }
+.note-item .n-line { color: var(--text-faint); font-size: var(--fs-xs); margin-top: 2px; }
+.note-item .n-text { color: var(--text-main); margin-top: 3px; white-space: pre-wrap; word-break: break-word; }
+.exp-note { color: var(--accent-orange); }
 /* Repertorio e database affiancati: col database aperto si confrontano a colpo d'occhio. */
 #explore-compare { display: flex; flex-direction: column; gap: 12px; }
 #explore-compare > .panel-box { margin-bottom: 0; max-width: 100%; }

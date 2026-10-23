@@ -92,7 +92,7 @@ def save_data(data, path=None):
 
 def load_personal():
     p = load_data(PERSONAL_FILE)
-    for k in ('games', 'accounts', 'opponents', 'endgames'):
+    for k in ('games', 'accounts', 'opponents', 'endgames', 'notes'):
         p.setdefault(k, {})
     return p
 
@@ -250,6 +250,12 @@ def import_pgn():
         hdr_course = game.headers.get("Course")
         hdr_chapter = game.headers.get("Chapter")
         hdr_persp = game.headers.get("Perspective")
+        # Studi Lichess: StudyName = corso, ChapterName = capitolo e titolo (le linee = i suoi rami)
+        lc_chapter = (game.headers.get("ChapterName") or '').strip()
+        if lc_chapter:
+            title = lc_chapter
+            hdr_course = hdr_course or (game.headers.get("StudyName") or '').strip() or None
+            hdr_chapter = hdr_chapter or lc_chapter
 
         # Capitolo: header nostro > header che raggruppa in questo file (es. Black nei PGN
         # Chessable) > deduzione dal titolo.
@@ -269,7 +275,9 @@ def import_pgn():
         if hdr_persp in ('white', 'black'):
             var_perspective = hdr_persp
         elif perspective == 'auto':
-            if start_fen:
+            if game.headers.get("Orientation") in ('white', 'black'):   # scacchiera del capitolo Lichess
+                var_perspective = game.headers["Orientation"]
+            elif start_fen:
                 var_perspective = 'white' if start_fen.split(' ')[1] == 'w' else 'black'
             else:
                 var_perspective = 'white'
@@ -872,7 +880,9 @@ def api_tree():
     owner = ('w' if perspective == 'white' else 'b') if perspective else None
     turn = 'w' if board.turn else 'b'
     is_hole = bool(owner and turn == owner and not children and ends)
+    note = load_personal()['notes'].get(_note_key(board))
     return jsonify({
+        'note': note,
         'fen': board.fen(), 'turn': turn,
         'ply': len(applied), 'path': applied, 'children': children,
         'ends': ends_info, 'ends_count': len(ends), 'is_hole': is_hole,
@@ -901,6 +911,57 @@ def api_transpositions():
                       'conflict': len(r['owner_moves']) >= 2, 'continuations': sans})
     items.sort(key=lambda x: (-int(x['conflict']), -x['reached_count']))
     return jsonify({'transpositions': items[:80], 'total': len(items)})
+
+# ===== Note dell'utente sulle posizioni (personal.json, chiave = posizione: valgono anche per trasposizione) =====
+NOTE_TAGS = ('chiave', 'analisi', 'idea')   # posizione chiave / manca analisi / idea interessante
+
+def _note_key(board):
+    return ' '.join(board.fen().split()[:4])   # python-chess scrive l'en passant solo se legale
+
+@app.route('/api/notes', methods=['GET'])
+def notes_list():
+    notes = load_personal()['notes']
+    reach = _build_index()['reach'] if any(n.get('path') is None for n in notes.values()) else {}
+    out = []
+    for key, n in notes.items():
+        n = dict(n, key=key)
+        if n.get('path') is None:   # arrivata dall'estensione: se il repertorio la raggiunge, ecco come
+            r = reach.get(_pos_key(chess.Board(n['fen'])))
+            n['path'] = list(min(r['paths'], key=len)) if r else None
+        out.append(n)
+    out.sort(key=lambda n: -n.get('updated', 0))
+    return jsonify({'notes': out, 'tags': NOTE_TAGS})
+
+@app.route('/api/notes', methods=['POST'])
+def notes_save():
+    """Upsert della nota sulla posizione; senza tag ne' testo la nota si cancella."""
+    req = request.get_json(silent=True) or {}
+    try:
+        board = chess.Board((req.get('fen') or '').strip())
+    except ValueError:
+        return jsonify({'success': False, 'error': 'FEN non valido.'}), 400
+    tags = [t for t in NOTE_TAGS if t in (req.get('tags') or [])]
+    text = (req.get('text') or '').strip()[:4000]
+    url = str(req.get('url') or '')[:500]
+    path = req.get('path')
+    if not (isinstance(path, list) and all(isinstance(u, str) for u in path)):
+        path = None
+    p = load_personal()
+    key = _note_key(board)
+    if not tags and not text:
+        p['notes'].pop(key, None)
+        save_personal(p)
+        return jsonify({'success': True, 'note': None})
+    old = p['notes'].get(key, {})
+    p['notes'][key] = note = {
+        'fen': board.fen(), 'tags': tags, 'text': text,
+        'path': path if path is not None else old.get('path'),
+        'course': req.get('course') or old.get('course') or '',
+        'source': req.get('source') or old.get('source') or 'app',
+        'url': url if url.startswith('https://lichess.org/') else old.get('url', ''),
+        'created': old.get('created') or time.time(), 'updated': time.time()}
+    save_personal(p)
+    return jsonify({'success': True, 'note': note})
 
 # ===== Opening explorer di Lichess (proxy) =====
 # Gli endpoint explorer.lichess.org non sono piu' anonimi (401 nginx): vogliono un token OAuth

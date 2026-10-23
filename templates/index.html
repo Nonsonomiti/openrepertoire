@@ -142,10 +142,10 @@
                             <select id="pgn-perspective" class="import-select">
                                 <option value="white">Bianco</option>
                                 <option value="black">Nero</option>
-                                <option value="auto">Tattica / Strategia (colore dal FEN)</option>
+                                <option value="auto">Automatico (colore dallo studio Lichess o dal FEN)</option>
                             </select>
                             <input type="file" id="pgn-file" accept=".pgn" style="color:var(--text-faint); margin-top: 8px; width: 100%;">
-                            <label class="exp-sel-lab" style="margin-top:10px;"><input type="checkbox" id="pgn-tree"><span>Ogni ramo è una linea da studiare <span style="opacity:.7;">(repertori tuoi con varianti; nei corsi i rami sono idee dell'autore e restano nel commento)</span></span></label>
+                            <label class="exp-sel-lab" style="margin-top:10px;"><input type="checkbox" id="pgn-tree"><span>Ogni ramo è una linea da studiare <span style="opacity:.7;">(studi Lichess e repertori tuoi: una linea per ogni diramazione; nei corsi i rami sono idee dell'autore e restano nel commento)</span></span></label>
                             <button class="btn" onclick="importPGNFile()">Carica file</button>
                         </div>
                     </div>
@@ -239,6 +239,16 @@
                     <div id="explore-meta" class="explore-meta"></div>
                 </div>
                 <div id="explore-right">
+                    <div class="panel-box note-box">
+                        <div class="note-tags">
+                            <span class="panel-title">Nota</span>
+                            <button class="note-tag" data-tag="chiave" onclick="noteToggleTag(this)">Posizione chiave</button>
+                            <button class="note-tag" data-tag="analisi" onclick="noteToggleTag(this)">Manca analisi</button>
+                            <button class="note-tag" data-tag="idea" onclick="noteToggleTag(this)">Idea</button>
+                            <button class="lichess-btn" id="note-save" onclick="noteSave()" disabled>Salva</button>
+                        </div>
+                        <textarea id="note-text" class="import-select" placeholder="Idee, piani, cosa approfondire…" oninput="noteDirty()"></textarea>
+                    </div>
                     <div id="explore-compare">
                     <div class="panel-box" id="explore-repbox">
                         <div class="panel-title">Continuazioni nel repertorio</div>
@@ -285,6 +295,18 @@
                     <div class="panel-box" id="explore-ends-box" style="display:none;">
                         <div class="panel-title">Linee che finiscono qui</div>
                         <div id="explore-ends-list"></div>
+                    </div>
+                    <div class="panel-box">
+                        <div class="panel-title" role="button" tabindex="0" onclick="$('#notes-content').slideToggle(200, function() { let o = $(this).is(':visible'); try { localStorage.setItem('notesOpen', o ? '1' : '0'); } catch (e) {} if (o) loadNotes(); });">Note sulle posizioni <span>▼</span></div>
+                        <div id="notes-content" style="display:none; margin-top:10px; border-top:1px solid var(--border-color); padding-top:10px;">
+                            <select id="notes-filter" class="import-select" onchange="renderNotes()" style="margin-top:0">
+                                <option value="">Tutte</option>
+                                <option value="analisi">Manca analisi</option>
+                                <option value="chiave">Posizioni chiave</option>
+                                <option value="idea">Idee</option>
+                            </select>
+                            <div id="notes-list"></div>
+                        </div>
                     </div>
                     <div class="panel-box">
                         <div class="panel-title" role="button" tabindex="0" onclick="$('#transp-content').slideToggle(200); loadTranspositions();">Trasposizioni & conflitti <span>▼</span></div>
@@ -1699,6 +1721,7 @@
             if (localStorage.getItem('dbOpen') === '1') {   // il database resta aperto fra le sessioni
                 $('#db-content').show(); $('#explore-compare').addClass('split');
             }
+            if (localStorage.getItem('notesOpen') === '1') { $('#notes-content').show(); loadNotes(); }
             exploreReset();
         }, 20);
     }
@@ -1741,6 +1764,7 @@
         }
         let bc = sans.length ? sans.map((s, i) => (i % 2 === 0 ? (Math.floor(i/2)+1) + '. ' : '') + s).join(' ') : 'Posizione iniziale';
         $('#explore-breadcrumb').text(bc);
+        noteShow(d);
         $('#explore-meta').html(`Tratto: <b>${d.turn === 'w' ? 'Bianco' : 'Nero'}</b> · raggiunta da <b>${d.reached_by}</b> variant${d.reached_by === 1 ? 'e' : 'i'}` + (d.transposition ? ' · <span style="color:var(--accent-orange)">trasposizione</span>' : '')
             + (d.is_hole ? '<div class="hole-banner">⚠ Buco di copertura: tocca a te ma nessuna mossa preparata. Aggiungine una con l\'editor.</div>' : ''));
 
@@ -1765,6 +1789,58 @@
     function openExploreLine(id, ply) {
         if (!globalVariantsMap[id]) { navTo('repertorio'); return; }
         startReadMode(id, 'repertoire', ply);
+    }
+
+    // --- NOTE SULLE POSIZIONI (testo dell'utente, in personal.json: mai nei commenti del repertorio) ---
+    const NOTE_LABELS = { chiave: 'Posizione chiave', analisi: 'Manca analisi', idea: 'Idea' };
+    let _noteAt = null, _noteDirty = false, _notes = [];
+    function noteTags() { return $('.note-tag.on').map(function() { return $(this).data('tag'); }).get(); }
+    function noteDirty() { _noteDirty = true; $('#note-save').prop('disabled', false); }
+    function noteToggleTag(el) { $(el).toggleClass('on'); noteDirty(); }
+    function noteShow(d) {
+        if (_noteDirty && _noteAt && _noteAt.fen !== d.fen) noteSave();   // cambiando posizione la nota non si perde
+        _noteAt = { fen: d.fen, path: d.path.slice() };
+        let n = d.note || {};
+        $('.note-tag').each(function() { $(this).toggleClass('on', (n.tags || []).indexOf($(this).data('tag')) >= 0); });
+        $('#note-text').val(n.text || '');
+        _noteDirty = false; $('#note-save').prop('disabled', true);
+    }
+    function noteSave() {
+        if (!_noteAt) return;
+        let body = { fen: _noteAt.fen, path: _noteAt.path, tags: noteTags(), text: $('#note-text').val(), course: exploreCourse || '' };
+        _noteDirty = false; $('#note-save').prop('disabled', true);
+        $.ajax({ url: '/api/notes', type: 'POST', contentType: 'application/json', data: JSON.stringify(body),
+            success: function(r) { showToast(r.note ? 'Nota salvata' : 'Nota eliminata', 'success'); if ($('#notes-content').is(':visible')) loadNotes(); },
+            error: function() { showToast('Nota non salvata', 'error'); } });
+    }
+    function loadNotes() {
+        $.get('/api/notes', function(d) { _notes = d.notes; renderNotes(); });
+    }
+    function notePathText(path) {
+        let g = new Chess(), out = [];
+        path.forEach(function(u, i) { let mv = playUci(g, u); if (mv) out.push((i % 2 === 0 ? (Math.floor(i / 2) + 1) + '. ' : '') + mv.san); });
+        return out.join(' ') || 'Posizione iniziale';
+    }
+    function renderNotes() {
+        let f = $('#notes-filter').val();
+        let list = _notes.filter(function(n) { return !f || n.tags.indexOf(f) >= 0; });
+        $('#notes-list').html(list.length ? list.map(function(n, i) { return `
+            <div class="note-item" onclick="noteOpen(${_notes.indexOf(n)})">
+                ${n.tags.map(t => `<span class="note-chip ${t}">${NOTE_LABELS[t]}</span>`).join('')}
+                <div class="n-line">${n.path ? escHtml(notePathText(n.path)) : 'Fuori dal repertorio · ' + escHtml(n.fen.split(' ')[0])} · <a href="${escHtml(noteLichessUrl(n))}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Lichess ↗</a></div>
+                ${n.text ? `<div class="n-text">${escHtml(n.text)}</div>` : ''}
+            </div>`; }).join('') : '<div class="empty-msg">Nessuna nota.</div>');
+    }
+    // Studio o partita d'origine se c'e'; altrimenti la posizione esatta (l'URL di /analysis non segue le mosse)
+    function noteLichessUrl(n) {
+        return n.url && !/^https:\/\/lichess\.org\/analysis/.test(n.url) ? n.url
+            : 'https://lichess.org/analysis/standard/' + n.fen.replace(/ /g, '_');
+    }
+    function noteOpen(i) {
+        let n = _notes[i];
+        if (!n) return;
+        if (!n.path) { window.open(noteLichessUrl(n), '_blank'); return; }
+        explorePath = n.path.slice(); exploreForward = []; exploreLoad();
     }
 
     function loadTranspositions() {
