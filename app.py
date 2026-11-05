@@ -22,7 +22,7 @@ import urllib.parse
 import urllib.error
 from datetime import datetime, timedelta
 
-__version__ = '1.0.0'
+__version__ = '1.1.0'
 
 # --- BLINDATURA DEI PERCORSI ---
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
