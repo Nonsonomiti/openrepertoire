@@ -13,9 +13,9 @@ if not defined PY (
 )
 if not defined PY (
   echo.
-  echo   Non sono riuscito a installare Python automaticamente.
-  echo   Apro la pagina ufficiale: scarica ed esegui l'installer,
-  echo   spuntando "Add python.exe to PATH", poi rilancia questo file.
+  echo   Could not install Python automatically.
+  echo   Opening the official page: download and run the installer,
+  echo   ticking "Add python.exe to PATH", then run this file again.
   echo.
   start "" "https://www.python.org/downloads/"
   pause
@@ -27,7 +27,7 @@ if not defined PY (
 "%PY%" -c "import flask, chess" 2>nul
 if errorlevel 1 (
   echo.
-  echo   Prima configurazione: installo le dipendenze, un attimo...
+  echo   First-time setup: installing dependencies, one moment...
   echo.
   "%PY%" -m pip --version >nul 2>&1 || "%PY%" -m ensurepip --upgrade
   "%PY%" -m pip install --user flask chess certifi
@@ -37,8 +37,8 @@ if errorlevel 1 (
 "%PY%" -c "import flask, chess" 2>nul
 if errorlevel 1 (
   echo.
-  echo   Installazione delle dipendenze non riuscita ^(l'errore vero e' qui sopra^).
-  echo   Puoi riprovare a mano con:
+  echo   Dependency installation failed ^(the actual error is above^).
+  echo   You can try manually with:
   echo       "%PY%" -m pip install --user flask chess certifi
   echo.
   pause
@@ -127,17 +127,17 @@ goto :eof
 
 :install_py
 echo.
-echo   Python non e' installato su questo PC: lo installo ora.
-echo   Serve una connessione a Internet; ci vorranno un paio di minuti.
+echo   Python is not installed on this PC: installing it now.
+echo   An Internet connection is needed; this takes a couple of minutes.
 echo.
 :: --- A) winget (presente su Windows 11 e Windows 10 aggiornati) ---
 where winget >nul 2>&1
 if not errorlevel 1 (
-  echo   [1/2] Installazione tramite winget ^(Microsoft^)...
+  echo   [1/2] Installing with winget ^(Microsoft^)...
   winget install -e --id Python.Python.3.12 --scope user --silent --accept-package-agreements --accept-source-agreements
   call :detect_py
   if defined PY (
-    echo   Python installato.
+    echo   Python installed.
     goto :eof
   )
 )
@@ -146,11 +146,11 @@ where curl >nul 2>&1
 if errorlevel 1 goto :eof
 set "PYVER=3.12.7"
 set "PYSETUP=%TEMP%\python-%PYVER%-amd64.exe"
-echo   [2/2] Scarico l'installer ufficiale da python.org...
+echo   [2/2] Downloading the official installer from python.org...
 curl -L --fail -o "%PYSETUP%" "https://www.python.org/ftp/python/%PYVER%/python-%PYVER%-amd64.exe"
 if not exist "%PYSETUP%" goto :eof
-echo   Installazione in corso...
+echo   Installing...
 "%PYSETUP%" /quiet InstallAllUsers=0 PrependPath=1 Include_pip=1 Include_launcher=1
 del "%PYSETUP%" >nul 2>&1
-echo   Python installato.
+echo   Python installed.
 goto :eof

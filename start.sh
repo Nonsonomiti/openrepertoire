@@ -13,17 +13,17 @@ if ! command -v python3 >/dev/null 2>&1; then
   elif command -v zypper  >/dev/null 2>&1; then INSTALL="zypper install -y python3 python3-pip"
   elif command -v apk     >/dev/null 2>&1; then INSTALL="apk add python3 py3-pip"
   else INSTALL=""; fi
-  echo "Python 3 non e' installato."
+  echo "Python 3 is not installed."
   if [ -n "$INSTALL" ] && [ -t 0 ]; then
-    echo "Lo installo ora (serve la password di amministratore):"
+    echo "Installing it now (administrator password required):"
     echo "  sudo sh -c \"$INSTALL\""
     sudo sh -c "$INSTALL"
   fi
   if ! command -v python3 >/dev/null 2>&1; then
     echo
-    echo "Installa Python 3 e riprova."
+    echo "Install Python 3 and try again."
     [ -n "$INSTALL" ] && echo "  sudo sh -c \"$INSTALL\""
-    read -rp "Premi Invio per chiudere..." _
+    read -rp "Press Enter to close..." _
     exit 1
   fi
 fi
@@ -36,9 +36,9 @@ python3 -c "import flask, chess" 2>/dev/null || {
 
 # Se le dipendenze mancano ancora, avvisa invece di aprire una pagina morta
 python3 -c "import flask, chess" 2>/dev/null || {
-  echo "Non sono riuscito a installare flask e chess. Riprova a mano con:"
+  echo "Could not install flask and chess. Try manually with:"
   echo "  python3 -m pip install --user flask chess certifi"
-  read -rp "Premi Invio per chiudere..." _
+  read -rp "Press Enter to close..." _
   exit 1
 }
 

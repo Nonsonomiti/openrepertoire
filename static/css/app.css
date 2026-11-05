@@ -162,6 +162,7 @@ code { font-family: var(--font-mono); font-size: .92em; }
 .theme-list button[aria-checked="true"] { color: var(--text-bright); font-weight: 500; }
 .theme-list .i-check { margin-left: auto; color: var(--accent); }
 .theme-list button:not([aria-checked="true"]) .i-check { visibility: hidden; }
+.lang-btn { font-size: 11px; font-weight: 600; letter-spacing: .04em; }
 .tm-sw { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 20px; font-size: 11px; font-weight: 600; color: var(--text-bright); background: var(--bg-main); border: 1px solid var(--border-strong); border-radius: 5px; }
 
 /* ===== VISTE ===== */

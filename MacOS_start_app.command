@@ -11,7 +11,7 @@ xattr -dr com.apple.quarantine . 2>/dev/null
 # Python: su macOS arriva con gli Strumenti da riga di comando di Apple.
 # Se manca, si avvia l'installer ufficiale Apple (finestra grafica) e si esce.
 if ! command -v python3 >/dev/null 2>&1; then
-  osascript -e "display alert \"Manca Python\" message \"Avvio l'installer ufficiale di Apple (Strumenti da riga di comando). Completa la procedura, poi riapri OpenRepertoire.\"" >/dev/null 2>&1
+  osascript -e "display alert \"Python is missing\" message \"Starting the official Apple installer (Command Line Tools). Complete it, then reopen OpenRepertoire.\"" >/dev/null 2>&1
   xcode-select --install >/dev/null 2>&1
   exit 1
 fi
@@ -24,7 +24,7 @@ python3 -c "import flask, chess" 2>/dev/null || {
 
 # Se le dipendenze mancano ancora, avvisa invece di aprire una pagina morta
 python3 -c "import flask, chess" 2>/dev/null || {
-  osascript -e "display alert \"Dipendenze mancanti\" message \"Non sono riuscito a installare flask e chess. Apri il Terminale ed esegui: python3 -m pip install --user flask chess certifi\"" >/dev/null 2>&1
+  osascript -e "display alert \"Missing dependencies\" message \"Could not install flask and chess. Open Terminal and run: python3 -m pip install --user flask chess certifi\"" >/dev/null 2>&1
   exit 1
 }
 

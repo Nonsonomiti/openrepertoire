@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="{{ lang }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -9,10 +9,11 @@
     <link rel="apple-touch-icon" href="/static/img/icon-180.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="Repertorio">
+    <meta name="apple-mobile-web-app-title" content="OpenRepertoire">
 
     <link rel="stylesheet" href="/static/css/chessboard.min.css">   <!-- solo per l'editor di posizione (pezzi a lato) -->
     <link rel="stylesheet" href="/static/css/chessground.base.css">
+    <script src="/static/js/i18n.js"></script>
     <script src="/static/js/jquery.min.js"></script>
     <script src="/static/js/chessboard.min.js"></script>
     <script src="/static/js/chess.min.js"></script>
@@ -61,6 +62,7 @@
             </div>
         </div>
         {% endif %}
+        <button class="icon-btn lang-btn" onclick="setLang(I18N_LANG === 'it' ? 'en' : 'it')" title="Language / Lingua" aria-label="Language / Lingua">{{ 'EN' if lang == 'it' else 'IT' }}</button>
         <div class="theme-menu">
             <button class="icon-btn" id="theme-btn" onclick="toggleThemeMenu()" title="Tema" aria-label="Scegli il tema" aria-haspopup="menu" aria-expanded="false"><i class="ico i-theme"></i></button>
             <div id="theme-list" class="theme-list" role="menu" aria-label="Tema" hidden>
@@ -560,7 +562,7 @@
                     <div class="px-board-card"><div id="spar-board" class="px-board"></div></div>
                     <div class="board-actions">
                         <button class="lichess-btn" onclick="spFlip()">Gira</button>
-                        <button class="lichess-btn" onclick="spEnd('Partita interrotta.')">Termina</button>
+                        <button class="lichess-btn" onclick="spEnd(tr('Partita interrotta.'))">Termina</button>
                     </div>
                 </div>
                 <div class="px-right">
@@ -705,9 +707,9 @@
         return Math.min(rep < LEARN_STEPS.length ? LEARN_STEPS[rep] : Math.round(interval * ease), MAX_INTERVAL);
     }
     function intervalLabel(d) {
-        if (d < 1 / 24) { let m = Math.max(1, Math.round(d * 1440)); return m === 1 ? '1 minuto' : m + ' minuti'; }
-        if (d < 1) { let h = Math.max(1, Math.round(d * 24)); return h === 1 ? '1 ora' : h + ' ore'; }
-        return d === 1 ? '1 giorno' : Math.round(d) + ' giorni';
+        if (d < 1 / 24) { let m = Math.max(1, Math.round(d * 1440)); return m === 1 ? tr("1 minuto") : m + (' ' + tr("minuti")); }
+        if (d < 1) { let h = Math.max(1, Math.round(d * 24)); return h === 1 ? tr("1 ora") : h + (' ' + tr("ore")); }
+        return d === 1 ? tr("1 giorno") : Math.round(d) + (' ' + tr("giorni"));
     }
 
     // ===== NAVIGAZIONE A VISTE =====
@@ -773,16 +775,16 @@
             resetTrainBoard();
             $('#train-head').hide(); $('#train-chips').empty(); $('#read-controls').hide();
             $('#annotation-box').hide(); $('#move-progress').empty();
-            $('#title').text(mode === 'review' ? 'Ripasso' : 'Impara');
+            $('#title').text(mode === 'review' ? tr("Ripasso") : tr("Impara"));
             setStatus(txt, 'good');
         };
         if (mode === 'review') {
             let list = cachedLists.review || [];
-            if (!list.length) return none('Niente da ripassare oggi.');
+            if (!list.length) return none(tr("Niente da ripassare oggi."));
             startTraining(list[0].id, 'review');
         } else {
             let all = cachedLists.repertoire || [];
-            if (!all.length) return none('Nessuna variante: importa un corso dal Repertorio.');
+            if (!all.length) return none(tr("Nessuna variante: importa un corso dal Repertorio."));
             let firstNew = all.find(function(v) { return !isLearned(v); });
             startTraining((firstNew || all[0]).id, 'repertoire');
         }
@@ -796,11 +798,11 @@
             url: '/api/review_now', type: 'POST', contentType: 'application/json',
             data: JSON.stringify({ course: course, chapter: chapter || null }),
             success: function(r) {
-                showToast(r.count ? r.count + (r.count === 1 ? ' variante da ripassare adesso' : ' varianti da ripassare adesso')
-                                  : 'Nessuna variante da anticipare (o già tutte in scadenza).', r.count ? 'success' : null);
+                showToast(r.count ? r.count + (r.count === 1 ? (' ' + tr("variante da ripassare adesso")) : (' ' + tr("varianti da ripassare adesso")))
+                                  : tr("Nessuna variante da anticipare (o già tutte in scadenza)."), r.count ? 'success' : null);
                 loadDueVariations();
             },
-            error: function() { showToast('Errore: ripasso non anticipato.', 'error'); }
+            error: function() { showToast(tr("Errore: ripasso non anticipato."), 'error'); }
         });
     }
 
@@ -809,7 +811,7 @@
     function learnCourse(course, event) {
         if (event && event.stopPropagation) event.stopPropagation();
         let all = (cachedLists.repertoire || []).filter(function(v) { return (v.course || 'Varie') === course; });
-        if (!all.length) { showToast('Nessuna variante in questo corso.', 'error'); return; }
+        if (!all.length) { showToast(tr("Nessuna variante in questo corso."), 'error'); return; }
         sessionList = all;
         sessionCourse = course;
         sessionTitle = null;
@@ -824,7 +826,7 @@
     // avversario). Stesso allenamento della sessione-corso, con un titolo suo.
     function startCustomSession(ids, title) {
         let all = ids.map(function(id) { return globalVariantsMap[id]; }).filter(Boolean);
-        if (!all.length) { showToast('Nessuna variante da allenare.', 'error'); return; }
+        if (!all.length) { showToast(tr("Nessuna variante da allenare."), 'error'); return; }
         sessionList = all; sessionCourse = ''; sessionTitle = title; sessionKind = 'course';
         showArea('corsi'); lsSet('area', 'corsi'); lsSet('lastNav_corsi', 'ripassa');
         setNavActive('ripassa');
@@ -839,16 +841,16 @@
         $('#train-sidebar').show();
         if (force || _sidebarKind !== kind) {
             if (kind === 'review') {
-                $('#session-title').text('Da ripassare · ' + (cachedLists.review || []).length);
+                $('#session-title').text((tr("Da ripassare") + ' · ') + (cachedLists.review || []).length);
                 renderList(cachedLists.review || [], 'session-list', 'review');
             } else if (kind === 'course') {
-                $('#session-title').text((sessionTitle || 'Impara · ' + (sessionCourse || '')) + ' · ' + (sessionList || []).length);
+                $('#session-title').text((sessionTitle || (tr("Impara") + ' · ') + (sessionCourse || '')) + ' · ' + (sessionList || []).length);
                 renderList(sessionList || [], 'session-list', 'course');
             } else if (kind === 'read') {
-                $('#session-title').text('Repertorio · ✓ = imparata');
+                $('#session-title').text((tr("Repertorio") + ' · ✓ = ' + tr("imparata")));
                 renderList(cachedLists.repertoire || [], 'session-list', 'read');
             } else {
-                $('#session-title').text('Impara · ✓ = imparata');
+                $('#session-title').text((tr("Impara") + ' · ✓ = ' + tr("imparata")));
                 renderList(cachedLists.repertoire || [], 'session-list', 'repertoire');
             }
             _sidebarKind = kind;
@@ -858,16 +860,16 @@
     function updateTrainHead() {
         if (!currentVariation) { $('#train-head').hide(); $('#train-chips').empty(); return; }
         let v = currentVariation;
-        let side = v.perspective === 'white' ? 'col Bianco' : 'col Nero';
+        let side = v.perspective === 'white' ? tr("col Bianco") : tr("col Nero");
         let chap = (v.chapter && v.chapter !== 'Generale') ? ' · ' + v.chapter : '';
-        $('#th-course').text((v.course || 'Varie') + chap);
-        $('#th-sub').text('· giochi ' + side);
+        $('#th-course').text(dn(v.course || 'Varie') + chap);
+        $('#th-sub').text(('· ' + tr("giochi") + ' ') + side);
         $('#train-head').css('display', 'block');
         let st = v.stats || {};
         let chips = '';
         if (st.reviews) {
             let acc = Math.round(100 * (st.correct || 0) / st.reviews);
-            chips += '<span>Precisione ' + acc + '%</span><span>' + st.reviews + ' ripassi</span>';
+            chips += ('<span>' + tr("Precisione") + ' ') + acc + '%</span><span>' + st.reviews + (' ' + tr("ripassi") + '</span>');
         }
         $('#train-chips').html(chips);
     }
@@ -886,7 +888,7 @@
             $('#modal-overlay').remove();
             let isPrompt = opts.kind === 'prompt', isAlert = opts.kind === 'alert';
             let ov = $('<div id="modal-overlay"></div>');
-            let card = $('<div class="modal-card" role="dialog" aria-modal="true" aria-label="' + escHtml(opts.title || 'Dialogo') + '"></div>');
+            let card = $('<div class="modal-card" role="dialog" aria-modal="true" aria-label="' + escHtml(opts.title || tr("Dialogo")) + '"></div>');
             if (opts.title) card.append($('<div class="modal-title"></div>').text(opts.title));
             let body = $('<div class="modal-body"></div>');
             if (opts.message) body.append($('<div class="modal-msg"></div>').html(escHtml(opts.message).replace(/\n/g, '<br>')));
@@ -895,12 +897,12 @@
             let hint = null;
             if (opts.requireText) {
                 if (!input) { input = $('<input class="import-select modal-input" autocomplete="off">'); body.append(input); }
-                hint = $('<div class="modal-hint"></div>').text('Scrivi "' + opts.requireText + '" per confermare.'); body.append(hint);
+                hint = $('<div class="modal-hint"></div>').text((tr("Scrivi") + ' "') + opts.requireText + ('" ' + tr("per confermare."))); body.append(hint);
             }
             let actions = $('<div class="modal-actions"></div>');
-            let okBtn = $('<button class="btn"></button>').text(opts.okText || (isAlert ? 'OK' : 'Conferma'));
+            let okBtn = $('<button class="btn"></button>').text(opts.okText || (isAlert ? 'OK' : tr("Conferma")));
             if (opts.danger) okBtn.addClass('btn-danger');
-            let cancelBtn = isAlert ? null : $('<button class="btn btn-read"></button>').text(opts.cancelText || 'Annulla');
+            let cancelBtn = isAlert ? null : $('<button class="btn btn-read"></button>').text(opts.cancelText || tr("Annulla"));
             function close(val) { $(document).off('keydown.modal'); ov.remove(); resolve(val); }
             function doOk() {
                 if (opts.requireText && (input ? input.val() : '') !== opts.requireText) { hint && hint.removeClass('shake'); void hint[0].offsetWidth; hint && hint.addClass('shake'); return; }
@@ -918,7 +920,7 @@
             setTimeout(function() { (input || okBtn).focus(); if (input && input.select) input.select(); }, 30);
         });
     }
-    function uiConfirm(message, opts) { return uiModal(Object.assign({ kind: 'confirm', title: 'Conferma', message: message }, opts || {})); }
+    function uiConfirm(message, opts) { return uiModal(Object.assign({ kind: 'confirm', title: tr("Conferma"), message: message }, opts || {})); }
     function uiPrompt(message, defaultValue, opts) { return uiModal(Object.assign({ kind: 'prompt', message: message, defaultValue: defaultValue }, opts || {})); }
     function uiAlert(message, opts) { return uiModal(Object.assign({ kind: 'alert', message: message }, opts || {})); }
 
@@ -944,26 +946,34 @@
         let vi = list.findIndex(function(v) { return v.id === currentVariation.id; });
         let total = currentVariation.moves.length;
         let mv = Math.min(moveIndex, total);
-        let parts = ['Mossa <b>' + mv + '</b> / ' + total];
-        if (vi !== -1 && list.length) parts.push('Variante <b>' + (vi + 1) + '</b> / ' + list.length);
+        let parts = [(tr("Mossa") + ' <b>') + mv + '</b> / ' + total];
+        if (vi !== -1 && list.length) parts.push((tr("Variante") + ' <b>') + (vi + 1) + '</b> / ' + list.length);
         el.html(parts.join(' &nbsp;·&nbsp; '));
     }
 
     // ===== CORSO D'ESEMPIO (onboarding) =====
-    const SAMPLE_PGN = `[Event "Esempio — Apertura Italiana"]
+    const SAMPLE_PGN_IT = `[Event "Esempio — Apertura Italiana"]
 
 1. e4 e5 2. Nf3 Nc6 3. Bc4 { L'Italiana: l'alfiere mira al punto debole f7. } Bc5 4. c3 { Prepara d4 per costruire un centro di pedoni. } Nf6 5. d3 d6 6. O-O O-O 7. Re1 a6 *
 
 [Event "Esempio — Difesa Caro-Kann"]
 
 1. e4 c6 2. d4 d5 3. e5 { Variante di Avanzata: il Bianco chiude il centro. } Bf5 { Regola d'oro: sviluppa l'alfiere campochiaro PRIMA di e6. } 4. Nf3 e6 5. Be2 c5 *`;
+    const SAMPLE_PGN_EN = `[Event "Example: Italian Game"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bc4 { The Italian: the bishop aims at the weak f7 point. } Bc5 4. c3 { Prepares d4 to build a pawn centre. } Nf6 5. d3 d6 6. O-O O-O 7. Re1 a6 *
+
+[Event "Example: Caro-Kann Defence"]
+
+1. e4 c6 2. d4 d5 3. e5 { Advance Variation: White closes the centre. } Bf5 { Golden rule: develop the light-squared bishop BEFORE e6. } 4. Nf3 e6 5. Be2 c5 *`;
+    const SAMPLE_PGN = I18N_LANG === 'it' ? SAMPLE_PGN_IT : SAMPLE_PGN_EN;
     function loadSampleCourse(btn) {
-        if (btn) { btn.disabled = true; btn.textContent = 'Carico...'; }
+        if (btn) { btn.disabled = true; btn.textContent = tr("Carico..."); }
         $.ajax({
             url: '/api/import', type: 'POST', contentType: 'application/json',
-            data: JSON.stringify({ pgn: SAMPLE_PGN, course: "Esempio", perspective: 'white' }),
-            success: function(res) { showToast("Corso d'esempio caricato: " + res.imported + " varianti", 'success'); loadDueVariations(); },
-            complete: function() { if (btn) { btn.disabled = false; btn.textContent = "Carica un corso d'esempio"; } }
+            data: JSON.stringify({ pgn: SAMPLE_PGN, course: tr("Esempio"), perspective: 'white' }),
+            success: function(res) { showToast((tr("Corso d'esempio caricato") + ": ") + res.imported + (" " + tr("varianti")), 'success'); loadDueVariations(); },
+            complete: function() { if (btn) { btn.disabled = false; btn.textContent = tr("Carica un corso d'esempio"); } }
         });
     }
 
@@ -1009,7 +1019,7 @@
 
     // Etichette/colori dell'autovalutazione (Opzione A: incentrata sul ricordo)
     function qualityLabel(q) {
-        return {1:'Dimenticata', 2:'Dimenticata', 3:'A fatica', 4:'Ricordata', 5:'Facile'}[q] || '—';
+        return {1:tr("Dimenticata"), 2:tr("Dimenticata"), 3:tr("A fatica"), 4:tr("Ricordata"), 5:tr("Facile")}[q] || '—';
     }
     function qualityColor(q) {
         return {1:'var(--q-again)', 2:'var(--q-again)', 3:'var(--q-hard)', 4:'var(--q-good)', 5:'var(--q-easy)'}[q] || 'var(--text-faint)';
@@ -1068,7 +1078,7 @@
     }
 
     // Velocita' animazione mossa (0 = istantanea): chessground la cambia al volo
-    function animSpeedLabel(v) { return (parseInt(v) === 0 ? 'istantanea' : v + ' ms'); }
+    function animSpeedLabel(v) { return (parseInt(v) === 0 ? tr("istantanea") : v + ' ms'); }
     function changeAnimSpeed() {
         animSpeed = parseInt($('#anim-speed-slider').val());
         localStorage.setItem('animSpeed', animSpeed);
@@ -1253,13 +1263,13 @@
 
     // Stato ripasso di una variante: nuova / da ripassare / programmata
     function srsState(v) {
-        if (!isLearned(v)) return { cls: 'srs-new', lab: 'da imparare' };
-        if (v.srs && v.srs.next_review && new Date(v.srs.next_review).getTime() <= Date.now()) return { cls: 'srs-due', lab: 'da ripassare' };
-        return { cls: 'srs-ok', lab: 'programmata' };
+        if (!isLearned(v)) return { cls: 'srs-new', lab: tr("da imparare") };
+        if (v.srs && v.srs.next_review && new Date(v.srs.next_review).getTime() <= Date.now()) return { cls: 'srs-due', lab: tr("da ripassare") };
+        return { cls: 'srs-ok', lab: tr("programmata") };
     }
     function countMeta(vs) {   // "42 · 3 da ripassare" sulle intestazioni di corso e capitolo
         let due = vs.filter(function(v) { return srsState(v).cls === 'srs-due'; }).length;
-        return vs.length + (due ? ' · ' + due + ' da ripassare' : '');
+        return vs.length + (due ? ' · ' + due + (' ' + tr("da ripassare")) : '');
     }
 
     // L'HTML si costruisce come stringa e si inserisce una volta sola: con migliaia di varianti gli
@@ -1267,7 +1277,7 @@
     function renderList(dataArray, listId, mode) {
         let list = document.getElementById(listId);
         if (!list) return;
-        if (dataArray.length === 0) { list.innerHTML = '<p class="empty-msg">Nessuna variante presente.</p>'; return; }
+        if (dataArray.length === 0) { list.innerHTML = ('<p class="empty-msg">' + tr("Nessuna variante presente.") + '</p>'); return; }
 
         let isRep = (listId === 'repertoire-list'), isSession = (listId === 'session-list');
 
@@ -1284,7 +1294,7 @@
 
         // Lato giocato: sul corso se tutte le sue varianti hanno lo stesso colore (il caso normale),
         // altrimenti su ogni riga.
-        let sideName = p => (p === 'black' ? 'Nero' : 'Bianco');
+        let sideName = p => (p === 'black' ? tr("Nero") : tr("Bianco"));
         let meta = t => t ? '<span class="row-meta">' + t + '</span>' : '';
         let out = [];
         for (let course in grouped) {
@@ -1296,12 +1306,12 @@
             let cExpanded = expandedCourses[safeCourse];
             if (cExpanded === undefined) cExpanded = !isRep;
 
-            let learnBtn = isRep ? `<button class="btn-delete" onclick="learnCourse('${esc(course)}', event)" title="Impara questo corso" aria-label="Impara il corso ${escHtml(course)}"><i class="ico i-play"></i></button>` : '';
-            let cRenameBtn = isRep ? `<button class="btn-delete" onclick="renameCourse('${esc(course)}', event)" title="Rinomina corso" aria-label="Rinomina il corso ${escHtml(course)}"><i class="ico i-edit"></i></button>` : '';
-            let delBtn = isRep ? `<button class="btn-delete" onclick="deleteCourse('${esc(course)}', event)" title="Elimina corso" aria-label="Elimina il corso ${escHtml(course)}"><i class="ico i-trash"></i></button>` : '';
-            let cNowBtn = isRep ? `<button class="btn-delete" onclick="reviewNow('${esc(course)}', null, event)" title="Rendi ripassabili adesso tutte le varianti del corso" aria-label="Rendi ripassabile adesso il corso ${escHtml(course)}"><i class="ico i-clock"></i></button>` : '';
+            let learnBtn = isRep ? `<button class="btn-delete" onclick="learnCourse('${esc(course)}', event)" title="${tr("Impara questo corso")}" aria-label="${tr("Impara il corso")} ${escHtml(course)}"><i class="ico i-play"></i></button>` : '';
+            let cRenameBtn = isRep ? `<button class="btn-delete" onclick="renameCourse('${esc(course)}', event)" title="${tr("Rinomina corso")}" aria-label="${tr("Rinomina il corso")} ${escHtml(course)}"><i class="ico i-edit"></i></button>` : '';
+            let delBtn = isRep ? `<button class="btn-delete" onclick="deleteCourse('${esc(course)}', event)" title="${tr("Elimina corso")}" aria-label="${tr("Elimina il corso")} ${escHtml(course)}"><i class="ico i-trash"></i></button>` : '';
+            let cNowBtn = isRep ? `<button class="btn-delete" onclick="reviewNow('${esc(course)}', null, event)" title="${tr("Rendi ripassabili adesso tutte le varianti del corso")}" aria-label="${tr("Rendi ripassabile adesso il corso")} ${escHtml(course)}"><i class="ico i-clock"></i></button>` : '';
             let cMeta = [courseSide ? sideName(courseSide) : '', isRep ? countMeta(all) : ''].filter(Boolean).join(' · ');
-            out.push(`<div class="course-header" role="button" tabindex="0" onclick="toggleCourse('${safeCourse}')"><span>${escHtml(course)}${meta(cMeta)}</span><span>${learnBtn}${cNowBtn}${cRenameBtn}${delBtn}▼</span></div>`);
+            out.push(`<div class="course-header" role="button" tabindex="0" onclick="toggleCourse('${safeCourse}')"><span>${escHtml(dn(course))}${meta(cMeta)}</span><span>${learnBtn}${cNowBtn}${cRenameBtn}${delBtn}▼</span></div>`);
             out.push(`<div id="${safeCourse}" class="course-content" style="display: ${cExpanded ? 'block' : 'none'};">`);
 
             let showChapters = isRep || chapterKeys.length > 1;
@@ -1311,30 +1321,30 @@
                     let chExpanded = expandedCourses[safeChap];
                     // Capitoli chiusi di default; aperto solo quello della variante attiva
                     if (chExpanded === undefined) chExpanded = !!(currentVariation && (currentVariation.course || 'Varie') === course && (currentVariation.chapter || 'Generale') === chap);
-                    let addBtn = isRep ? `<button class="btn-delete" onclick="newVariationIn('${esc(course)}', '${esc(chap)}', event)" title="Aggiungi una variante a questo capitolo" aria-label="Aggiungi una variante al capitolo ${escHtml(chap)}"><i class="ico i-plus"></i></button>` : '';
-                    let editBtn = isRep ? `<button class="btn-delete" onclick="renameChapter('${esc(course)}', '${esc(chap)}', event)" title="Rinomina capitolo" aria-label="Rinomina il capitolo ${escHtml(chap)}"><i class="ico i-edit"></i></button>` : '';
-                    let mergeBtn = isRep ? `<button class="btn-delete" onclick="mergeChapter('${esc(course)}', '${esc(chap)}', event)" title="Unisci a un altro capitolo" aria-label="Unisci il capitolo ${escHtml(chap)}"><i class="ico i-link"></i></button>` : '';
-                    let nowBtn = isRep ? `<button class="btn-delete" onclick="reviewNow('${esc(course)}', '${esc(chap)}', event)" title="Rendi ripassabili adesso le varianti del capitolo" aria-label="Rendi ripassabile adesso il capitolo ${escHtml(chap)}"><i class="ico i-clock"></i></button>` : '';
-                    out.push(`<div class="chapter-header" role="button" tabindex="0" onclick="toggleCourse('${safeChap}')"><span>${escHtml(chap)}${isRep ? meta(countMeta(chapters[chap])) : ''}</span><span>${addBtn}${nowBtn}${editBtn}${mergeBtn}▾</span></div>`);
+                    let addBtn = isRep ? `<button class="btn-delete" onclick="newVariationIn('${esc(course)}', '${esc(chap)}', event)" title="${tr("Aggiungi una variante a questo capitolo")}" aria-label="${tr("Aggiungi una variante al capitolo")} ${escHtml(chap)}"><i class="ico i-plus"></i></button>` : '';
+                    let editBtn = isRep ? `<button class="btn-delete" onclick="renameChapter('${esc(course)}', '${esc(chap)}', event)" title="${tr("Rinomina capitolo")}" aria-label="${tr("Rinomina il capitolo")} ${escHtml(chap)}"><i class="ico i-edit"></i></button>` : '';
+                    let mergeBtn = isRep ? `<button class="btn-delete" onclick="mergeChapter('${esc(course)}', '${esc(chap)}', event)" title="${tr("Unisci a un altro capitolo")}" aria-label="${tr("Unisci il capitolo")} ${escHtml(chap)}"><i class="ico i-link"></i></button>` : '';
+                    let nowBtn = isRep ? `<button class="btn-delete" onclick="reviewNow('${esc(course)}', '${esc(chap)}', event)" title="${tr("Rendi ripassabili adesso le varianti del capitolo")}" aria-label="${tr("Rendi ripassabile adesso il capitolo")} ${escHtml(chap)}"><i class="ico i-clock"></i></button>` : '';
+                    out.push(`<div class="chapter-header" role="button" tabindex="0" onclick="toggleCourse('${safeChap}')"><span>${escHtml(dn(chap))}${isRep ? meta(countMeta(chapters[chap])) : ''}</span><span>${addBtn}${nowBtn}${editBtn}${mergeBtn}▾</span></div>`);
                     out.push(`<div id="${safeChap}" class="chapter-content" style="display: ${chExpanded ? 'block' : 'none'};">`);
                 }
 
                 chapters[chap].forEach(v => {
                     let onClickAction = mode === 'read' ? `startReadMode('${v.id}', 'repertoire')` : `startTraining('${v.id}', '${mode}')`;
-                    let editLineBtn = isRep ? `<button class="btn-delete" onclick="event.stopPropagation(); openEditor('${v.id}')" title="Modifica mosse" aria-label="Modifica le mosse della variante"><i class="ico i-edit"></i></button>` : '';
-                    let forkBtn = isRep ? `<button class="btn-delete" onclick="event.stopPropagation(); openEditor('${v.id}', {fork:true})" title="Duplica in una nuova variante (fork)" aria-label="Duplica la variante"><i class="ico i-copy"></i></button>` : '';
-                    let expBtn = isRep ? `<button class="btn-delete" onclick="event.stopPropagation(); exportPGN({ids:'${v.id}'})" title="Esporta questa variante (PGN)" aria-label="Esporta la variante in PGN"><i class="ico i-download"></i></button>` : '';
-                    let courseBtn = isRep ? `<button class="btn-delete" onclick="editVarCourse('${v.id}', event)" title="Sposta in corso" aria-label="Sposta la variante in un altro corso"><i class="ico i-book"></i></button>` : '';
-                    let moveBtn = isRep ? `<button class="btn-delete" onclick="editVarChapter('${v.id}', event)" title="Sposta in capitolo" aria-label="Sposta la variante in un altro capitolo"><i class="ico i-folder"></i></button>` : '';
-                    let vDelBtn = isSession ? '' : `<button class="btn-delete" onclick="deleteVariation('${v.id}', event)" title="Elimina variante" aria-label="Elimina la variante"><i class="ico i-x"></i></button>`;
+                    let editLineBtn = isRep ? `<button class="btn-delete" onclick="event.stopPropagation(); openEditor('${v.id}')" title="${tr("Modifica mosse")}" aria-label="${tr("Modifica le mosse della variante")}"><i class="ico i-edit"></i></button>` : '';
+                    let forkBtn = isRep ? `<button class="btn-delete" onclick="event.stopPropagation(); openEditor('${v.id}', {fork:true})" title="${tr("Duplica in una nuova variante (fork)")}" aria-label="${tr("Duplica la variante")}"><i class="ico i-copy"></i></button>` : '';
+                    let expBtn = isRep ? `<button class="btn-delete" onclick="event.stopPropagation(); exportPGN({ids:'${v.id}'})" title="${tr("Esporta questa variante (PGN)")}" aria-label="${tr("Esporta la variante in PGN")}"><i class="ico i-download"></i></button>` : '';
+                    let courseBtn = isRep ? `<button class="btn-delete" onclick="editVarCourse('${v.id}', event)" title="${tr("Sposta in corso")}" aria-label="${tr("Sposta la variante in un altro corso")}"><i class="ico i-book"></i></button>` : '';
+                    let moveBtn = isRep ? `<button class="btn-delete" onclick="editVarChapter('${v.id}', event)" title="${tr("Sposta in capitolo")}" aria-label="${tr("Sposta la variante in un altro capitolo")}"><i class="ico i-folder"></i></button>` : '';
+                    let vDelBtn = isSession ? '' : `<button class="btn-delete" onclick="deleteVariation('${v.id}', event)" title="${tr("Elimina variante")}" aria-label="${tr("Elimina la variante")}"><i class="ico i-x"></i></button>`;
                     let learned = isLearned(v);
                     let flair = (isSession && mode !== 'review') ? `<span class="flair ${learned ? 'done' : 'todo'}">${learned ? '✓' : '•'}</span>` : '';
                     // Pallino stato SRS (solo lista repertorio): nuova / da ripassare / programmata
                     let st = isRep ? srsState(v) : null;
-                    let srsDot = st ? `<span class="srs-dot ${st.cls}" title="${st.lab}" aria-label="Stato ripasso: ${st.lab}"></span>` : '';
+                    let srsDot = st ? `<span class="srs-dot ${st.cls}" title="${st.lab}" aria-label="${tr("Stato ripasso")}: ${st.lab}"></span>` : '';
                     // Spunta di selezione: serve a esportare piu' varianti scelte a mano in un
                     // unico PGN, con le stesse opzioni di compressione del pannello.
-                    let selBox = isRep ? `<input type="checkbox" class="var-sel" onclick="event.stopPropagation(); toggleVarSel('${v.id}', this.checked)"${selectedIds.has(v.id) ? ' checked' : ''} title="Seleziona per l'esportazione" aria-label="Seleziona la variante per l'esportazione">` : '';
+                    let selBox = isRep ? `<input type="checkbox" class="var-sel" onclick="event.stopPropagation(); toggleVarSel('${v.id}', this.checked)"${selectedIds.has(v.id) ? ' checked' : ''} title="${tr("Seleziona per l'esportazione")}" aria-label="${tr("Seleziona la variante per l'esportazione")}">` : '';
                     out.push(`<div class="var-container" data-var-id="${v.id}">${selBox}${flair}${srsDot}<div class="var-item" ${isRep ? 'role="button" tabindex="0"' : ''} onclick="${onClickAction}">${v.displayTitle}${courseSide ? '' : meta(sideName(v.perspective))}</div>${editLineBtn}${forkBtn}${expBtn}${courseBtn}${moveBtn}${vDelBtn}</div>`);
                 });
 
@@ -1348,11 +1358,11 @@
 
     function populateSearchCourses(repertoire) {
         let courses = [...new Set(repertoire.map(v => v.course || 'Varie'))].sort();
-        let opts = courses.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');   // escaping (nomi da PGN/utente)
+        let opts = courses.map(c => `<option value="${escHtml(c)}">${escHtml(dn(c))}</option>`).join('');   // escaping (nomi da PGN/utente)
         let sel = $('#search-course'), cur = sel.val();
-        sel.html('<option value="">Tutti i corsi</option>' + opts); sel.val(cur);
+        sel.html(('<option value="">' + tr("Tutti i corsi") + '</option>') + opts); sel.val(cur);
         let ex = $('#export-course'), curE = ex.val();
-        ex.html('<option value="">Tutto il repertorio</option>' + opts); ex.val(curE);
+        ex.html(('<option value="">' + tr("Tutto il repertorio") + '</option>') + opts); ex.val(curE);
         populateExportChapters();
     }
 
@@ -1368,7 +1378,7 @@
         renderList(list, 'repertoire-list', 'read');
         let meta = $('#rep-filter-meta');
         if (q) {
-            meta.text(list.length + ' di ' + all.length + ' varianti').show();
+            meta.text(list.length + (' ' + tr("di") + ' ') + all.length + (' ' + tr("varianti"))).show();
             $('#repertoire-wrapper').show();
             $('#repertoire-list .course-content, #repertoire-list .chapter-content').show();   // filtro: espandi i match
         } else { meta.hide(); }
@@ -1381,13 +1391,13 @@
         let chs = [...new Set(rep.filter(function(v) { return !c || (v.course || 'Varie') === c; })
                                  .map(function(v) { return v.chapter || 'Generale'; }))].sort();
         let sel = $('#export-chapter'), cur = sel.val();
-        sel.html('<option value="">Tutti i capitoli</option>' + chs.map(function(x) { return '<option value="' + escHtml(x) + '">' + escHtml(x) + '</option>'; }).join(''));
+        sel.html(('<option value="">' + tr("Tutti i capitoli") + '</option>') + chs.map(function(x) { return '<option value="' + escHtml(x) + '">' + escHtml(dn(x)) + '</option>'; }).join(''));
         if (chs.indexOf(cur) >= 0) sel.val(cur); else sel.val('');
         // Lista a spunta per la fusione: si escludono i capitoli non teorici (partite d'esempio,
         // introduzioni) senza doverli esportare a parte.
         $('#export-chapters-list').html(chs.length
-            ? chs.map(function(x) { return '<label class="exp-ch"><input type="checkbox" class="exp-ch-cb" value="' + escHtml(x) + '" checked> ' + escHtml(x) + '</label>'; }).join('')
-            : '<span class="empty-msg">Nessun capitolo.</span>');
+            ? chs.map(function(x) { return '<label class="exp-ch"><input type="checkbox" class="exp-ch-cb" value="' + escHtml(x) + '" checked> ' + escHtml(dn(x)) + '</label>'; }).join('')
+            : ('<span class="empty-msg">' + tr("Nessun capitolo.") + '</span>'));
     }
     // La lista a spunta serve solo quando si fondono i capitoli; in quel caso il select singolo
     // e' ridondante.
@@ -1441,7 +1451,7 @@
                 // Fusione capitoli: si esporta solo quello che hai spuntato (piu' capitoli ->
                 // parametro chapter ripetuto, cosi' le virgole nei nomi non rompono nulla).
                 let cbs = $('.exp-ch-cb'), picked = cbs.filter(':checked').map(function() { return this.value; }).get();
-                if (!picked.length) { showToast('Seleziona almeno un capitolo da includere.', 'error'); return; }
+                if (!picked.length) { showToast(tr("Seleziona almeno un capitolo da includere."), 'error'); return; }
                 if (picked.length < cbs.length) picked.forEach(function(x) { params.push('chapter=' + encodeURIComponent(x)); });
             } else {
                 let ch = $('#export-chapter').val() || '';
@@ -1457,8 +1467,8 @@
         let a = document.createElement('a');
         a.href = url; a.download = '';
         document.body.appendChild(a); a.click(); a.remove();
-        let quante = opts.ids ? (opts.ids.split(',').length + (opts.ids.indexOf(',') < 0 ? ' variante' : ' varianti') + ' · ') : '';
-        showToast(quante + (one ? 'PGN in 1 capitolo…' : (merge ? 'PGN ad albero…' : (strip ? 'PGN solo mosse…' : 'Esportazione PGN avviata…'))), 'success');
+        let quante = opts.ids ? (opts.ids.split(',').length + (opts.ids.indexOf(',') < 0 ? (' ' + tr("variante")) : (' ' + tr("varianti"))) + ' · ') : '';
+        showToast(quante + (one ? (tr("PGN in 1 capitolo") + '…') : (merge ? (tr("PGN ad albero") + '…') : (strip ? (tr("PGN solo mosse") + '…') : (tr("Esportazione PGN avviata") + '…')))), 'success');
     }
 
     function loadDueVariations() {
@@ -1490,7 +1500,7 @@
         });
     }
     // Badge "N oggi" (ripassi dovuti) sulla barra nav
-    function updateDueBadge() { let due = (cachedLists.review || []).length; $('#due-badge').html(due + '<span class="due-lab"> oggi</span>').attr('title', due + ' da ripassare oggi').toggleClass('zero', due === 0); }
+    function updateDueBadge() { let due = (cachedLists.review || []).length; $('#due-badge').html(due + ('<span class="due-lab"> ' + tr("oggi") + '</span>')).attr('title', due + (' ' + tr("da ripassare oggi"))).toggleClass('zero', due === 0); }
 
     // Dopo un ripasso si aggiorna la sola variante (il server rimanda srs e statistiche): prima si
     // riscaricava l'intero repertorio a ogni variante finita.
@@ -1505,14 +1515,14 @@
         $(row + ' .flair').attr('class', 'flair done').text('✓');
         if (sessionKind === 'review' && !due) {
             $(row).remove();
-            $('#session-title').text('Da ripassare · ' + cachedLists.review.length);
+            $('#session-title').text((tr("Da ripassare") + ' · ') + cachedLists.review.length);
         }
     }
 
     // --- GESTIONE CAPITOLI ---
     function renameChapter(course, chap, event) {
         event.stopPropagation();
-        uiPrompt(`Rinomina capitolo "${chap}":`, chap, { title: 'Rinomina capitolo' }).then(function(nuovo) {
+        uiPrompt(`${tr("Rinomina capitolo")} "${chap}":`, chap, { title: tr("Rinomina capitolo") }).then(function(nuovo) {
             if (nuovo == null) return; nuovo = nuovo.trim();
             if (!nuovo || nuovo === chap) return;
             $.ajax({
@@ -1527,7 +1537,7 @@
         event.stopPropagation();
         let v = globalVariantsMap[id];
         let cur = v ? (v.chapter || 'Generale') : 'Generale';
-        uiPrompt('Sposta la variante nel capitolo:', cur, { title: 'Sposta in capitolo' }).then(function(nuovo) {
+        uiPrompt((tr("Sposta la variante nel capitolo") + ':'), cur, { title: tr("Sposta in capitolo") }).then(function(nuovo) {
             if (nuovo == null) return; nuovo = nuovo.trim();
             if (!nuovo || nuovo === cur) return;
             $.ajax({
@@ -1542,7 +1552,7 @@
         event.stopPropagation();
         let v = globalVariantsMap[id];
         let cur = v ? (v.course || 'Varie') : 'Varie';
-        uiPrompt('Sposta la variante nel corso:', cur, { title: 'Sposta in corso' }).then(function(nuovo) {
+        uiPrompt((tr("Sposta la variante nel corso") + ':'), cur, { title: tr("Sposta in corso") }).then(function(nuovo) {
             if (nuovo == null) return; nuovo = nuovo.trim();
             if (!nuovo || nuovo === cur) return;
             $.ajax({
@@ -1555,7 +1565,7 @@
 
     function renameCourse(course, event) {
         event.stopPropagation();
-        uiPrompt(`Rinomina corso "${course}":`, course, { title: 'Rinomina corso' }).then(function(nuovo) {
+        uiPrompt(`${tr("Rinomina corso")} "${course}":`, course, { title: tr("Rinomina corso") }).then(function(nuovo) {
             if (nuovo == null) return; nuovo = nuovo.trim();
             if (!nuovo || nuovo === course) return;
             $.ajax({
@@ -1568,7 +1578,7 @@
 
     function mergeChapter(course, chap, event) {
         event.stopPropagation();
-        uiPrompt(`Unisci il capitolo "${chap}" in quale altro capitolo?\nLe sue varianti verranno spostate là.`, '', { title: 'Unisci capitolo' }).then(function(dst) {
+        uiPrompt(`${tr("Unisci il capitolo")} "${chap}" ${tr("in quale altro capitolo?")}\n${tr("Le sue varianti verranno spostate là.")}`, '', { title: tr("Unisci capitolo") }).then(function(dst) {
             if (dst == null) return; dst = dst.trim();
             if (!dst || dst === chap) return;
             $.ajax({
@@ -1589,11 +1599,11 @@
 
     function renderStats(s) {
         let kpis = [
-            ['Totale varianti', s.total], ['Da imparare', s.learn], ['Da ripassare oggi', s.due_today],
-            ['Ripassi totali', s.reviews_total], ['Precisione', s.accuracy + '%'], ['Errori totali', s.lapses_total]
+            [tr("Totale varianti"), s.total], [tr("Da imparare"), s.learn], [tr("Da ripassare oggi"), s.due_today],
+            [tr("Ripassi totali"), s.reviews_total], [tr("Precisione"), s.accuracy + '%'], [tr("Errori totali"), s.lapses_total]
         ];
         // Serie: giorni consecutivi con almeno un ripasso (corsi o finali)
-        let streakHtml = s.streak ? `<div class="stats-streak"><b>${s.streak}</b> ${s.streak === 1 ? 'giorno' : 'giorni di fila'} di studio${s.studied_today ? '' : ' · ripassa qualcosa oggi per non interrompere la serie'}</div>` : '';
+        let streakHtml = s.streak ? `<div class="stats-streak"><b>${s.streak}</b> ${s.streak === 1 ? tr("giorno") : tr("giorni di fila")} ${tr("di studio")}${s.studied_today ? '' : (' · ' + tr("ripassa qualcosa oggi per non interrompere la serie"))}</div>` : '';
         let kpiHtml = kpis.map(k => `<div class="kpi"><div class="kpi-val">${k[1]}</div><div class="kpi-lab">${k[0]}</div></div>`).join('');
 
         let today = new Date(); today.setHours(0, 0, 0, 0);
@@ -1607,14 +1617,14 @@
         }
         let barsHtml = days.map(o => {
             let h = o.cnt ? Math.round(6 + 96 * o.cnt / max) : 2;
-            let lab = o.i === 0 ? 'Oggi' : (o.d.getDate() + '/' + (o.d.getMonth() + 1));
-            let tip = `${o.d.toLocaleDateString('it-IT', {weekday:'long', day:'numeric', month:'long'})}: ${o.cnt} ripass${o.cnt === 1 ? 'o' : 'i'}`;
+            let lab = o.i === 0 ? tr("Oggi") : (o.d.getDate() + '/' + (o.d.getMonth() + 1));
+            let tip = `${o.d.toLocaleDateString(I18N_LOCALE, {weekday:'long', day:'numeric', month:'long'})}: ${o.cnt} ${o.cnt === 1 ? tr("ripasso") : tr("ripassi")}`;
             return `<div class="bar-col" role="img" tabindex="0" aria-label="${tip}" title="${tip}"><div class="bar-val">${o.cnt || ''}</div><div class="bar" style="height:${h}px"></div><div class="bar-lab">${lab}</div></div>`;
         }).join('');
 
         let hardestHtml = s.hardest.length
-            ? s.hardest.map(h => `<div class="hard-row"><span>${escHtml(h.title)}</span><span style="color:var(--accent-red); white-space:nowrap;">${h.lapses} err / ${h.reviews}</span></div>`).join('')
-            : '<div class="empty-msg">Nessun errore registrato.</div>';
+            ? s.hardest.map(h => `<div class="hard-row"><span>${escHtml(h.title)}</span><span style="color:var(--accent-red); white-space:nowrap;">${h.lapses} ${tr("err")} / ${h.reviews}</span></div>`).join('')
+            : ('<div class="empty-msg">' + tr("Nessun errore registrato.") + '</div>');
 
         // Tasso di richiamo (retention) — ultimi 14 giorni
         let ret = s.retention || { overall: 0, series: [] };
@@ -1624,36 +1634,36 @@
             let dd = new Date(o.date + 'T00:00:00');
             let lab = dd.getDate() + '/' + (dd.getMonth() + 1);
             let tip = o.reviews
-                ? `${dd.toLocaleDateString('it-IT', {weekday:'long', day:'numeric', month:'long'})}: ${o.rate}% (${o.recalled}/${o.reviews})`
-                : `${dd.toLocaleDateString('it-IT', {day:'numeric', month:'long'})}: nessun ripasso`;
+                ? `${dd.toLocaleDateString(I18N_LOCALE, {weekday:'long', day:'numeric', month:'long'})}: ${o.rate}% (${o.recalled}/${o.reviews})`
+                : `${dd.toLocaleDateString(I18N_LOCALE, {day:'numeric', month:'long'})}: ${tr("nessun ripasso")}`;
             return `<div class="bar-col" role="img" tabindex="0" aria-label="${tip}" title="${tip}"><div class="bar-val">${o.rate == null ? '' : o.rate}</div><div class="rbar ${cls}" style="height:${h}px"></div><div class="bar-lab">${lab}</div></div>`;
         }).join('');
 
         // Accuratezza per corso
         let courseRows = (s.by_course || []).map(c => {
             let ac = accClass(c.accuracy, c.reviews);
-            return `<div class="stat-row"><span class="s-name">${escHtml(c.course)}</span><span class="s-meta">${c.total} var · ${c.due} oggi · ${c.learn} nuove</span><span class="s-acc ${ac}">${c.reviews ? c.accuracy + '%' : '—'}</span></div>`;
+            return `<div class="stat-row"><span class="s-name">${escHtml(dn(c.course))}</span><span class="s-meta">${c.total} ${tr("var")} · ${c.due} ${tr("oggi")} · ${c.learn} ${tr("nuove")}</span><span class="s-acc ${ac}">${c.reviews ? c.accuracy + '%' : '—'}</span></div>`;
         }).join('') || '<div class="empty-msg">—</div>';
 
         // Accuratezza per colore
-        let colorLabel = { white: 'Bianco', black: 'Nero' };
+        let colorLabel = { white: tr("Bianco"), black: tr("Nero") };
         let colorRows = (s.by_color || []).map(c => {
             let ac = accClass(c.accuracy, c.reviews);
-            return `<div class="stat-row"><span class="s-name">${colorLabel[c.color] || c.color}</span><span class="s-meta">${c.total} var · ${c.lapses} err</span><span class="s-acc ${ac}">${c.reviews ? c.accuracy + '%' : '—'}</span></div>`;
+            return `<div class="stat-row"><span class="s-name">${colorLabel[c.color] || c.color}</span><span class="s-meta">${c.total} ${tr("var")} · ${c.lapses} ${tr("err")}</span><span class="s-acc ${ac}">${c.reviews ? c.accuracy + '%' : '—'}</span></div>`;
         }).join('') || '<div class="empty-msg">—</div>';
 
         $('#stats-body').html(`
             ${streakHtml}
             <div class="kpi-grid">${kpiHtml}</div>
-            <h3 class="stats-h">Tasso di richiamo · ultimi 14 giorni (${ret.overall}%)</h3>
-            <div class="bar-chart retention" role="group" aria-label="Tasso di richiamo, ultimi 14 giorni">${retBars}</div>
-            <h3 class="stats-h">Accuratezza per corso</h3>
+            <h3 class="stats-h">${tr("Tasso di richiamo")} · ${tr("ultimi 14 giorni")} (${ret.overall}%)</h3>
+            <div class="bar-chart retention" role="group" aria-label="${tr("Tasso di richiamo, ultimi 14 giorni")}">${retBars}</div>
+            <h3 class="stats-h">${tr("Accuratezza per corso")}</h3>
             <div class="stat-list">${courseRows}</div>
-            <h3 class="stats-h">Accuratezza per colore</h3>
+            <h3 class="stats-h">${tr("Accuratezza per colore")}</h3>
             <div class="stat-list">${colorRows}</div>
-            <h3 class="stats-h">Ripassi in arrivo (14 giorni)</h3>
-            <div class="bar-chart" role="group" aria-label="Ripassi in arrivo, prossimi 14 giorni">${barsHtml}</div>
-            <h3 class="stats-h">Varianti più difficili</h3>
+            <h3 class="stats-h">${tr("Ripassi in arrivo (14 giorni)")}</h3>
+            <div class="bar-chart" role="group" aria-label="${tr("Ripassi in arrivo, prossimi 14 giorni")}">${barsHtml}</div>
+            <h3 class="stats-h">${tr("Varianti più difficili")}</h3>
             <div class="hard-list">${hardestHtml}</div>
         `);
     }
@@ -1674,7 +1684,7 @@
             .filter(function(v) { return (v.perspective || 'white') === explorePerspective; })
             .map(function(v) { return v.course || 'Varie'; }))).sort();
         let sel = $('#explore-course'), cur = sel.val();
-        sel.html('<option value="">Tutti i corsi</option>' + courses.map(function(c) { return '<option value="' + escHtml(c) + '">' + escHtml(c) + '</option>'; }).join(''));
+        sel.html(('<option value="">' + tr("Tutti i corsi") + '</option>') + courses.map(function(c) { return '<option value="' + escHtml(c) + '">' + escHtml(dn(c)) + '</option>'; }).join(''));
         if (courses.indexOf(cur) >= 0) sel.val(cur); else { sel.val(''); exploreCourse = ''; }
         $('#explore-persp').val(explorePerspective);
     }
@@ -1762,11 +1772,11 @@
             let mv = playUci(g, u);
             if (mv) sans.push(mv.san);
         }
-        let bc = sans.length ? sans.map((s, i) => (i % 2 === 0 ? (Math.floor(i/2)+1) + '. ' : '') + s).join(' ') : 'Posizione iniziale';
+        let bc = sans.length ? sans.map((s, i) => (i % 2 === 0 ? (Math.floor(i/2)+1) + '. ' : '') + s).join(' ') : tr("Posizione iniziale");
         $('#explore-breadcrumb').text(bc);
         noteShow(d);
-        $('#explore-meta').html(`Tratto: <b>${d.turn === 'w' ? 'Bianco' : 'Nero'}</b> · raggiunta da <b>${d.reached_by}</b> variant${d.reached_by === 1 ? 'e' : 'i'}` + (d.transposition ? ' · <span style="color:var(--accent-orange)">trasposizione</span>' : '')
-            + (d.is_hole ? '<div class="hole-banner">⚠ Buco di copertura: tocca a te ma nessuna mossa preparata. Aggiungine una con l\'editor.</div>' : ''));
+        $('#explore-meta').html(`${tr("Tratto")}: <b>${d.turn === 'w' ? tr("Bianco") : tr("Nero")}</b> · ${tr("raggiunta da")} <b>${d.reached_by}</b> ${d.reached_by === 1 ? tr("variante") : tr("varianti")}` + (d.transposition ? (' · <span style="color:var(--accent-orange)">' + tr("trasposizione") + '</span>') : '')
+            + (d.is_hole ? ('<div class="hole-banner">⚠ ' + tr("Buco di copertura: tocca a te ma nessuna mossa preparata. Aggiungine una con l'editor.") + '</div>') : ''));
 
         // continuazioni nel repertorio (ordinate per frequenza)
         let maxCount = d.children.reduce((a, c) => Math.max(a, c.count), 1);
@@ -1774,15 +1784,15 @@
             <div class="exp-move" onclick="exploreGo('${c.uci}')" onmouseenter="expHover('${c.uci}')" onmouseleave="expHover()">
                 <span class="exp-san">${escHtml(c.san)}</span>
                 <span class="exp-bar-wrap"><span class="exp-bar" style="width:${Math.round(100 * c.count / maxCount)}%"></span></span>
-                <span class="exp-count">${c.count} · ${c.pct}%${stripCmds(c.comment) ? ' <span class="exp-cmt" title="Mossa commentata">✎</span>' : ''}</span>
-            </div>`).join('') : '<div class="empty-msg">Foglia: nessuna continuazione nel repertorio.</div>');
+                <span class="exp-count">${c.count} · ${c.pct}%${stripCmds(c.comment) ? (' <span class="exp-cmt" title="' + tr("Mossa commentata") + '">✎</span>') : ''}</span>
+            </div>`).join('') : ('<div class="empty-msg">' + tr("Foglia: nessuna continuazione nel repertorio.") + '</div>'));
 
         // linee che terminano qui
         if (d.ends && d.ends.length) {
             $('#explore-ends-box').show();
             let ply = d.ply;
-            $('#explore-ends-list').html(d.ends.map(e => `<div class="exp-end" onclick="openExploreLine('${e.id}', ${ply})">${escHtml(e.title)} <span style="color:var(--text-faint)">· ${escHtml(e.course || '')}</span></div>`).join('')
-                + (d.ends_count > d.ends.length ? `<div class="empty-msg">+${d.ends_count - d.ends.length} altre…</div>` : ''));
+            $('#explore-ends-list').html(d.ends.map(e => `<div class="exp-end" onclick="openExploreLine('${e.id}', ${ply})">${escHtml(e.title)} <span style="color:var(--text-faint)">· ${escHtml(dn(e.course || ''))}</span></div>`).join('')
+                + (d.ends_count > d.ends.length ? `<div class="empty-msg">+${d.ends_count - d.ends.length} ${tr("altre")}…</div>` : ''));
         } else { $('#explore-ends-box').hide(); }
     }
 
@@ -1792,7 +1802,7 @@
     }
 
     // --- NOTE SULLE POSIZIONI (testo dell'utente, in personal.json: mai nei commenti del repertorio) ---
-    const NOTE_LABELS = { chiave: 'Posizione chiave', analisi: 'Manca analisi', idea: 'Idea' };
+    const NOTE_LABELS = { chiave: tr("Posizione chiave"), analisi: tr("Manca analisi"), idea: tr("Idea") };
     let _noteAt = null, _noteDirty = false, _notes = [];
     function noteTags() { return $('.note-tag.on').map(function() { return $(this).data('tag'); }).get(); }
     function noteDirty() { _noteDirty = true; $('#note-save').prop('disabled', false); }
@@ -1810,8 +1820,8 @@
         let body = { fen: _noteAt.fen, path: _noteAt.path, tags: noteTags(), text: $('#note-text').val(), course: exploreCourse || '' };
         _noteDirty = false; $('#note-save').prop('disabled', true);
         $.ajax({ url: '/api/notes', type: 'POST', contentType: 'application/json', data: JSON.stringify(body),
-            success: function(r) { showToast(r.note ? 'Nota salvata' : 'Nota eliminata', 'success'); if ($('#notes-content').is(':visible')) loadNotes(); },
-            error: function() { showToast('Nota non salvata', 'error'); } });
+            success: function(r) { showToast(r.note ? tr("Nota salvata") : tr("Nota eliminata"), 'success'); if ($('#notes-content').is(':visible')) loadNotes(); },
+            error: function() { showToast(tr("Nota non salvata"), 'error'); } });
     }
     function loadNotes() {
         $.get('/api/notes', function(d) { _notes = d.notes; renderNotes(); });
@@ -1819,7 +1829,7 @@
     function notePathText(path) {
         let g = new Chess(), out = [];
         path.forEach(function(u, i) { let mv = playUci(g, u); if (mv) out.push((i % 2 === 0 ? (Math.floor(i / 2) + 1) + '. ' : '') + mv.san); });
-        return out.join(' ') || 'Posizione iniziale';
+        return out.join(' ') || tr("Posizione iniziale");
     }
     function renderNotes() {
         let f = $('#notes-filter').val();
@@ -1827,9 +1837,9 @@
         $('#notes-list').html(list.length ? list.map(function(n, i) { return `
             <div class="note-item" onclick="noteOpen(${_notes.indexOf(n)})">
                 ${n.tags.map(t => `<span class="note-chip ${t}">${NOTE_LABELS[t]}</span>`).join('')}
-                <div class="n-line">${n.path ? escHtml(notePathText(n.path)) : 'Fuori dal repertorio · ' + escHtml(n.fen.split(' ')[0])} · <a href="${escHtml(noteLichessUrl(n))}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Lichess ↗</a></div>
+                <div class="n-line">${n.path ? escHtml(notePathText(n.path)) : (tr("Fuori dal repertorio") + ' · ') + escHtml(n.fen.split(' ')[0])} · <a href="${escHtml(noteLichessUrl(n))}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Lichess ↗</a></div>
                 ${n.text ? `<div class="n-text">${escHtml(n.text)}</div>` : ''}
-            </div>`; }).join('') : '<div class="empty-msg">Nessuna nota.</div>');
+            </div>`; }).join('') : ('<div class="empty-msg">' + tr("Nessuna nota.") + '</div>'));
     }
     // Studio o partita d'origine se c'e'; altrimenti la posizione esatta (l'URL di /analysis non segue le mosse)
     function noteLichessUrl(n) {
@@ -1845,17 +1855,17 @@
 
     function loadTranspositions() {
         if ($('#transp-list').data('loaded')) return;
-        $('#transp-list').html('<div class="empty-msg">Analisi in corso…</div>');
+        $('#transp-list').html(('<div class="empty-msg">' + tr("Analisi in corso") + '…</div>'));
         $.get('/api/transpositions', { course: exploreCourse || '', perspective: explorePerspective }, function(d) {
             $('#transp-list').data('loaded', true);
-            if (!d.transpositions.length) { $('#transp-list').html('<div class="empty-msg">Nessuna trasposizione rilevata.</div>'); return; }
+            if (!d.transpositions.length) { $('#transp-list').html(('<div class="empty-msg">' + tr("Nessuna trasposizione rilevata.") + '</div>')); return; }
             $('#transp-list').html(
-                `<div class="empty-msg">${d.total} posizioni raggiunte da più ordini di mosse. In arancio: ≥2 tue mosse diverse dalla stessa posizione (possibile incoerenza).</div>` +
+                `<div class="empty-msg">${d.total} ${tr("posizioni raggiunte da più ordini di mosse. In arancio: ≥2 tue mosse diverse dalla stessa posizione (possibile incoerenza).")}</div>` +
                 d.transpositions.map(t => `
                 <div class="transp-item">
                     <div class="t-head">
-                        <span><b>${t.reached_count}</b> varianti · ${escHtml(t.continuations.slice(0,4).join(', '))}</span>
-                        <span class="transp-badge ${t.conflict ? '' : 'ok'}">${t.conflict ? 'conflitto' : 'ok'}</span>
+                        <span><b>${t.reached_count}</b> ${tr("varianti")} · ${escHtml(t.continuations.slice(0,4).join(', '))}</span>
+                        <span class="transp-badge ${t.conflict ? '' : 'ok'}">${t.conflict ? tr("conflitto") : 'ok'}</span>
                     </div>
                     ${t.reached_by.map(b => `<div class="transp-line" onclick="openExploreLine('${b.id}', ${b.ply})">↳ ${escHtml(b.title)}</div>`).join('')}
                 </div>`).join('')
@@ -1874,7 +1884,7 @@
         if (!_lxFen || !$('#lx-content').is(':visible')) return;
         let fen = _lxFen, myReq = ++_lxReq;
         if (lxCache[fen]) { lxRender(lxCache[fen], fen); return; }
-        $('#lx-list').html('<div class="empty-msg">Interrogo il cloud…</div>');
+        $('#lx-list').html(('<div class="empty-msg">' + tr("Interrogo il cloud") + '…</div>'));
         fetch('https://lichess.org/api/cloud-eval?multiPv=3&fen=' + encodeURIComponent(fen))
             .then(function(r) {
                 if (r.status === 404) return { notFound: true };
@@ -1886,14 +1896,14 @@
             .catch(function(e) {
                 if (myReq !== _lxReq) return;
                 $('#lx-list').html('<div class="empty-msg">' + (e.message === '429'
-                    ? 'Limite richieste raggiunto: attendi qualche secondo.'
-                    : 'Cloud Lichess non raggiungibile (sei offline?).') + '</div>');
+                    ? tr("Limite richieste raggiunto: attendi qualche secondo.")
+                    : tr("Cloud Lichess non raggiungibile (sei offline?).")) + '</div>');
             });
     }
     function lxGoUci(uci) { if (uci) exploreGo(uci); }
     function lxRender(d, fen) {
         if (d.notFound || !d.pvs || !d.pvs.length) {
-            $('#lx-list').html('<div class="empty-msg">Posizione non presente nel cloud Lichess (capita nelle linee meno comuni).</div>');
+            $('#lx-list').html(('<div class="empty-msg">' + tr("Posizione non presente nel cloud Lichess (capita nelle linee meno comuni).") + '</div>'));
             return;
         }
         let rows = d.pvs.map(function(pv) {
@@ -1911,12 +1921,12 @@
             let evCls = mate ? (pv.mate > 0 ? 'lx-ev-w' : 'lx-ev-b')
                              : (pv.cp >= 20 ? 'lx-ev-w' : (pv.cp <= -20 ? 'lx-ev-b' : 'lx-ev-eq'));
             let firstUci = (pv.moves || '').split(' ')[0] || '';
-            return '<div class="lx-row" onclick="lxGoUci(\'' + firstUci + '\')" onmouseenter="expHover(\'' + firstUci + '\')" onmouseleave="expHover()" title="Gioca la prima mossa della linea">' +
+            return '<div class="lx-row" onclick="lxGoUci(\'' + firstUci + '\')" onmouseenter="expHover(\'' + firstUci + ('\')" onmouseleave="expHover()" title="' + tr("Gioca la prima mossa della linea") + '">') +
                 '<span class="lx-ev ' + evCls + '">' + ev + '</span>' +
                 '<span class="lx-pv">' + escHtml(sans.slice(0, 9).join(' ')) + '</span></div>';
         }).join('');
-        $('#lx-list').html(rows + '<div class="lx-meta">Stockfish cloud · profondità ' + (d.depth || '?') +
-            ' · + = meglio per il Bianco, − = meglio per il Nero · clic su una linea = gioca la prima mossa</div>');
+        $('#lx-list').html(rows + ('<div class="lx-meta">Stockfish cloud · ' + tr("profondità") + ' ') + (d.depth || '?') +
+            (' · ' + tr("+ = meglio per il Bianco, − = meglio per il Nero") + ' · ' + tr("clic su una linea = gioca la prima mossa") + '</div>'));
     }
 
     // --- DATABASE LICHESS (opening explorer, via proxy /api/explorer che tiene il token) ---
@@ -1947,41 +1957,41 @@
         }
         if (db === 'lichess') { p.speeds = $('#db-speeds').val(); p.ratings = $('#db-ratings').val(); }
         let myReq = ++_dbReq;
-        $('#db-list').html('<div class="empty-msg">Interrogo il database…</div>');
+        $('#db-list').html(('<div class="empty-msg">' + tr("Interrogo il database…") + '</div>'));
         $('#db-games').empty();
         $.get('/api/explorer', p, function(d) { if (myReq === _dbReq) dbRender(d); })
-            .fail(function() { if (myReq === _dbReq) $('#db-list').html('<div class="empty-msg">Server non raggiungibile.</div>'); });
+            .fail(function() { if (myReq === _dbReq) $('#db-list').html(('<div class="empty-msg">' + tr("Server non raggiungibile.") + '</div>')); });
     }
     function dbTokenBox(msg) {
-        return '<div class="empty-msg">' + msg + ' Serve un token personale Lichess, gratuito e senza permessi: ' +
-            '<a href="https://lichess.org/account/oauth/token/create?description=openrepertoire" target="_blank" rel="noopener">creane uno</a>' +
-            ' e incollalo qui. Resta sul tuo computer (lichess_token.txt), fuori da git.</div>' +
+        return '<div class="empty-msg">' + msg + (' ' + tr("Serve un token personale Lichess, gratuito e senza permessi") + ': ') +
+            ('<a href="https://lichess.org/account/oauth/token/create?description=openrepertoire" target="_blank" rel="noopener">' + tr("creane uno") + '</a>') +
+            (' ' + tr("e incollalo qui. Resta sul tuo computer (lichess_token.txt), fuori da git.") + '</div>') +
             '<div class="db-setup"><input id="db-token" type="password" class="import-select" placeholder="lip_…" autocomplete="off">' +
-            '<button class="btn" onclick="dbSaveToken()">Salva</button></div>';
+            ('<button class="btn" onclick="dbSaveToken()">' + tr("Salva") + '</button></div>');
     }
     // Il server manda il motivo vero: qui si traduce, e quello che non si conosce si mostra
     // com'e' invece di nasconderlo dietro un generico "non raggiungibile".
     function dbErrMsg(err) {
-        if (err === 'bad_token') return 'Token rifiutato da Lichess: ricopialo per intero, o creane un altro.';
-        if (err === 'token_formato') return 'Il token contiene caratteri non validi (spazi, virgolette, a capo): ricopialo.';
-        if (err === 'rate_limit') return 'Limite richieste Lichess raggiunto: aspetta un minuto.';
-        if (err === 'ssl_cert') return 'Python non riesce a verificare il certificato di Lichess (il browser sì). ' +
-            'Su macOS apri Applicazioni → Python 3.x → <b>Install Certificates.command</b> e riavvia l\'app; ' +
-            'in alternativa installa il pacchetto: <code>python3 -m pip install --user certifi</code>.';
-        return 'Lichess non risponde. Il server dice: <code>' + escHtml(String(err || '?')) + '</code>';
+        if (err === 'bad_token') return tr("Token rifiutato da Lichess: ricopialo per intero, o creane un altro.");
+        if (err === 'token_formato') return tr("Il token contiene caratteri non validi (spazi, virgolette, a capo): ricopialo.");
+        if (err === 'rate_limit') return tr("Limite richieste Lichess raggiunto: aspetta un minuto.");
+        if (err === 'ssl_cert') return (tr("Python non riesce a verificare il certificato di Lichess (il browser sì).") + ' ') +
+            (tr("Su macOS apri Applicazioni → Python 3.x") + ' → <b>Install Certificates.command</b> ' + tr("e riavvia l'app;") + ' ') +
+            (tr("in alternativa installa il pacchetto") + ': <code>python3 -m pip install --user certifi</code>.');
+        return (tr("Lichess non risponde. Il server dice") + ': <code>') + escHtml(String(err || '?')) + '</code>';
     }
     function dbSaveToken() {
         let tok = $('#db-token').val();
         if (!tok || !tok.trim()) return;
-        $('#db-list').html('<div class="empty-msg">Verifico il token…</div>');
+        $('#db-list').html(('<div class="empty-msg">' + tr("Verifico il token") + '…</div>'));
         $.ajax({
             url: '/api/lichess_token', type: 'POST', contentType: 'application/json',
             data: JSON.stringify({ token: tok }),
             success: function(r) {
-                if (r.success) { showToast('Token salvato ✓'); dbLoad(); }
+                if (r.success) { showToast(tr("Token salvato ✓")); dbLoad(); }
                 else $('#db-list').html(dbTokenBox(dbErrMsg(r.error)));
             },
-            error: function() { $('#db-list').html(dbTokenBox('Il server dell\'app non ha risposto.')); }
+            error: function() { $('#db-list').html(dbTokenBox(tr("Il server dell'app non ha risposto."))); }
         });
     }
     // Chiave di confronto: SAN senza fronzoli (+ # ! ?), che i due lati decorano diversamente
@@ -1994,9 +2004,9 @@
     function dbRender(d) {
         $('#db-games').html(d.error || !d.moves || !d.moves.length ? '' : modelGamesHtml(d, exploreGame));   // fuori dall'elenco che scorre
         if (d.error === 'no_token') { $('#db-list').html(dbTokenBox('')); return; }
-        if (d.error === 'bad_token') { $('#db-list').html(dbTokenBox('Il token salvato non è più valido.')); return; }
+        if (d.error === 'bad_token') { $('#db-list').html(dbTokenBox(tr("Il token salvato non è più valido."))); return; }
         if (d.error) { $('#db-list').html('<div class="empty-msg">' + dbErrMsg(d.error) + '</div>'); return; }
-        if (!d.moves.length) { $('#db-list').html('<div class="empty-msg">Nessuna partita in questa posizione: sei fuori dai sentieri battuti.</div>'); return; }
+        if (!d.moves.length) { $('#db-list').html(('<div class="empty-msg">' + tr("Nessuna partita in questa posizione: sei fuori dai sentieri battuti.") + '</div>')); return; }
 
         // Confronto per UCI *e* per SAN. Solo l'UCI non basta: l'arrocco ha due notazioni
         // (e8g8 "re di due case" contro e8h8 "re prende torre") e a seconda di chi la scrive
@@ -2010,10 +2020,10 @@
             let u = sanToUci(exploreGame, m.san) || m.uci;
             let pct = 100 * m.games / tot;
             let g = m.games || 1;
-            let mark = inRep(m) ? '<span class="db-ok" title="Nel repertorio">✓</span>'
-                     : (!mioTurno && _dbChildren.length ? '<span class="db-gap" title="Giocata qui, nessuna risposta preparata">⚠</span>' : '');
+            let mark = inRep(m) ? ('<span class="db-ok" title="' + tr("Nel repertorio") + '">✓</span>')
+                     : (!mioTurno && _dbChildren.length ? ('<span class="db-gap" title="' + tr("Giocata qui, nessuna risposta preparata") + '">⚠</span>') : '');
             return '<div class="exp-move" onclick="exploreGo(\'' + u + '\')" onmouseenter="expHover(\'' + u + '\')" onmouseleave="expHover()" title="' +
-                (m.rating ? 'Elo medio ' + m.rating + ' · ' : '') + m.games + ' partite">' +
+                (m.rating ? (tr("Elo medio") + ' ') + m.rating + ' · ' : '') + m.games + ' partite">' +
                 '<span class="exp-san">' + escHtml(m.san) + ' ' + mark + '</span>' +
                 '<span class="db-bar">' +
                     '<i class="db-w" style="width:' + (100 * m.white / g) + '%"></i>' +
@@ -2029,15 +2039,15 @@
             let cov = d.moves.reduce(function(a, m) { return a + (inRep(m) ? m.games : 0); }, 0);
             let p = Math.round(100 * cov / tot);
             head = '<div class="db-cov"><span class="db-cov-n" style="color:' + (p >= 90 ? 'var(--accent-green)' : (p >= 70 ? 'var(--accent-orange)' : 'var(--accent-red)')) +
-                '">' + p + '%</span> delle partite qui è coperto dal tuo repertorio</div>';
+                '">' + p + ('%</span> ' + tr("delle partite qui è coperto dal tuo repertorio") + '</div>');
         }
-        $('#db-list').html(head + rows + '<div class="lx-meta">' + fmtGames(d.total) + ' partite' +
-            (d.opening ? ' · ' + escHtml(d.opening) : '') + ' · barra: vittorie Bianco / patte / vittorie Nero · clic = gioca la mossa</div>');
+        $('#db-list').html(head + rows + '<div class="lx-meta">' + fmtGames(d.total) + (' ' + tr("partite")) +
+            (d.opening ? ' · ' + escHtml(d.opening) : '') + (' · ' + tr("barra: vittorie Bianco / patte / vittorie Nero") + ' · ' + tr("clic = gioca la mossa") + '</div>'));
     }
     // Partite modello (solo database Maestri): le migliori che passano da qui, si aprono su Lichess
     function modelGamesHtml(d, g) {
         if (!d.games || !d.games.length) return '';
-        return '<div class="db-games"><div class="db-games-h">Partite modello</div>' + d.games.map(function(m) {
+        return ('<div class="db-games"><div class="db-games-h">' + tr("Partite modello") + '</div>') + d.games.map(function(m) {
             let res = m.winner === 'white' ? '1-0' : (m.winner === 'black' ? '0-1' : '½-½');
             let mv = null;
             if (m.uci) { try { mv = new Chess(g.fen()).move({ from: m.uci.slice(0, 2), to: m.uci.slice(2, 4), promotion: m.uci[4] }); } catch (e) {} }
@@ -2094,7 +2104,7 @@
         editMoves = [];
         editGame = new Chess();
         editStartFen = null;
-        $('#edit-status').text(fork ? 'Fork: salvando crei una NUOVA variante (l’originale resta).' : '')
+        $('#edit-status').text(fork ? tr("Fork: salvando crei una NUOVA variante (l’originale resta).") : '')
                          .css('color', 'var(--text-faint)');
         // autocomplete dei corsi/capitoli esistenti (per creare/riusare la struttura in-app)
         let cs = {}, chs = {};
@@ -2105,7 +2115,7 @@
             let v = globalVariantsMap[id];
             editStartFen = v.startFen || null;
             if (editStartFen) { try { editGame.load(editStartFen); } catch (e) {} }
-            $('#edit-title').val((v.title || '') + (fork ? ' (copia)' : ''));
+            $('#edit-title').val((v.title || '') + (fork ? (' (' + tr("copia") + ')') : ''));
             $('#edit-course').val(v.course || '');
             $('#edit-chapter').val((v.chapter && v.chapter !== 'Generale') ? v.chapter : '');
             $('#edit-perspective').val(v.perspective === 'black' ? 'black' : 'white');
@@ -2160,15 +2170,15 @@
         return (i % 2 === 0) ? (editStartMeta.num + Math.floor(i / 2)) + '. ' : '';
     }
     function renderEditMoves() {
-        if (!editMoves.length) { $('#edit-movelist').html('<span class="empty-msg">Trascina o clicca i pezzi per costruire la linea…</span>'); return; }
+        if (!editMoves.length) { $('#edit-movelist').html(('<span class="empty-msg">' + tr("Trascina o clicca i pezzi per costruire la linea") + '…</span>')); return; }
         $('#edit-movelist').html(editMoves.map(function(m, i) {
             return '<span class="em-move">' + editMoveLabel(i) + escHtml(m.san) + '</span>';
         }).join(' '));
     }
     function renderStartFenNote() {
         if (editStartFen) {
-            $('#edit-startfen-note').html('Partenza personalizzata · tratto a <b>' + (editStartMeta.color === 'b' ? 'Nero' : 'Bianco') +
-                '</b> · <span class="sfn-clear" role="button" tabindex="0" onclick="editResetStart()">torna all\'iniziale</span>').show();
+            $('#edit-startfen-note').html((tr("Partenza personalizzata") + ' · ' + tr("tratto a") + ' <b>') + (editStartMeta.color === 'b' ? tr("Nero") : tr("Bianco")) +
+                ('</b> · <span class="sfn-clear" role="button" tabindex="0" onclick="editResetStart()">' + tr("torna all'iniziale") + '</span>')).show();
         } else { $('#edit-startfen-note').hide().empty(); }
     }
     function editResetStart() {
@@ -2178,14 +2188,14 @@
             editSync(false);
             renderStartFenNote(); renderEditMoves();
         };
-        if (editMoves.length) uiConfirm('Tornare alla posizione iniziale standard? Le mosse correnti verranno rimosse.', { danger: true, okText: 'Azzera' }).then(function(ok) { if (ok) go(); });
+        if (editMoves.length) uiConfirm(tr("Tornare alla posizione iniziale standard? Le mosse correnti verranno rimosse."), { danger: true, okText: tr("Azzera") }).then(function(ok) { if (ok) go(); });
         else go();
     }
     function editSave() {
         let title = $('#edit-title').val().trim();
-        if (!title) { $('#edit-status').text('Inserisci un titolo.').css('color', 'var(--accent-red)'); return; }
-        if (!editMoves.length) { $('#edit-status').text('Aggiungi almeno una mossa.').css('color', 'var(--accent-red)'); return; }
-        $('#edit-status').text('Salvataggio…').css('color', 'var(--text-faint)');
+        if (!title) { $('#edit-status').text(tr("Inserisci un titolo.")).css('color', 'var(--accent-red)'); return; }
+        if (!editMoves.length) { $('#edit-status').text(tr("Aggiungi almeno una mossa.")).css('color', 'var(--accent-red)'); return; }
+        $('#edit-status').text((tr("Salvataggio") + '…')).css('color', 'var(--text-faint)');
         $.ajax({
             url: '/api/save_variation', type: 'POST', contentType: 'application/json',
             data: JSON.stringify({
@@ -2197,7 +2207,7 @@
                 moves: editMoves.map(function(m) { return { uci: m.uci, comment: m.comment }; })
             }),
             success: function(res) {
-                showToast(res.rekeyed ? 'Variante salvata (ricollocata per le nuove mosse).' : 'Variante salvata.', 'success');
+                showToast(res.rekeyed ? tr("Variante salvata (ricollocata per le nuove mosse).") : tr("Variante salvata."), 'success');
                 loadDueVariations();
                 navTo(editBack);   // le viste personali, riaprendosi, ricaricano i loro elenchi
             }
@@ -2257,12 +2267,12 @@
     }
     function setupConfirm() {
         let fen = setupComposeFen();
-        $('#setup-status').text('Verifica…').css('color', 'var(--text-faint)');
+        $('#setup-status').text((tr("Verifica") + '…')).css('color', 'var(--text-faint)');
         $.ajax({
             url: '/api/validate_fen', type: 'POST', contentType: 'application/json',
             data: JSON.stringify({ fen: fen }),
             success: function(res) {
-                if (!res.valid) { $('#setup-status').text(res.error || 'Posizione non valida.').css('color', 'var(--accent-red)'); return; }
+                if (!res.valid) { $('#setup-status').text(res.error || tr("Posizione non valida.")).css('color', 'var(--accent-red)'); return; }
                 editStartFen = (res.fen === STD_FEN) ? null : res.fen;
                 editStartMeta = fenMeta(editStartFen);
                 editMoves = []; editGame = new Chess();
@@ -2272,7 +2282,7 @@
                     if (editBoard) { editBoard.set({ orientation: editOrient }); editSync(false); }
                     renderStartFenNote(); renderEditMoves();
                 }, 10);
-                showToast(editStartFen ? 'Posizione di partenza impostata.' : 'Posizione iniziale standard.', 'success');
+                showToast(editStartFen ? tr("Posizione di partenza impostata.") : tr("Posizione iniziale standard."), 'success');
             }
         });
     }
@@ -2282,7 +2292,7 @@
 
     function searchPosition() {
         let fen = $('#search-fen').val().trim();
-        if (!fen) { showToast('Inserisci un FEN o usa la posizione della scacchiera.', 'error'); return; }
+        if (!fen) { showToast(tr("Inserisci un FEN o usa la posizione della scacchiera."), 'error'); return; }
         $.ajax({
             url: '/api/search_position', type: 'POST', contentType: 'application/json',
             data: JSON.stringify({ fen: fen, course: $('#search-course').val() || null }),
@@ -2291,29 +2301,29 @@
     }
 
     function renderSearchResults(matches) {
-        if (!matches || !matches.length) { $('#search-results').html('<div class="empty-msg">Posizione non coperta nel repertorio.</div>'); return; }
+        if (!matches || !matches.length) { $('#search-results').html(('<div class="empty-msg">' + tr("Posizione non coperta nel repertorio.") + '</div>')); return; }
         let html = matches.map(m => `<div class="search-hit" role="button" tabindex="0" onclick="openSearchHit('${m.id}', ${m.moveIndex})">
             <div class="search-hit-title">${escHtml(m.title)}</div>
-            <div class="search-hit-sub">${escHtml(m.course || '')}${m.chapter ? ' › ' + escHtml(m.chapter) : ''} — mossa ${m.moveIndex}</div>
+            <div class="search-hit-sub">${escHtml(dn(m.course || ''))}${m.chapter ? ' › ' + escHtml(dn(m.chapter)) : ''} — ${tr("mossa")} ${m.moveIndex}</div>
         </div>`).join('');
-        $('#search-results').html(`<div class="search-count">${matches.length} variante/i coprono la posizione:</div>` + html);
+        $('#search-results').html(`<div class="search-count">${matches.length} ${tr("variante/i coprono la posizione")}:</div>` + html);
     }
 
     function openSearchHit(id, moveIndex) {
-        if (!globalVariantsMap[id]) { showToast('Variante non disponibile.', 'error'); return; }
+        if (!globalVariantsMap[id]) { showToast(tr("Variante non disponibile."), 'error'); return; }
         startReadMode(id, 'repertoire', moveIndex);
     }
 
     function importPGNFile() {
         let fileInput = document.getElementById('pgn-file');
         let perspectiveInput = document.getElementById('pgn-perspective');
-        if (fileInput.files.length === 0) { showToast("Seleziona un file PGN.", 'error'); return; }
+        if (fileInput.files.length === 0) { showToast(tr("Seleziona un file PGN."), 'error'); return; }
         let reader = new FileReader();
         reader.onload = function(e) {
             $.ajax({
                 url: '/api/import', type: 'POST', contentType: 'application/json',
                 data: JSON.stringify({ pgn: e.target.result, course: fileInput.files[0].name.replace(/\.[^/.]+$/, ""), perspective: perspectiveInput.value, tree: $('#pgn-tree').is(':checked') }),
-                success: function(res) { let msg = `${res.imported} varianti importate` + (res.skipped ? ` · ${res.skipped} linee saltate (mosse illegali)` : ''); showToast(msg, 'success'); fileInput.value = ""; loadDueVariations(); }
+                success: function(res) { let msg = `${res.imported} ${tr("varianti importate")}` + (res.skipped ? ` · ${res.skipped} ${tr("linee saltate (mosse illegali)")}` : ''); showToast(msg, 'success'); fileInput.value = ""; loadDueVariations(); }
             });
         };
         reader.readAsText(fileInput.files[0]);
@@ -2321,7 +2331,7 @@
 
     function deleteVariation(id, event) {
         event.stopPropagation();
-        uiConfirm("Eliminare definitivamente questa variante?", { danger: true, okText: 'Elimina' }).then(function(ok) {
+        uiConfirm(tr("Eliminare definitivamente questa variante?"), { danger: true, okText: tr("Elimina") }).then(function(ok) {
             if (!ok) return;
             $.ajax({
                 url: '/api/delete', type: 'POST', contentType: 'application/json', data: JSON.stringify({id: id}),
@@ -2329,7 +2339,7 @@
                     if (res.success) {
                         loadDueVariations();
                         if (currentVariation && currentVariation.id === id) {
-                            currentVariation = null; resetTrainBoard(); $('#title').text("Seleziona una variante");
+                            currentVariation = null; resetTrainBoard(); $('#title').text(tr("Seleziona una variante"));
                             $('#status').text(""); $('#annotation-box').hide(); $('#read-controls').hide(); $('#move-progress').empty();
                         }
                     }
@@ -2340,8 +2350,8 @@
 
     function deleteCourse(course, event) {
         event.stopPropagation();
-        uiConfirm(`Eliminare TUTTO il corso "${course}"? L'azione è irreversibile.`,
-                  { danger: true, okText: 'Elimina corso', requireText: 'delete' }).then(function(ok) {
+        uiConfirm(`${tr("Eliminare TUTTO il corso")} "${course}"? ${tr("L'azione è irreversibile.")}`,
+                  { danger: true, okText: tr("Elimina corso"), requireText: 'delete' }).then(function(ok) {
             if (!ok) return;
             $.ajax({
                 url: '/api/delete_course', type: 'POST', contentType: 'application/json',
@@ -2350,7 +2360,7 @@
                     if (res.success) {
                         loadDueVariations();
                         if (currentVariation && (currentVariation.course || 'Varie') === course) {
-                            currentVariation = null; resetTrainBoard(); $('#title').text("Seleziona una variante");
+                            currentVariation = null; resetTrainBoard(); $('#title').text(tr("Seleziona una variante"));
                             $('#status').text(""); $('#annotation-box').hide(); $('#read-controls').hide();
                         }
                     }
@@ -2431,7 +2441,7 @@
             showView('train'); updateTrainHead();
             highlightActiveVar();
             board.set({ orientation: currentVariation.perspective });
-            $('#title').text("Lettura: " + currentVariation.title).attr('title', "Lettura: " + currentVariation.title);
+            $('#title').text((tr("Lettura") + ": ") + currentVariation.title).attr('title', (tr("Lettura") + ": ") + currentVariation.title);
             $('#status').hide(); $('#read-controls').css('display', 'flex');
             jumpToReadMove(atMove || 0);
             prefetchNext();
@@ -2477,7 +2487,7 @@
 
         let html = `<div id="read-text" class="read-text">`;
         if (moveIndex === 0) {
-            html += `<div class="read-hint">Inizio variante. Usa lo Spazio o le frecce della tastiera per scorrere. Tasto F per girare.</div>`;
+            html += `<div class="read-hint">${tr("Inizio variante. Usa lo Spazio o le frecce della tastiera per scorrere. Tasto F per girare.")}</div>`;
         }
 
         for (let i = 0; i < moves.length; i++) {
@@ -2500,8 +2510,8 @@
         if (atEnd && moves.length > 0) {
             html += `<hr class="anno-hr">`;
             let nextVar = getNextVariation();
-            if (nextVar) html += `<button class="btn btn-success" id="btn-next-var">Prossima variante<span class="kbd">Spazio</span></button>`;
-            else html += `<div class="anno-end">Hai concluso questo elenco.</div>`;
+            if (nextVar) html += `<button class="btn btn-success" id="btn-next-var">${tr("Prossima variante")}<span class="kbd">${tr("Spazio")}</span></button>`;
+            else html += `<div class="anno-end">${tr("Hai concluso questo elenco.")}</div>`;
         }
 
         $('#annotation-box').html(html).show();
@@ -2584,7 +2594,7 @@
             if (skip && skip.skipped > 0) {
                 moveIndex = skip.idx;
                 replayTo(game, moveIndex);
-                $('#train-chips').append('<span>Saltate ' + skip.skipped + (skip.skipped === 1 ? ' mossa già giocata' : ' mosse già giocate') + ' oggi</span>');
+                $('#train-chips').append(('<span>' + tr("Saltate") + ' ') + skip.skipped + (skip.skipped === 1 ? (' ' + tr("mossa già giocata")) : (' ' + tr("mosse già giocate"))) + (' ' + tr("oggi") + '</span>'));
             }
             cgPosition(board, game, lastPlayedUci(), false);
             setStatus("", null); $('#read-controls').hide();
@@ -2595,8 +2605,8 @@
 
     function updateTitle() {
         // il lato giocato e' gia' nella riga sotto ("giochi col ..."): qui solo fase + titolo
-        let t = (phase === 'CONSOLIDATE') ? "Fase 2 (" + (consolidateRound + 1) + "/2): " + currentVariation.title
-                                          : (phase === 'LEARN' ? "Fase 1: " : "Ripasso: ") + currentVariation.title;
+        let t = (phase === 'CONSOLIDATE') ? (tr("Fase 2") + " (") + (consolidateRound + 1) + "/2): " + currentVariation.title
+                                          : (phase === 'LEARN' ? (tr("Fase 1") + ": ") : (tr("Ripasso") + ": ")) + currentVariation.title;
         $('#title').text(t).attr('title', t);   // troncato a 2 righe via CSS: testo intero nel tooltip
     }
 
@@ -2631,7 +2641,7 @@
             replayTo(game, missedIdx);
             cgPosition(board, game, lastPlayedUci(), false);
             setCtxShapes([]);
-            setStatus(`Errore ${currentMistakeIdxInQueue + 1}/${mistakeReviewQueue.length} (Ciclo ${mistakeReviewRound + 1}/3): tocca a te`, 'warn');
+            setStatus(`${tr("Errore")} ${currentMistakeIdxInQueue + 1}/${mistakeReviewQueue.length} (${tr("Ciclo")} ${mistakeReviewRound + 1}/3): tocca a te`, 'warn');
             $('#annotation-box').hide();
             return;
         }
@@ -2639,12 +2649,12 @@
         if (moveIndex >= currentVariation.moves.length) {
             setCtxShapes([]);
             if (phase === 'LEARN') {
-                setStatus("Spiegazione terminata!", 'info');
+                setStatus(tr("Spiegazione terminata!"), 'info');
                 phase = 'CONSOLIDATE'; waitingForAck = true;
                 $('#annotation-box').html(`
-                    <strong style="color: var(--text-bright);">Ottimo lavoro!</strong><br><br>
-                    Hai letto le idee dietro questa linea.<br>Ora giocala di fila a memoria.<br>
-                    <button class="btn btn-success" id="btn-start-consolidation">Inizia consolidamento<span class="kbd">Spazio</span></button>
+                    <strong style="color: var(--text-bright);">${tr("Ottimo lavoro!")}</strong><br><br>
+                    ${tr("Hai letto le idee dietro questa linea.")}<br>${tr("Ora giocala di fila a memoria.")}<br>
+                    <button class="btn btn-success" id="btn-start-consolidation">${tr("Inizia consolidamento")}<span class="kbd">${tr("Spazio")}</span></button>
                 `).show();
                 $('#btn-start-consolidation').click(restartLine);
                 return;
@@ -2653,11 +2663,11 @@
                 // e vengono presentati (3 cicli) solo alla fine della seconda.
                 if (phase === 'CONSOLIDATE' && consolidateRound === 0) {
                     consolidateRound = 1; waitingForAck = true;
-                    setStatus("Prima passata completata!", 'good');
+                    setStatus(tr("Prima passata completata!"), 'good');
                     $('#annotation-box').html(`
-                        <strong style="color: var(--text-bright);">Passata 1 di 2 completata.</strong><br><br>
-                        Rigiocala un'altra volta per fissarla.<br>
-                        <button class="btn btn-success" id="btn-start-consolidation">Seconda passata<span class="kbd">Spazio</span></button>
+                        <strong style="color: var(--text-bright);">${tr("Passata 1 di 2 completata.")}</strong><br><br>
+                        ${tr("Rigiocala un'altra volta per fissarla.")}<br>
+                        <button class="btn btn-success" id="btn-start-consolidation">${tr("Seconda passata")}<span class="kbd">${tr("Spazio")}</span></button>
                     `).show();
                     $('#btn-start-consolidation').click(restartLine);
                     return;
@@ -2668,7 +2678,7 @@
                     mistakeReviewQueue.sort((a, b) => a - b);
                     mistakeReviewRound = 0;
                     currentMistakeIdxInQueue = 0;
-                    setStatus("Fase di revisione errori in avvio...", 'warn');
+                    setStatus(tr("Fase di revisione errori in avvio..."), 'warn');
                     later(handleStep, 1000);
                     return;
                 } else { showSummary(); return; }
@@ -2677,16 +2687,16 @@
 
         let expectedMove = currentVariation.moves[moveIndex];
         let isUserTurn = checkUserTurn() && expectedMove.uci !== '0000';   // la mossa nulla si gioca da sola
-        let myColorName = currentVariation.perspective === 'white' ? 'Bianco' : 'Nero';
-        let oppColorName = currentVariation.perspective === 'white' ? 'Nero' : 'Bianco';
+        let myColorName = currentVariation.perspective === 'white' ? tr("Bianco") : tr("Nero");
+        let oppColorName = currentVariation.perspective === 'white' ? tr("Nero") : tr("Bianco");
 
         if (isUserTurn) {
-            setStatus(`Tocca a te (${myColorName})`, null);
+            setStatus(`${tr("Tocca a te")} (${myColorName})`, null);
             if (phase === 'LEARN') {
                 waitingForAck = true;
-                let targetMoveHTML = `<div class="learn-prompt">Cosa giocare ora: <strong>${expectedMove.san}</strong></div>`;
+                let targetMoveHTML = `<div class="learn-prompt">${tr("Cosa giocare ora")}: <strong>${expectedMove.san}</strong></div>`;
                 let commentHTML = expectedMove.text ? `<div class="learn-comment">${parseCommentMoves(expectedMove.text, moveIndex).replace(/\n/g, '<br>')}</div>` : '';
-                $('#annotation-box').html(`${targetMoveHTML}${commentHTML}<button class="btn" id="btn-avanti">Fammi muovere<span class="kbd">Spazio</span></button>`).show();
+                $('#annotation-box').html(`${targetMoveHTML}${commentHTML}<button class="btn" id="btn-avanti">${tr("Fammi muovere")}<span class="kbd">${tr("Spazio")}</span></button>`).show();
                 // la mossa da imparare come freccia, piu' le frecce dell'autore
                 setCtxShapes(expectedMove.shapes.concat([moveArrow(expectedMove.uci)]));
 
@@ -2700,13 +2710,13 @@
                 });
             } else { waitingForAck = false; $('#annotation-box').hide(); setCtxShapes([]); }
         } else {
-            setStatus(`Mossa del computer (${oppColorName})...`, 'muted');
+            setStatus(`${tr("Mossa del computer")} (${oppColorName})...`, 'muted');
             if (phase === 'LEARN' && hasRealAnnotation(expectedMove.text)) {
                 waitingForAck = true;
                 $('#annotation-box').html(`
-                    <div class="learn-prompt is-opp">${expectedMove.uci === '0000' ? 'Nota finale' : 'Il computer gioca: <strong>' + expectedMove.san + '</strong>'}</div>
+                    <div class="learn-prompt is-opp">${expectedMove.uci === '0000' ? tr("Nota finale") : (tr("Il computer gioca") + ': <strong>') + expectedMove.san + '</strong>'}</div>
                     <div class="learn-comment">${parseCommentMoves(expectedMove.text, moveIndex).replace(/\n/g, '<br>')}</div>
-                    <button class="btn" id="btn-avanti">Avanti<span class="kbd">Spazio</span></button>
+                    <button class="btn" id="btn-avanti">${tr("Avanti")}<span class="kbd">${tr("Spazio")}</span></button>
                 `).show();
                 setCtxShapes(expectedMove.shapes);
 
@@ -2775,13 +2785,13 @@
             setCtxShapes([moveArrow(expectedMove.uci)]);     // e la freccia mostra la mossa giusta
 
             if (phase === 'REVIEW_ERRORS') {
-                setStatus(`Sbagliato! La mossa era: ${expectedMove.san}. Riprova.`, 'bad');
+                setStatus(`${tr("Sbagliato! La mossa era")}: ${expectedMove.san}. ${tr("Riprova.")}`, 'bad');
             } else {
                 if (!mistakeReviewQueue.includes(moveIndex)) { mistakeReviewQueue.push(moveIndex); mistakeCount++; }
 
-                setStatus(`Sbagliato!`, 'bad');
-                let targetMoveHTML = `<div class="miss-prompt">Devi giocare: <strong>${expectedMove.san}</strong></div>`;
-                let commentHTML = expectedMove.text ? `<div class="miss-hint"><strong>Suggerimento:</strong><br>${parseCommentMoves(expectedMove.text, moveIndex).replace(/\n/g, '<br>')}</div>` : '';
+                setStatus(`${tr("Sbagliato!")}`, 'bad');
+                let targetMoveHTML = `<div class="miss-prompt">${tr("Devi giocare")}: <strong>${expectedMove.san}</strong></div>`;
+                let commentHTML = expectedMove.text ? `<div class="miss-hint"><strong>${tr("Suggerimento")}:</strong><br>${parseCommentMoves(expectedMove.text, moveIndex).replace(/\n/g, '<br>')}</div>` : '';
                 $('#annotation-box').html(targetMoveHTML + commentHTML).show();
             }
             syncTrainMovable();
@@ -2801,16 +2811,16 @@
 
             if (mistakeReviewRound >= 3) {
                 mistakeReviewQueue = []; // Azzera la coda per innescare la fine
-                setStatus("Corretto! Revisione errori completata.", 'good');
+                setStatus(tr("Corretto! Revisione errori completata."), 'good');
             } else {
-                setStatus("Corretto!", 'good');
+                setStatus(tr("Corretto!"), 'good');
             }
 
             cgMovable(board, game, null);
             later(handleStep, 600);
             return true;
         } else {
-            setStatus("Corretto!", 'good');
+            setStatus(tr("Corretto!"), 'good');
             $('#annotation-box').hide();
             if (phase === 'REVIEW' && !mistakeReviewQueue.includes(moveIndex)) rememberKnown(fenBefore, expectedMove.uci);   // giusta al primo colpo
             moveIndex++;
@@ -2830,9 +2840,9 @@
         return comment.replace(re, function(m, num, dots, san1, san2) {
             if (san1) {   // mossa con numero (es. "3." bianco, "3..." nero): porta il contesto del bivio
                 var side = (dots.length === 1) ? 'w' : 'b';
-                return num + dots + ' <span class="san-link" onclick="previewMove(\'' + san1 + '\', event, ' + baseMoveIndex + ', ' + num + ', \'' + side + '\')" title="Clicca per visualizzare">' + san1 + '</span>';
+                return num + dots + ' <span class="san-link" onclick="previewMove(\'' + san1 + '\', event, ' + baseMoveIndex + ', ' + num + ', \'' + side + ('\')" title="' + tr("Clicca per visualizzare") + '">') + san1 + '</span>';
             }
-            return '<span class="san-link" onclick="previewMove(\'' + san2 + '\', event, ' + baseMoveIndex + ', null, null)" title="Clicca per visualizzare">' + san2 + '</span>';
+            return '<span class="san-link" onclick="previewMove(\'' + san2 + '\', event, ' + baseMoveIndex + (', null, null)" title="' + tr("Clicca per visualizzare") + '">') + san2 + '</span>';
         });
     }
 
@@ -2869,7 +2879,7 @@
             if (event && event.currentTarget) $(event.currentTarget).addClass('preview-active');
             $('#annotation-box').addClass('previewing');
             if ($('#preview-alert').length === 0) {
-                $('#annotation-box').append(`<div id="preview-alert" class="preview-alert" onclick="clearPreview()">Anteprima di una mossa secondaria · clicca qui per tornare alla linea principale</div>`);
+                $('#annotation-box').append(`<div id="preview-alert" class="preview-alert" onclick="clearPreview()">${tr("Anteprima di una mossa secondaria")} · ${tr("clicca qui per tornare alla linea principale")}</div>`);
             }
         } else {
             console.log("Preview: mossa (" + san + ") non giocabile.");
@@ -2886,10 +2896,10 @@
     }
 
     function showSummary() {
-        setStatus("Riepilogo variante", 'info');
+        setStatus(tr("Riepilogo variante"), 'info');
         setCtxShapes([]);
 
-        let html = `<div class="summary-title">Variante completata!</div>`;
+        let html = `<div class="summary-title">${tr("Variante completata!")}</div>`;
         html += `<div class="summary-moves">`;
 
         for(let i=0; i<currentVariation.moves.length; i++) {
@@ -2911,9 +2921,9 @@
             let q = reviewSession ? (mistakeCount === 0 ? 5 : (mistakeCount === 1 ? 3 : 1))
                                   : (madeMistake ? 4 : 5);
             let giorni = predictInterval(currentVariation.srs, q);
-            html += `<div class="review-recent">Valutata <strong style="color:${qualityColor(q)}">${qualityLabel(q)}</strong>
-                     (${mistakeCount === 0 ? 'nessun errore' : mistakeCount + (mistakeCount === 1 ? ' errore' : ' errori')})
-                     · prossimo ripasso ${giorni ? 'tra ' + intervalLabel(giorni) : 'oggi stesso'}</div>`;
+            html += `<div class="review-recent">${tr("Valutata")} <strong style="color:${qualityColor(q)}">${qualityLabel(q)}</strong>
+                     (${mistakeCount === 0 ? tr("nessun errore") : mistakeCount + (mistakeCount === 1 ? (' ' + tr("errore")) : (' ' + tr("errori")))})
+                     · ${tr("prossimo ripasso")} ${giorni ? (tr("tra") + ' ') + intervalLabel(giorni) : tr("oggi stesso")}</div>`;
             let reviewed = currentVariation;
             $.ajax({
                 url: '/api/review', type: 'POST', contentType: 'application/json',
@@ -2925,8 +2935,8 @@
 
         // READ, fine apprendimento o già valutata: solo navigazione
         let nextVar = getNextVariation();
-        if (nextVar) html += `<button class="btn btn-success" id="btn-next-var">Prossima variante<span class="kbd">Spazio</span></button>`;
-        else html += `<div class="anno-end">Hai concluso questo elenco.</div>`;
+        if (nextVar) html += `<button class="btn btn-success" id="btn-next-var">${tr("Prossima variante")}<span class="kbd">${tr("Spazio")}</span></button>`;
+        else html += `<div class="anno-end">${tr("Hai concluso questo elenco.")}</div>`;
 
         $('#annotation-box').html(html).show();
         $('#read-controls').hide();
@@ -2959,11 +2969,11 @@
 
         let pr = $('#post-review');
         if (nextVar) {
-            pr.html(`<button class="btn btn-success" id="btn-next-var">Prossima variante<span class="kbd">Spazio</span></button>`);
+            pr.html(`<button class="btn btn-success" id="btn-next-var">${tr("Prossima variante")}<span class="kbd">${tr("Spazio")}</span></button>`);
             $('#btn-next-var').click(function() { clearPreview(); startTraining(nextVar.id, currentListMode); });
             waitingForAck = true;
         } else {
-            pr.html(`<div class="anno-end">Hai concluso questo elenco.</div>`);
+            pr.html(`<div class="anno-end">${tr("Hai concluso questo elenco.")}</div>`);
             waitingForAck = false;
         }
     }
@@ -2997,7 +3007,7 @@
         madeMistake = true;
         if (phase !== 'REVIEW_ERRORS' && !mistakeReviewQueue.includes(moveIndex)) { mistakeReviewQueue.push(moveIndex); mistakeCount++; }
         setCtxShapes(hintLevel === 1 ? [{ orig: m.uci.slice(0, 2), brush: 'yellow' }] : [moveArrow(m.uci, 'yellow')]);
-        setStatus(hintLevel === 1 ? 'Suggerimento: muovi il pezzo cerchiato' : 'Suggerimento: ' + m.san, 'warn');
+        setStatus(hintLevel === 1 ? tr("Suggerimento: muovi il pezzo cerchiato") : (tr("Suggerimento") + ': ') + m.san, 'warn');
     }
 
     // Esplora: apre su Lichess la posizione mostrata (anche in anteprima di una mossa secondaria)
@@ -3082,13 +3092,12 @@
     $(document).on('mousedown', '.navlink, .lichess-btn, .btn-delete, .btn-read, .icon-btn', function(e) { e.preventDefault(); });
 
     function showShortcuts() {
-        uiAlert('Spazio — avanti / conferma\n← → — mossa precedente / successiva (lettura, Esplora, Partite, Avversario, Costruisci)\nF — gira la scacchiera\nH — suggerimento (ripasso e finali)\nB — alla cieca (pezzi nascosti)\n' +
-                'Tasto destro sulla scacchiera — frecce e cerchi (un clic li cancella)\nEsc — chiude menu e finestre', { title: 'Scorciatoie da tastiera' });
+        uiAlert(tr("Spazio: avanti / conferma\n← →: mossa precedente / successiva (lettura, Esplora, Partite, Avversario, Costruisci)\nF: gira la scacchiera\nH: suggerimento (ripasso e finali)\nB: alla cieca (pezzi nascosti)\nTasto destro sulla scacchiera: frecce e cerchi (un clic li cancella)\nEsc: chiude menu e finestre"), { title: tr("Scorciatoie da tastiera") });
     }
 
     // Errori AJAX visibili (niente fallimenti silenziosi)
     $(document).ajaxError(function(ev, xhr) {
-        let m = (xhr.responseJSON && xhr.responseJSON.error) || 'Errore di comunicazione col server.';
+        let m = (xhr.responseJSON && xhr.responseJSON.error) || tr("Errore di comunicazione col server.");
         showToast(m, 'error');
     });
 
@@ -3136,7 +3145,7 @@
     }
 
     $(document).ready(function() {
-        initTheme(); initBoard(); initBoardSize(); initAnimSpeed(); initPanelSizes();
+        i18nApply(); initTheme(); initBoard(); initBoardSize(); initAnimSpeed(); initPanelSizes();
         $('#sound-toggle').prop('checked', soundOn);
         $('#skip-toggle').prop('checked', skipKnown);
         loadDueVariations();

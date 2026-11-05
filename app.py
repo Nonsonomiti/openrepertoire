@@ -66,6 +66,64 @@ app.config['MAX_CONTENT_LENGTH'] = 8 * 1024 * 1024   # tetto upload PGN: 8 MB
 app.config['TEMPLATES_AUTO_RELOAD'] = True   # ricarica index.html senza riavvio del server
 # -------------------------------
 
+# --- Lingua: italiano sorgente, inglese qui. Cookie orep_lang (lo mette il pulsante IT/EN), poi il browser. ---
+def current_lang():
+    c = request.cookies.get('orep_lang')
+    return c if c in ('it', 'en') else (request.accept_languages.best_match(['it', 'en']) or 'en')
+
+MSG_EN = {
+    "PGN mancante o non valido.": "Missing or invalid PGN.",
+    "Linea": "Line",
+    "Variante non trovata.": "Line not found.",
+    "Dati di valutazione non validi.": "Invalid rating data.",
+    "Variante non trovata (eliminata?).": "Line not found (deleted?).",
+    "Corso mancante.": "Missing course.",
+    "Variante non trovata": "Line not found",
+    "Nome non valido": "Invalid name",
+    "Capitolo di destinazione non valido": "Invalid destination chapter",
+    "Capitoli identici": "Same chapter",
+    "FEN non valido.": "Invalid FEN.",
+    "FEN vuoto.": "Empty FEN.",
+    "FEN malformato.": "Malformed FEN.",
+    "manca un re": "a king is missing",
+    "troppi re": "too many kings",
+    "pedoni in prima/ottava traversa": "pawns on the first or eighth rank",
+    "posizione di scacco impossibile": "impossible check",
+    "diritti di arrocco incoerenti coi pezzi": "castling rights don't match the pieces",
+    "Posizione illegale": "Illegal position",
+    "Posizione illegale.": "Illegal position.",
+    "Titolo mancante.": "Missing title.",
+    "Nessuna mossa.": "No moves.",
+    "FEN di partenza non valido.": "Invalid starting FEN.",
+    "Posizione di partenza illegale.": "Illegal starting position.",
+    "Mossa %d non valida (%s).": "Move %d is invalid (%s).",
+    "Mossa %d illegale (%s).": "Move %d is illegal (%s).",
+    "Esiste già una variante con questa identica sequenza di mosse.": "A line with this exact move sequence already exists.",
+    "corso": "course", "%dcapitoli": "%dchapters", "selezione": "selection", "tutto": "all", "albero": "tree",
+    "Nome utente non valido.": "Invalid username.",
+    "Account non trovato.": "Account not found.",
+    "Avversario non trovato: rianalizzalo.": "Opponent not found: analyse them again.",
+    "Avversario non trovato.": "Opponent not found.",
+    "Obiettivo non valido.": "Invalid goal.",
+    "Al massimo 7 pezzi (il limite della tablebase).": "7 pieces at most (the tablebase limit).",
+    "In questa posizione la partita è già finita.": "The game is already over in this position.",
+    "Questa posizione c'è già.": "This position is already there.",
+    "Posizione": "Position",
+    "Posizione non trovata.": "Position not found.",
+    "Valutazione non valida.": "Invalid rating.",
+    "Host non ammesso.": "Host not allowed.",
+    "Accesso dalla rete disattivato.": "Network access is off.",
+    "Troppi tentativi: riprova tra un minuto.": "Too many attempts: try again in a minute.",
+    "PIN errato.": "Wrong PIN.",
+    "Serve il PIN.": "PIN required.",
+    "Solo dal computer.": "Only from the computer.",
+    "Inserisci il PIN che vedi sul computer (icona del telefono in alto).": "Enter the PIN shown on the computer (phone icon at the top).",
+    "Entra": "Enter",
+}
+
+def tr(s):
+    return MSG_EN.get(s, s) if current_lang() == 'en' else s
+
 def load_data(path=None):
     # Prova il file principale, poi il backup .bak se corrotto/mancante
     path = path or DATA_FILE
@@ -207,14 +265,14 @@ def update_srs(srs, quality):
 @app.route('/')
 def index():
     # local: dal computer (non dal telefono) compaiono anche cartella dei dati e "chiudi l'app"
-    return render_template('index.html', local=request.remote_addr in LOCAL_ADDRS, version=__version__)
+    return render_template('index.html', local=request.remote_addr in LOCAL_ADDRS, version=__version__, lang=current_lang())
 
 @app.route('/api/import', methods=['POST'])
 def import_pgn():
     req = request.get_json(silent=True) or {}
     pgn_text = req.get('pgn')
     if not isinstance(pgn_text, str) or not pgn_text.strip():
-        return jsonify({"success": False, "error": "PGN mancante o non valido."}), 400
+        return jsonify({"success": False, "error": tr("PGN mancante o non valido.")}), 400
     course_name = req.get('course', 'Varie')
     perspective = req.get('perspective', 'white')
     tree = bool(req.get('tree'))   # ogni ramo del PGN = una linea (default: solo la principale)
@@ -244,7 +302,7 @@ def import_pgn():
         if not title or title == "?":
             white = game.headers.get("White", "")
             black = game.headers.get("Black", "")
-            title = f"{white} vs {black}" if white or black else f"Linea {count}"
+            title = f"{white} vs {black}" if white or black else f"{tr('Linea')} {count}"
 
         # Header non-standard dei nostri export PGN: restore fedele di corso/capitolo/colore
         hdr_course = game.headers.get("Course")
@@ -413,7 +471,7 @@ def get_variation():
     vid = request.args.get('id')
     v = load_data().get(vid)
     if not v:
-        return jsonify({"error": "Variante non trovata."}), 404
+        return jsonify({"error": tr("Variante non trovata.")}), 404
     return jsonify({"id": vid, "moves": v.get('moves') or [], "startFen": v.get('startFen')})
 
 @app.route('/api/review', methods=['POST'])
@@ -422,10 +480,10 @@ def review():
     vid = req.get('id')
     quality = req.get('quality')
     if not isinstance(vid, str) or isinstance(quality, bool) or not isinstance(quality, int) or not (0 <= quality <= 5):
-        return jsonify({"success": False, "error": "Dati di valutazione non validi."}), 400
+        return jsonify({"success": False, "error": tr("Dati di valutazione non validi.")}), 400
     data = load_data()
     if vid not in data:
-        return jsonify({"success": False, "error": "Variante non trovata (eliminata?)."}), 404
+        return jsonify({"success": False, "error": tr("Variante non trovata (eliminata?).")}), 404
 
     apply_review(data[vid], quality)
     save_data(data)
@@ -459,7 +517,7 @@ def review_now():
     # ids: varianti precise (dalle partite: le linee che hai dimenticato giocando)
     ids = set(x for x in req.get('ids') if isinstance(x, str)) if isinstance(req.get('ids'), list) else None
     if not ids and (not isinstance(course, str) or not course):
-        return jsonify({"success": False, "error": "Corso mancante."}), 400
+        return jsonify({"success": False, "error": tr("Corso mancante.")}), 400
 
     data = load_data()
     now = datetime.now()
@@ -497,7 +555,7 @@ def delete_variation():
         del data[vid]
         save_data(data)
         return jsonify({"success": True})
-    return jsonify({"success": False, "error": "Variante non trovata"})
+    return jsonify({"success": False, "error": tr("Variante non trovata")})
 
 @app.route('/api/delete_course', methods=['POST'])
 def delete_course():
@@ -661,7 +719,7 @@ def rename_chapter():
     old = req.get('old')
     new = (req.get('new') or '').strip()
     if not new:
-        return jsonify({"success": False, "error": "Nome non valido"})
+        return jsonify({"success": False, "error": tr("Nome non valido")})
     n = 0
     for v in data.values():
         if (v.get('course') or 'Varie') == course and (v.get('chapter') or 'Generale') == old:
@@ -689,7 +747,7 @@ def rename_course():
     old = req.get('old')
     new = (req.get('new') or '').strip()
     if not new:
-        return jsonify({"success": False, "error": "Nome non valido"})
+        return jsonify({"success": False, "error": tr("Nome non valido")})
     n = 0
     for v in data.values():
         if (v.get('course') or 'Varie') == old:
@@ -706,9 +764,9 @@ def merge_chapter():
     src = req.get('from')
     dst = (req.get('to') or '').strip()
     if not dst:
-        return jsonify({"success": False, "error": "Capitolo di destinazione non valido"})
+        return jsonify({"success": False, "error": tr("Capitolo di destinazione non valido")})
     if src == dst:
-        return jsonify({"success": False, "error": "Capitoli identici"})
+        return jsonify({"success": False, "error": tr("Capitoli identici")})
     n = 0
     for v in data.values():
         if (v.get('course') or 'Varie') == course and (v.get('chapter') or 'Generale') == src:
@@ -939,7 +997,7 @@ def notes_save():
     try:
         board = chess.Board((req.get('fen') or '').strip())
     except ValueError:
-        return jsonify({'success': False, 'error': 'FEN non valido.'}), 400
+        return jsonify({'success': False, 'error': tr('FEN non valido.')}), 400
     tags = [t for t in NOTE_TAGS if t in (req.get('tags') or [])]
     text = (req.get('text') or '').strip()[:4000]
     url = str(req.get('url') or '')[:500]
@@ -1028,7 +1086,7 @@ def _net_error(e):
     if isinstance(e, urllib.error.URLError):
         if isinstance(e.reason, ssl.SSLCertVerificationError):
             return 'ssl_cert'
-        return 'rete: %s' % str(e.reason)[:120]
+        return 'network: %s' % str(e.reason)[:120]
     return '%s: %s' % (type(e).__name__, str(e)[:120])
 
 def explorer_get(db, params, token):
@@ -1110,25 +1168,25 @@ def validate_fen():
     req = request.get_json(silent=True) or {}
     fen = (req.get('fen') or '').strip()
     if not fen:
-        return jsonify({"valid": False, "error": "FEN vuoto."})
+        return jsonify({"valid": False, "error": tr("FEN vuoto.")})
     try:
         board = chess.Board(fen)
     except Exception:
-        return jsonify({"valid": False, "error": "FEN malformato."})
+        return jsonify({"valid": False, "error": tr("FEN malformato.")})
     if not board.is_valid():
         status = board.status()
         reasons = []
         if status & chess.STATUS_NO_WHITE_KING or status & chess.STATUS_NO_BLACK_KING:
-            reasons.append("manca un re")
+            reasons.append(tr("manca un re"))
         if status & chess.STATUS_TOO_MANY_KINGS:
-            reasons.append("troppi re")
+            reasons.append(tr("troppi re"))
         if status & chess.STATUS_PAWNS_ON_BACKRANK:
-            reasons.append("pedoni in prima/ottava traversa")
+            reasons.append(tr("pedoni in prima/ottava traversa"))
         if status & chess.STATUS_OPPOSITE_CHECK or status & chess.STATUS_TOO_MANY_CHECKERS:
-            reasons.append("posizione di scacco impossibile")
+            reasons.append(tr("posizione di scacco impossibile"))
         if status & chess.STATUS_BAD_CASTLING_RIGHTS:
-            reasons.append("diritti di arrocco incoerenti coi pezzi")
-        msg = "Posizione illegale" + (": " + ", ".join(reasons) if reasons else ".")
+            reasons.append(tr("diritti di arrocco incoerenti coi pezzi"))
+        msg = tr("Posizione illegale") + (": " + ", ".join(reasons) if reasons else ".")
         return jsonify({"valid": False, "error": msg})
     # normalizza azzerando i contatori (la variante riparte da qui)
     board.halfmove_clock = 0
@@ -1140,10 +1198,10 @@ def save_variation():
     req = request.get_json(silent=True) or {}
     title = (req.get('title') or '').strip()
     if not title:
-        return jsonify({"success": False, "error": "Titolo mancante."}), 400
+        return jsonify({"success": False, "error": tr("Titolo mancante.")}), 400
     moves_in = req.get('moves')
     if not isinstance(moves_in, list) or not moves_in:
-        return jsonify({"success": False, "error": "Nessuna mossa."}), 400
+        return jsonify({"success": False, "error": tr("Nessuna mossa.")}), 400
 
     course = (req.get('course') or 'Varie').strip() or 'Varie'
     chapter = (req.get('chapter') or '').strip() or derive_chapter(title)
@@ -1156,9 +1214,9 @@ def save_variation():
     try:
         board = chess.Board(start_fen) if start_fen else chess.Board()
     except Exception:
-        return jsonify({"success": False, "error": "FEN di partenza non valido."}), 400
+        return jsonify({"success": False, "error": tr("FEN di partenza non valido.")}), 400
     if start_fen and not board.is_valid():
-        return jsonify({"success": False, "error": "Posizione di partenza illegale."}), 400
+        return jsonify({"success": False, "error": tr("Posizione di partenza illegale.")}), 400
 
     moves_data = []
     for i, m in enumerate(moves_in):
@@ -1166,9 +1224,9 @@ def save_variation():
         try:
             mv = chess.Move.from_uci(uci)
         except Exception:
-            return jsonify({"success": False, "error": "Mossa %d non valida (%s)." % (i + 1, uci)}), 400
+            return jsonify({"success": False, "error": tr("Mossa %d non valida (%s).") % (i + 1, uci)}), 400
         if mv and mv not in board.legal_moves:   # mv falso = mossa nulla "--" dei corsi: ammessa
-            return jsonify({"success": False, "error": "Mossa %d illegale (%s)." % (i + 1, uci)}), 400
+            return jsonify({"success": False, "error": tr("Mossa %d illegale (%s).") % (i + 1, uci)}), 400
         comment = (m.get('comment') if isinstance(m, dict) else '') or ''
         moves_data.append({"uci": uci, "san": board.san(mv), "comment": comment})
         board.push(mv)
@@ -1198,7 +1256,7 @@ def save_variation():
 
     # Re-keying: l'identità (var_id) dipende da startFen+mosse. Collisione con ALTRA variante -> rifiuta.
     if new_id in data and new_id != old_id:
-        return jsonify({"success": False, "error": "Esiste già una variante con questa identica sequenza di mosse.",
+        return jsonify({"success": False, "error": tr("Esiste già una variante con questa identica sequenza di mosse."),
                         "existingId": new_id}), 409
 
     if editing:
@@ -1307,7 +1365,7 @@ def export_pgn():
     else:
         for v in selected:
             game = chess.pgn.Game()
-            game.headers['Event'] = v.get('title') or 'Linea'
+            game.headers['Event'] = v.get('title') or tr('Linea')
             game.headers['Site'] = 'openrepertoire'
             game.headers['White'] = v.get('course') or 'Varie'
             game.headers['Black'] = v.get('chapter') or 'Generale'
@@ -1337,11 +1395,11 @@ def export_pgn():
 
     pgn_text = "\n\n".join(games) + ("\n" if games else "")
     if chapters:
-        scope = (course or 'corso') + '_' + (sorted(chapters)[0] if len(chapters) == 1 else '%dcapitoli' % len(chapters))
+        scope = (course or tr('corso')) + '_' + (sorted(chapters)[0] if len(chapters) == 1 else tr('%dcapitoli') % len(chapters))
     else:
-        scope = course or ('selezione' if ids else 'tutto')
+        scope = course or (tr('selezione') if ids else tr('tutto'))
     if merge:
-        scope += '_albero'
+        scope += '_' + tr('albero')
     safe = re.sub(r'[^A-Za-z0-9._-]+', '_', scope)[:60]
     fname = "openrepertoire_%s_%s.pgn" % (safe, datetime.now().strftime('%Y%m%d'))
     return Response(pgn_text, mimetype='application/x-chess-pgn',
@@ -1703,7 +1761,7 @@ def games_sync():
     req = request.get_json(silent=True) or {}
     args = _fetch_args(req)
     if not args:
-        return jsonify({'success': False, 'error': 'Nome utente non valido.'}), 400
+        return jsonify({'success': False, 'error': tr('Nome utente non valido.')}), 400
     site, user, n = args
     p = load_personal()
     key = site + ':' + user.lower()
@@ -1729,7 +1787,7 @@ def games_remove():
     key = (request.get_json(silent=True) or {}).get('key')
     p = load_personal()
     if key not in p['accounts']:
-        return jsonify({'success': False, 'error': 'Account non trovato.'}), 404
+        return jsonify({'success': False, 'error': tr('Account non trovato.')}), 404
     site, user = key.split(':', 1)
     p['games'] = {k: g for k, g in p['games'].items() if not (g['site'] == site and g['user'] == user)}
     del p['accounts'][key]
@@ -1754,7 +1812,7 @@ def opponent_scan():
     req = request.get_json(silent=True) or {}
     args = _fetch_args(req)
     if not args:
-        return jsonify({'success': False, 'error': 'Nome utente non valido.'}), 400
+        return jsonify({'success': False, 'error': tr('Nome utente non valido.')}), 400
     site, user, n = args
     my_color = _color_arg(req.get('color'))
     key = site + ':' + user.lower()
@@ -1779,7 +1837,7 @@ def opponent_tree():
     req = request.get_json(silent=True) or {}
     o = load_personal()['opponents'].get(req.get('key'))
     if not o:
-        return jsonify({'error': 'Avversario non trovato: rianalizzalo.'}), 404
+        return jsonify({'error': tr('Avversario non trovato: rianalizzalo.')}), 404
     my_color = _color_arg(req.get('color'))
     opp_color = 'black' if my_color == 'white' else 'white'
     path = req.get('path') if isinstance(req.get('path'), list) else []
@@ -1790,7 +1848,7 @@ def opponent_remove():
     key = (request.get_json(silent=True) or {}).get('key')
     p = load_personal()
     if p['opponents'].pop(key, None) is None:
-        return jsonify({'success': False, 'error': 'Avversario non trovato.'}), 404
+        return jsonify({'success': False, 'error': tr('Avversario non trovato.')}), 404
     save_personal(p)
     return jsonify({'success': True})
 
@@ -1829,24 +1887,24 @@ def endgames_add():
     req = request.get_json(silent=True) or {}
     goal = req.get('goal')
     if goal not in ('win', 'draw'):
-        return jsonify({'success': False, 'error': 'Obiettivo non valido.'}), 400
+        return jsonify({'success': False, 'error': tr('Obiettivo non valido.')}), 400
     try:
         board = chess.Board((req.get('fen') or '').strip())
     except ValueError:
-        return jsonify({'success': False, 'error': 'FEN non valido.'}), 400
+        return jsonify({'success': False, 'error': tr('FEN non valido.')}), 400
     if not board.is_valid():
-        return jsonify({'success': False, 'error': 'Posizione illegale.'}), 400
+        return jsonify({'success': False, 'error': tr('Posizione illegale.')}), 400
     if chess.popcount(board.occupied) > 7:
-        return jsonify({'success': False, 'error': 'Al massimo 7 pezzi (il limite della tablebase).'}), 400
+        return jsonify({'success': False, 'error': tr('Al massimo 7 pezzi (il limite della tablebase).')}), 400
     if board.is_game_over():
-        return jsonify({'success': False, 'error': 'In questa posizione la partita è già finita.'}), 400
+        return jsonify({'success': False, 'error': tr('In questa posizione la partita è già finita.')}), 400
     board.halfmove_clock = 0
     fen = board.fen()
     p = load_personal()
     eid = _eg_id(fen)
     if eid in p['endgames']:
-        return jsonify({'success': False, 'error': 'Questa posizione c\'è già.'}), 409
-    p['endgames'][eid] = {'fen': fen, 'title': (req.get('title') or '').strip()[:120] or 'Posizione', 'goal': goal,
+        return jsonify({'success': False, 'error': tr('Questa posizione c\'è già.')}), 409
+    p['endgames'][eid] = {'fen': fen, 'title': (req.get('title') or '').strip()[:120] or tr('Posizione'), 'goal': goal,
                           'builtin': False, 'srs': new_srs(), 'stats': default_stats()}
     save_personal(p)
     return jsonify({'success': True, 'id': eid})
@@ -1856,7 +1914,7 @@ def endgames_delete():
     eid = (request.get_json(silent=True) or {}).get('id')
     p = load_personal()
     if p['endgames'].pop(eid, None) is None:
-        return jsonify({'success': False, 'error': 'Posizione non trovata.'}), 404
+        return jsonify({'success': False, 'error': tr('Posizione non trovata.')}), 404
     save_personal(p)
     return jsonify({'success': True})
 
@@ -1865,11 +1923,11 @@ def endgames_review():
     req = request.get_json(silent=True) or {}
     q = req.get('quality')
     if isinstance(q, bool) or not isinstance(q, int) or not (0 <= q <= 5):
-        return jsonify({'success': False, 'error': 'Valutazione non valida.'}), 400
+        return jsonify({'success': False, 'error': tr('Valutazione non valida.')}), 400
     p = load_personal()
     e = p['endgames'].get(req.get('id'))
     if not e:
-        return jsonify({'success': False, 'error': 'Posizione non trovata.'}), 404
+        return jsonify({'success': False, 'error': tr('Posizione non trovata.')}), 404
     apply_review(e, q)
     save_personal(p)
     return jsonify({'success': True, 'srs': e['srs'], 'stats': e['stats']})
@@ -1901,7 +1959,7 @@ def save_settings(s):
         except OSError:
             pass
 
-LOGIN_PAGE = '''<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8">
+LOGIN_PAGE = '''<!DOCTYPE html><html lang="{{lang}}"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>openrepertoire</title>
 <style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#161615;color:#cfccc5;font:15px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 form{box-sizing:border-box;width:min(340px,calc(100vw - 32px));padding:24px;background:#1f1f1d;border:1px solid #2c2b28;border-radius:14px}
@@ -1909,9 +1967,9 @@ h1{margin:0 0 6px;font-size:18px;color:#edebe6}p{margin:0 0 18px;font-size:13px;
 input{box-sizing:border-box;width:100%;padding:12px;font-size:22px;letter-spacing:.3em;text-align:center;color:#edebe6;background:#1a1a19;border:1px solid #3b3a36;border-radius:8px}
 button{width:100%;margin-top:12px;padding:12px;font-size:15px;font-weight:600;color:#fff;background:#557a3e;border:0;border-radius:8px}
 .m{margin-top:12px;min-height:18px;font-size:13px;color:#e5806f}</style></head><body>
-<form method="post" action="/login"><h1>openrepertoire</h1><p>Inserisci il PIN che vedi sul computer (icona del telefono in alto).</p>
+<form method="post" action="/login"><h1>openrepertoire</h1><p>{{pin_help}}</p>
 <input name="pin" inputmode="numeric" autocomplete="one-time-code" maxlength="6" autofocus>
-<button type="submit">Entra</button><div class="m">{{msg}}</div></form></body></html>'''
+<button type="submit">{{enter}}</button><div class="m">{{msg}}</div></form></body></html>'''
 
 @app.before_request
 def lan_gate():
@@ -1921,17 +1979,17 @@ def lan_gate():
         host = request.host if request.host.endswith(']') else request.host.rsplit(':', 1)[0]
         if host.lower() in LOCAL_HOSTS:
             return None
-        return Response('Host non ammesso.', 403, mimetype='text/plain')
+        return Response(tr('Host non ammesso.'), 403, mimetype='text/plain')
     s = load_settings()
     if not (s.get('lan') and s.get('pin') and s.get('secret')):
-        return Response('Accesso dalla rete disattivato.', 403, mimetype='text/plain')
+        return Response(tr('Accesso dalla rete disattivato.'), 403, mimetype='text/plain')
     if hmac.compare_digest(request.cookies.get('orep_auth', ''), s['secret']):
         return None
     ip, msg = request.remote_addr, ''
     fails, until = _pin_fails.get(ip, (0, 0))
     if request.method == 'POST' and request.path == '/login':
         if time.time() < until:
-            msg = 'Troppi tentativi: riprova tra un minuto.'
+            msg = tr('Troppi tentativi: riprova tra un minuto.')
         elif hmac.compare_digest((request.form.get('pin') or '').strip(), s['pin']):
             _pin_fails.pop(ip, None)
             resp = redirect('/')
@@ -1940,10 +1998,10 @@ def lan_gate():
         else:
             fails += 1
             _pin_fails[ip] = (fails, time.time() + 60 if fails >= 5 else 0)
-            msg = 'PIN errato.'
+            msg = tr('PIN errato.')
     if request.path.startswith('/api/'):
-        return jsonify({'error': 'Serve il PIN.'}), 401
-    return Response(LOGIN_PAGE.replace('{{msg}}', msg), 401, mimetype='text/html')
+        return jsonify({'error': tr('Serve il PIN.')}), 401
+    return Response(LOGIN_PAGE.replace('{{msg}}', msg).replace('{{lang}}', current_lang()).replace('{{pin_help}}', tr('Inserisci il PIN che vedi sul computer (icona del telefono in alto).')).replace('{{enter}}', tr('Entra')), 401, mimetype='text/html')
 
 def lan_ip():
     """L'indirizzo del computer sulla rete locale (connect su UDP non manda pacchetti)."""
@@ -2002,7 +2060,7 @@ def lan_start(port):
 @app.route('/api/lan', methods=['GET', 'POST'])
 def api_lan():
     if request.remote_addr not in LOCAL_ADDRS:   # il PIN si legge solo dal computer
-        return jsonify({'error': 'Solo dal computer.'}), 403
+        return jsonify({'error': tr('Solo dal computer.')}), 403
     s = dict(load_settings())
     if request.method == 'POST':
         req = request.get_json(silent=True) or {}
@@ -2031,7 +2089,7 @@ def api_ping():
 def api_quit():
     """Chiude l'app (solo dal computer): prima parte la risposta, poi il processo esce."""
     if request.remote_addr not in LOCAL_ADDRS:
-        return jsonify({'error': 'Solo dal computer.'}), 403
+        return jsonify({'error': tr('Solo dal computer.')}), 403
     threading.Timer(0.4, lambda: os._exit(0)).start()
     return jsonify({'success': True})
 
@@ -2039,7 +2097,7 @@ def api_quit():
 def api_data_dir():
     """Dove stanno i dati; POST apre la cartella nel Finder / Esplora risorse (solo dal computer)."""
     if request.remote_addr not in LOCAL_ADDRS:
-        return jsonify({'error': 'Solo dal computer.'}), 403
+        return jsonify({'error': tr('Solo dal computer.')}), 403
     if request.method == 'POST':
         try:
             if sys.platform == 'darwin':

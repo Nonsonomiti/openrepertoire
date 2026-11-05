@@ -26,13 +26,13 @@ function pxTail(path) {   // le ultime due mosse col numero: "5.Nf3 Nc6" / "5...
     }
     return out.join(' ');
 }
-function pxErr(code) {   // codici del server -> italiano (HTML)
-    if (code === 'not_found') return 'Utente non trovato.';
-    if (code === 'rate_limit') return 'Troppe richieste: il sito chiede di aspettare un minuto.';
-    if (code === 'bad_token') return 'Token Lichess non valido: rimettilo da Corsi → Esplora → Database Lichess.';
-    if (code === 'no_token') return 'Serve il token Lichess (gratuito): impostalo da Corsi → Esplora → Database Lichess.';
+function pxErr(code) {   // codici del server -> testo (HTML)
+    if (code === 'not_found') return tr("Utente non trovato.");
+    if (code === 'rate_limit') return tr("Troppe richieste: il sito chiede di aspettare un minuto.");
+    if (code === 'bad_token') return tr("Token Lichess non valido: rimettilo da Corsi → Esplora → Database Lichess.");
+    if (code === 'no_token') return tr("Serve il token Lichess (gratuito): impostalo da Corsi → Esplora → Database Lichess.");
     if (code === 'ssl_cert') return dbErrMsg('ssl_cert');
-    return 'Errore: <code>' + escHtml(String(code || '?')) + '</code>';
+    return (tr("Errore") + ': <code>') + escHtml(String(code || '?')) + '</code>';
 }
 function pxBar(m) {   // vittorie Bianco / patte / vittorie Nero, come il database Lichess
     let g = m.games || 1;
@@ -41,10 +41,10 @@ function pxBar(m) {   // vittorie Bianco / patte / vittorie Nero, come il databa
 }
 function pxWhen(iso) {
     let d = new Date(iso);
-    return isNaN(d) ? '' : d.toLocaleString('it-IT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    return isNaN(d) ? '' : d.toLocaleString(I18N_LOCALE, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 function pxGameRef(g) {   // "vs Rossi (1850) · 2026-09-12 · persa", col link alla partita
-    let res = { win: 'vinta', draw: 'patta', loss: 'persa' }[g.result] || '';
+    let res = { win: tr("vinta"), draw: tr("patta"), loss: tr("persa") }[g.result] || '';
     return '<a href="' + escHtml(g.url || '#') + '" target="_blank" rel="noopener" onclick="event.stopPropagation()">vs ' + escHtml(g.opp || '?') +
         (g.opp_rating ? ' (' + g.opp_rating + ')' : '') + '</a>' + (g.date ? ' · ' + g.date : '') + (res ? ' · ' + res : '');
 }
@@ -67,8 +67,8 @@ function pxBoard(id, onMove) {
 // La risposta che manca, da preparare nell'editor: la linea arriva gia' giocata fino alla mossa
 // dell'avversario e va in un corso tuo (i corsi importati restano com'erano).
 function pxPrepare(x, color, back) {
-    openEditor(null, { moves: x.path, perspective: color, course: 'Il mio repertorio', chapter: x.course || '',
-                       title: 'Risposta a ' + x.move, back: back });
+    openEditor(null, { moves: x.path, perspective: color, course: tr("Il mio repertorio"), chapter: x.course || '',
+                       title: (tr("Risposta a") + ' ') + x.move, back: back });
 }
 
 // Scacchiera navigabile (Partite, Avversario, Costruisci): percorso di mosse, avanti/indietro, frecce
@@ -116,31 +116,31 @@ function pxTreeRows(t, who, markMine) {
     (t.rep || []).forEach(function(r) { rep[r.uci] = true; });
     let tot = t.moves.reduce(function(a, m) { return a + m.games; }, 0) || 1;
     let rows = t.moves.map(function(m) {
-        let mark = !hasRep ? '' : (rep[m.uci] ? '<span class="db-ok" title="Nel repertorio">✓</span>'
-                 : (!t.mine ? '<span class="db-gap" title="Nessuna risposta preparata">⚠</span>'
-                 : (markMine ? '<span class="px-bad" title="Fuori repertorio">✗</span>' : '')));
+        let mark = !hasRep ? '' : (rep[m.uci] ? ('<span class="db-ok" title="' + tr("Nel repertorio") + '">✓</span>')
+                 : (!t.mine ? ('<span class="db-gap" title="' + tr("Nessuna risposta preparata") + '">⚠</span>')
+                 : (markMine ? ('<span class="px-bad" title="' + tr("Fuori repertorio") + '">✗</span>') : '')));
         return '<div class="exp-move" onclick="' + who + '.nav.go(\'' + m.uci + '\')" onmouseenter="' + who + '.nav.hover(\'' + m.uci +
             '\')" onmouseleave="' + who + '.nav.hover()"><span class="exp-san">' + escHtml(m.san) + ' ' + mark + '</span>' + pxBar(m) +
             '<span class="exp-count">' + m.games + ' · ' + Math.round(100 * m.games / tot) + '%</span></div>';
     }).join('');
-    let repLine = (t.mine && hasRep) ? '<div class="px-rep-line">Il tuo repertorio qui: ' + t.rep.map(function(r) {
+    let repLine = (t.mine && hasRep) ? ('<div class="px-rep-line">' + tr("Il tuo repertorio qui") + ': ') + t.rep.map(function(r) {
         return '<span class="px-move" role="button" tabindex="0" onclick="' + who + '.nav.go(\'' + r.uci + '\')">' + escHtml(r.san) + '</span>';
     }).join(' · ') + '</div>' : '';
-    return repLine + (rows || '<div class="empty-msg">Nessuna partita arriva qui.</div>');
+    return repLine + (rows || ('<div class="empty-msg">' + tr("Nessuna partita arriva qui.") + '</div>'));
 }
 function pxExitRows(exits, who, color, back) {
     return exits.map(function(x, i) {
         let g = x.games[0];
         return '<div class="px-item" role="button" tabindex="0" onclick="' + who + '.nav.goPath(' + who + '.report.exits[' + i + '].path.slice(0, -1))">' +
-            '<div class="px-item-main"><b class="db-gap">' + escHtml(x.move) + '</b> · nessuna risposta preparata</div>' +
+            '<div class="px-item-main"><b class="db-gap">' + escHtml(x.move) + ('</b> · ' + tr("nessuna risposta preparata") + '</div>') +
             pxAfter(x.path.slice(0, -1)) +
-            '<div class="px-item-sub">' + x.count + (x.count === 1 ? ' partita' : ' partite') + (g ? ' · ultima ' + pxGameRef(g) : '') + '</div>' +
+            '<div class="px-item-sub">' + x.count + (x.count === 1 ? (' ' + tr("partita")) : (' ' + tr("partite"))) + (g ? (' · ' + tr("ultima") + ' ') + pxGameRef(g) : '') + '</div>' +
             '<button class="btn-delete px-act" onclick="event.stopPropagation(); pxPrepare(' + who + '.report.exits[' + i + '], \'' + color + '\', \'' + back +
-            '\')" title="Prepara la risposta nell\'editor"><i class="ico i-plus"></i> Prepara</button></div>';
+            ('\')" title="' + tr("Prepara la risposta nell'editor") + '"><i class="ico i-plus"></i> ' + tr("Prepara") + '</button></div>');
     }).join('');
 }
 function pxAfter(path) {   // il contesto di una voce: le mosse che portano alla posizione
-    return path.length ? '<div class="px-item-sub px-after">dopo ' + escHtml(pxSans(path)) + '</div>' : '';
+    return path.length ? ('<div class="px-item-sub px-after">' + tr("dopo") + ' ') + escHtml(pxSans(path)) + '</div>' : '';
 }
 function pxKpis(list) {
     return list.map(function(k) { return '<div class="kpi"><div class="kpi-val">' + k[1] + '</div><div class="kpi-lab">' + k[0] + '</div></div>'; }).join('');
@@ -164,12 +164,12 @@ function gmLoadState() {
         if (cc && !$('#acc-chesscom').val()) $('#acc-chesscom').val(cc.name);
         $('#acc-list').html(acc.map(function(a) {
             return '<div class="px-acc"><span>' + (a.site === 'lichess' ? 'Lichess' : 'Chess.com') + ' · <b>' + escHtml(a.name) + '</b> · ' + a.count +
-                ' partite' + (a.synced ? ' · aggiornato ' + pxWhen(a.synced) : '') + '</span><button class="btn-delete" onclick="gmRemove(\'' + esc(a.key) +
-                '\')" title="Togli l\'account e le sue partite" aria-label="Togli l\'account"><i class="ico i-x"></i></button></div>';
+                (' ' + tr("partite")) + (a.synced ? (' · ' + tr("aggiornato") + ' ') + pxWhen(a.synced) : '') + '</span><button class="btn-delete" onclick="gmRemove(\'' + esc(a.key) +
+                ('\')" title="' + tr("Togli l'account e le sue partite") + '" aria-label="' + tr("Togli l'account") + '"><i class="ico i-x"></i></button></div>');
         }).join(''));
-        $('#acc-head').text(acc.length ? 'Account · ' + acc.map(function(a) { return a.name + ' (' + a.count + ')'; }).join(', ') : 'Account e download');
+        $('#acc-head').text(acc.length ? (tr("Account") + ' · ') + acc.map(function(a) { return a.name + ' (' + a.count + ')'; }).join(', ') : tr("Account e download"));
         let sel = $('#games-account'), cur = sel.val();
-        sel.html('<option value="">Tutti</option>' + acc.map(function(a) {
+        sel.html(('<option value="">' + tr("Tutti") + '</option>') + acc.map(function(a) {
             return '<option value="' + escHtml(a.key) + '">' + (a.site === 'lichess' ? 'Lichess' : 'Chess.com') + ' · ' + escHtml(a.name) + '</option>';
         }).join(''));
         if (acc.some(function(a) { return a.key === cur; })) sel.val(cur);
@@ -188,7 +188,7 @@ function gmLoadState() {
 }
 function gmSync() {
     let jobs = [['lichess', $('#acc-lichess').val().trim()], ['chesscom', $('#acc-chesscom').val().trim()]].filter(function(j) { return j[1]; });
-    if (!jobs.length) { $('#acc-status').text('Scrivi almeno un nome utente.').css('color', 'var(--accent-red)'); return; }
+    if (!jobs.length) { $('#acc-status').text(tr("Scrivi almeno un nome utente.")).css('color', 'var(--accent-red)'); return; }
     let max = parseInt($('#acc-max').val(), 10), msgs = [];
     gm.accFolded = true;   // dopo un download il pannello resta aperto: mostra com'e' andata
     $('#acc-sync').prop('disabled', true);
@@ -196,21 +196,21 @@ function gmSync() {
         let j = jobs.shift();
         if (!j) { $('#acc-sync').prop('disabled', false); $('#acc-status').html(msgs.join('<br>')).css('color', 'var(--text-dim)'); gmLoadState(); return; }
         let name = j[0] === 'lichess' ? 'Lichess' : 'Chess.com';
-        $('#acc-status').text('Scarico da ' + name + '… (qualche secondo ogni cento partite)').css('color', 'var(--text-faint)');
+        $('#acc-status').text((tr("Scarico da") + ' ') + name + ('… (' + tr("qualche secondo ogni cento partite") + ')')).css('color', 'var(--text-faint)');
         pxPost('/api/games/sync', { site: j[0], user: j[1], max: max, full: true })
             .done(function(r) {
                 msgs.push(name + ': ' + (r.success
-                    ? (r.added ? r.added + (r.added === 1 ? ' partita nuova' : ' partite nuove') : 'nessuna partita nuova') + ' · ' + r.count + ' in tutto' +
-                      (r.error ? ' · interrotto: ' + pxErr(r.error) : '')
+                    ? (r.added ? r.added + (r.added === 1 ? (' ' + tr("partita nuova")) : (' ' + tr("partite nuove"))) : tr("nessuna partita nuova")) + ' · ' + r.count + (' ' + tr("in tutto")) +
+                      (r.error ? (' · ' + tr("interrotto") + ': ') + pxErr(r.error) : '')
                     : pxErr(r.error)));
             })
-            .fail(function() { msgs.push(name + ': il server non ha risposto.'); })
+            .fail(function() { msgs.push(name + (': ' + tr("il server non ha risposto."))); })
             .always(next);
     };
     next();
 }
 function gmRemove(key) {
-    uiConfirm('Togliere l\'account e le sue partite scaricate?', { danger: true, okText: 'Togli' }).then(function(ok) {
+    uiConfirm(tr("Togliere l'account e le sue partite scaricate?"), { danger: true, okText: tr("Togli") }).then(function(ok) {
         if (ok) pxPost('/api/games/remove', { key: key }).done(gmLoadState);
     });
 }
@@ -218,45 +218,45 @@ function gmColorChanged() { gm.color = $('#games-color').val(); lsSet('gamesColo
 function gmReload() { gmLoadReport(); gm.nav.goPath([]); }
 function gmLoadReport() {
     let my = ++gm.req;
-    $('#games-devs, #games-exits').html('<div class="empty-msg">Confronto col repertorio…</div>');
+    $('#games-devs, #games-exits').html(('<div class="empty-msg">' + tr("Confronto col repertorio") + '…</div>'));
     $.get('/api/games/report', { color: gm.color, account: $('#games-account').val() || '' }, function(r) {
         if (my !== gm.req) return;
         gm.report = r;
         let t = r.tally, pct = function(n) { return t.in_rep ? Math.round(100 * n / t.in_rep) + '%' : '—'; };
         $('#games-kpis').html(pxKpis([
-            ['Partite col ' + (gm.color === 'white' ? 'Bianco' : 'Nero'), t.games],
-            ['Rimaste nel repertorio fino alla fine della preparazione', pct(t.covered)],
-            ['Volte che hai deviato tu', t.dev],
-            ['Volte che l\'avversario è uscito', t.exit]
+            [(tr("Partite col") + ' ') + (gm.color === 'white' ? tr("Bianco") : tr("Nero")), t.games],
+            [tr("Rimaste nel repertorio fino alla fine della preparazione"), pct(t.covered)],
+            [tr("Volte che hai deviato tu"), t.dev],
+            [tr("Volte che l'avversario è uscito"), t.exit]
         ]));
         let other = r.other || [], nOther = other.reduce(function(a, o) { return a + o.count; }, 0);
-        $('#games-other').html(nOther ? nOther + (nOther === 1 ? ' partita aperta' : ' partite aperte') + ' con un\'altra prima mossa, fuori dal repertorio: ' +
+        $('#games-other').html(nOther ? nOther + (nOther === 1 ? (' ' + tr("partita aperta")) : (' ' + tr("partite aperte"))) + (' ' + tr("con un'altra prima mossa, fuori dal repertorio") + ': ') +
             other.map(function(o) { return '<b>' + escHtml(o.move) + '</b> ' + o.count; }).join(' · ') : '');
         $('#games-devs-n').text(r.devs.length || '');
         $('#games-devs').html(r.devs.length ? r.devs.map(function(d, i) {
             let g = d.games[0];
             return '<div class="px-item" role="button" tabindex="0" onclick="gm.nav.goPath(gm.report.devs[' + i + '].path)">' +
                 '<div class="px-item-main">' + d.played.map(function(p) { return '<b class="px-bad">' + escHtml(p.move) + '</b>' + (p.count > 1 ? ' ×' + p.count : ''); }).join(', ') +
-                ' invece di ' + d.expected.map(function(e) { return '<b class="db-ok">' + escHtml(e) + '</b>'; }).join(' o ') + '</div>' + pxAfter(d.path) +
-                '<div class="px-item-sub">' + d.count + (d.count === 1 ? ' partita' : ' partite') + (g ? ' · ultima ' + pxGameRef(g) : '') + '</div>' +
-                '<button class="btn-delete px-act" onclick="event.stopPropagation(); gmReviewDev(' + i + ')" title="Rimetti in ripasso le linee di questa posizione"><i class="ico i-clock"></i> Ripassa</button></div>';
-        }).join('') : '<div class="empty-msg">Nessuna: dove il repertorio aveva una mossa, l\'hai giocata.</div>');
+                (' ' + tr("invece di") + ' ') + d.expected.map(function(e) { return '<b class="db-ok">' + escHtml(e) + '</b>'; }).join((' ' + tr("o") + ' ')) + '</div>' + pxAfter(d.path) +
+                '<div class="px-item-sub">' + d.count + (d.count === 1 ? (' ' + tr("partita")) : (' ' + tr("partite"))) + (g ? (' · ' + tr("ultima") + ' ') + pxGameRef(g) : '') + '</div>' +
+                '<button class="btn-delete px-act" onclick="event.stopPropagation(); gmReviewDev(' + i + (')" title="' + tr("Rimetti in ripasso le linee di questa posizione") + '"><i class="ico i-clock"></i> ' + tr("Ripassa") + '</button></div>');
+        }).join('') : ('<div class="empty-msg">' + tr("Nessuna: dove il repertorio aveva una mossa, l'hai giocata.") + '</div>'));
         $('#games-exits-n').text(r.exits.length || '');
         $('#games-exits').html(r.exits.length ? pxExitRows(r.exits, 'gm', gm.color, 'partite')
-            : '<div class="empty-msg">Nessuna: gli avversari sono sempre rimasti nella tua preparazione.</div>');
+            : ('<div class="empty-msg">' + tr("Nessuna: gli avversari sono sempre rimasti nella tua preparazione.") + '</div>'));
     });
 }
 function gmReviewDev(i) {
     let d = gm.report.devs[i];
     pxPost('/api/review_now', { ids: d.var_ids }).done(function(r) {
-        showToast(r.count ? r.count + (r.count === 1 ? ' linea da ripassare adesso (Corsi → Ripassa)' : ' linee da ripassare adesso (Corsi → Ripassa)')
-                          : 'Le linee di questa posizione sono già da ripassare.', r.count ? 'success' : null);
+        showToast(r.count ? r.count + (r.count === 1 ? (' ' + tr("linea da ripassare adesso (Corsi → Ripassa)")) : (' ' + tr("linee da ripassare adesso (Corsi → Ripassa)")))
+                          : tr("Le linee di questa posizione sono già da ripassare."), r.count ? 'success' : null);
         loadDueVariations();
     });
 }
 function gmLoadTree() {
     let my = ++gm.treeReq;
-    $('#games-crumb').text(gm.nav.path.length ? pxSans(gm.nav.path) : 'Posizione iniziale');
+    $('#games-crumb').text(gm.nav.path.length ? pxSans(gm.nav.path) : tr("Posizione iniziale"));
     pxPost('/api/games/tree', { color: gm.color, account: $('#games-account').val() || '', path: gm.nav.path }).done(function(t) {
         if (my !== gm.treeReq) return;
         gm.nav.top = t.moves.length ? t.moves[0].uci : null;
@@ -290,15 +290,15 @@ function opPick(site, name) { $('#opp-site').val(site); $('#opp-user').val(name)
 function opColorChanged() { lsSet('oppColor', $('#opp-color').val()); if (op.key) opScan(false); }
 function opScan(refresh) {
     let user = $('#opp-user').val().trim();
-    if (!user) { $('#opp-status').text('Scrivi il nome utente.').css('color', 'var(--accent-red)'); return; }
+    if (!user) { $('#opp-status').text(tr("Scrivi il nome utente.")).css('color', 'var(--accent-red)'); return; }
     op.color = $('#opp-color').val();
-    $('#opp-status').text('Scarico e analizzo le sue partite…').css('color', 'var(--text-faint)');
+    $('#opp-status').text((tr("Scarico e analizzo le sue partite") + '…')).css('color', 'var(--text-faint)');
     pxPost('/api/opponent/scan', { site: $('#opp-site').val(), user: user, max: parseInt($('#opp-max').val(), 10), color: op.color, refresh: !!refresh })
         .done(function(r) {
             if (!r.success) { $('#opp-status').html(pxErr(r.error)).css('color', 'var(--accent-red)'); return; }
             op.key = r.key; op.report = r;
-            $('#opp-status').html('Partite scaricate ' + pxWhen(r.fetched) + ' · <span class="sfn-clear" role="button" tabindex="0" onclick="opScan(true)">riscarica</span>' +
-                ' · <span class="sfn-clear" role="button" tabindex="0" onclick="opRemove()">dimentica</span>').css('color', 'var(--text-faint)');
+            $('#opp-status').html((tr("Partite scaricate") + ' ') + pxWhen(r.fetched) + (' · <span class="sfn-clear" role="button" tabindex="0" onclick="opScan(true)">' + tr("riscarica") + '</span>') +
+                (' · <span class="sfn-clear" role="button" tabindex="0" onclick="opRemove()">' + tr("dimentica") + '</span>')).css('color', 'var(--text-faint)');
             $('#opp-main').show();
             opRender(r);
             op.nav.setOrient(op.color);
@@ -314,39 +314,39 @@ function opRemove() {
     });
 }
 function opRender(r) {
-    let theirs = op.color === 'white' ? 'Nero' : 'Bianco', n = r.games, s = r.score, cov = r.coverage;
+    let theirs = op.color === 'white' ? tr("Nero") : tr("Bianco"), n = r.games, s = r.score, cov = r.coverage;
     let pct = function(x, tot) { return (tot ? Math.round(100 * x / tot) : 0) + '%'; };
-    let html = '<div class="px-sum-h"><b>' + escHtml(r.name) + '</b> col ' + theirs + ': ' + n + (n === 1 ? ' partita' : ' partite') + ' (su ' + r.total + ' scaricate)';
-    if (n) html += ' · vince il ' + pct(s.win, n) + ', patta il ' + pct(s.draw, n) + ', perde il ' + pct(s.loss, n);
+    let html = '<div class="px-sum-h"><b>' + escHtml(r.name) + ('</b> ' + tr("col") + ' ') + theirs + ': ' + n + (n === 1 ? (' ' + tr("partita")) : (' ' + tr("partite"))) + (' (' + tr("su") + ' ') + r.total + (' ' + tr("scaricate") + ')');
+    if (n) html += (' · ' + tr("vince il") + ' ') + pct(s.win, n) + (', ' + tr("patta il") + ' ') + pct(s.draw, n) + (', ' + tr("perde il") + ' ') + pct(s.loss, n);
     html += '</div>';
-    if (!n) html += '<div class="empty-msg">Nessuna partita col ' + theirs + ': prova l\'altro colore o scarica più partite.</div>';
-    if (r.openings.length) html += '<div class="px-sum-row">Gioca soprattutto: ' + r.openings.map(function(o) { return escHtml(o.name) + ' <span class="row-meta">' + pct(o.count, n) + '</span>'; }).join(' · ') + '</div>';
+    if (!n) html += ('<div class="empty-msg">' + tr("Nessuna partita col") + ' ') + theirs + (': ' + tr("prova l'altro colore o scarica più partite.") + '</div>');
+    if (r.openings.length) html += ('<div class="px-sum-row">' + tr("Gioca soprattutto") + ': ') + r.openings.map(function(o) { return escHtml(o.name) + ' <span class="row-meta">' + pct(o.count, n) + '</span>'; }).join(' · ') + '</div>';
     // le percentuali contano solo le partite che partono come il tuo repertorio: le altre non dicono nulla
     let inRep = n - cov.out;
     if (n) html += '<div class="px-sum-row">' + (inRep
-        ? 'Contro il tuo repertorio: ' + inRep + (inRep === 1 ? ' sua partita parte' : ' sue partite partono') + ' come le tue linee' +
-          (cov.out ? ' (le altre ' + cov.out + ' iniziano con mosse che non giochi)' : '') + '. Di queste il <b>' + pct(cov.covered, inRep) +
-          '</b> resta nella tua preparazione fino in fondo, il <b>' + pct(cov.exit, inRep) + '</b> ne esce prima per una sua mossa (elenco sotto)' +
-          (cov.dev ? ', il ' + pct(cov.dev, inRep) + ' per una mossa dei suoi avversari' : '') + '.'
-        : 'Nessuna sua partita entra nel tuo repertorio col ' + (op.color === 'white' ? 'Bianco' : 'Nero') + '.') + '</div>';
+        ? (tr("Contro il tuo repertorio") + ': ') + inRep + (inRep === 1 ? (' ' + tr("sua partita parte")) : (' ' + tr("sue partite partono"))) + (' ' + tr("come le tue linee")) +
+          (cov.out ? (' (' + tr("le altre") + ' ') + cov.out + (' ' + tr("iniziano con mosse che non giochi") + ')') : '') + ('. ' + tr("Di queste il") + ' <b>') + pct(cov.covered, inRep) +
+          ('</b> ' + tr("resta nella tua preparazione fino in fondo, il") + ' <b>') + pct(cov.exit, inRep) + ('</b> ' + tr("ne esce prima per una sua mossa (elenco sotto)")) +
+          (cov.dev ? (', ' + tr("il") + ' ') + pct(cov.dev, inRep) + (' ' + tr("per una mossa dei suoi avversari")) : '') + '.'
+        : (tr("Nessuna sua partita entra nel tuo repertorio col") + ' ') + (op.color === 'white' ? tr("Bianco") : tr("Nero")) + '.') + '</div>';
     $('#opp-summary').html(html);
     $('#opp-exits-n').text(r.exits.length || '');
-    $('#opp-exits').html(r.exits.length ? pxExitRows(r.exits, 'op', op.color, 'avversario') : '<div class="empty-msg">Nessuna uscita: dove arriva, sei preparato.</div>');
+    $('#opp-exits').html(r.exits.length ? pxExitRows(r.exits, 'op', op.color, 'avversario') : ('<div class="empty-msg">' + tr("Nessuna uscita: dove arriva, sei preparato.") + '</div>'));
     $('#opp-lines').html(r.lines.length
-        ? '<button class="btn" style="margin:0 0 10px;" onclick="opTrain()">Ripassa queste ' + r.lines.length + ' linee</button>' + r.lines.map(function(l) {
+        ? ('<button class="btn" style="margin:0 0 10px;" onclick="opTrain()">' + tr("Ripassa queste") + ' ') + r.lines.length + (' ' + tr("linee") + '</button>') + r.lines.map(function(l) {
             return '<div class="px-item" role="button" tabindex="0" onclick="openExploreLine(\'' + l.id + '\', 0)"><div class="px-item-main">' + escHtml(l.title) +
-                '</div><div class="px-item-sub">' + escHtml(l.course) + ' · ci arrivano ' + l.count + (l.count === 1 ? ' sua partita' : ' sue partite') + '</div></div>';
+                '</div><div class="px-item-sub">' + escHtml(l.course) + (' · ' + tr("ci arrivano") + ' ') + l.count + (l.count === 1 ? (' ' + tr("sua partita")) : (' ' + tr("sue partite"))) + '</div></div>';
         }).join('')
-        : '<div class="empty-msg">Le sue partite non entrano nel tuo repertorio.</div>');
+        : ('<div class="empty-msg">' + tr("Le sue partite non entrano nel tuo repertorio.") + '</div>'));
 }
 function opTrain() {
     if (!op.report) return;
-    startCustomSession(op.report.lines.map(function(l) { return l.id; }), 'Contro ' + op.report.name);
+    startCustomSession(op.report.lines.map(function(l) { return l.id; }), (tr("Contro") + ' ') + op.report.name);
 }
 function opLoadTree() {
     if (!op.key) return;
     let my = ++op.treeReq;
-    $('#opp-crumb').text(op.nav.path.length ? pxSans(op.nav.path) : 'Posizione iniziale');
+    $('#opp-crumb').text(op.nav.path.length ? pxSans(op.nav.path) : tr("Posizione iniziale"));
     pxPost('/api/opponent/tree', { key: op.key, color: op.color, path: op.nav.path }).done(function(t) {
         if (my !== op.treeReq) return;
         op.nav.top = t.moves.length ? t.moves[0].uci : null;
@@ -367,7 +367,7 @@ function openBuilder() {
         if (!bd.nav) {
             bd.nav = pxNav('build-board', bdLoad);
             pxFillDbSelects();
-            $('#build-course').val(lsGet('buildCourse') || 'Il mio repertorio');
+            $('#build-course').val(lsGet('buildCourse') || tr("Il mio repertorio"));
             $('#build-db').val(lsGet('buildDb') || 'lichess');
             $('#build-thr').val(lsGet('buildThr') || '5');
             bd.color = lsGet('buildColor') || dominantPerspective();
@@ -387,11 +387,11 @@ function bdSettingsChanged(colorChanged) {
 }
 function bdLoad() {
     let path = bd.nav.path.slice(), fen = bd.nav.game.fen();
-    $('#build-crumb').text(path.length ? pxSans(path) : 'Posizione iniziale');
+    $('#build-crumb').text(path.length ? pxSans(path) : tr("Posizione iniziale"));
     $('#build-status').text('');
     bd.tree = null; bd.db = null;
     // dopo un salvataggio l'indice del repertorio si ricostruisce (qualche secondo): mai l'elenco vecchio
-    $('#build-moves').html('<div class="empty-msg">Carico…</div>'); $('#build-cov, #build-meta').empty();
+    $('#build-moves').html(('<div class="empty-msg">' + tr("Carico") + '…</div>')); $('#build-cov, #build-meta').empty();
     let myT = ++bd.reqTree;
     pxPost('/api/tree', { path: path, perspective: bd.color }).done(function(t) { if (myT === bd.reqTree) { bd.tree = t; bdRender(); } });
     // scorrendo a raffica non si spara una richiesta per mossa: Lichess risponderebbe 429
@@ -402,7 +402,7 @@ function bdLoad() {
         if (p.db === 'lichess') { p.speeds = $('#build-speeds').val(); p.ratings = $('#build-ratings').val(); }
         $.get('/api/explorer', p)
             .done(function(d) { if (myD === bd.reqDb) { bd.db = d; bdRender(); } })
-            .fail(function() { if (myD === bd.reqDb) { bd.db = { error: 'server non raggiungibile' }; bdRender(); } });
+            .fail(function() { if (myD === bd.reqDb) { bd.db = { error: tr("server non raggiungibile") }; bdRender(); } });
     }, 180);
 }
 function bdRender() {
@@ -411,17 +411,17 @@ function bdRender() {
     let mine = t.turn === (bd.color === 'white' ? 'w' : 'b');
     let rep = {};
     (t.children || []).forEach(function(c) { if (c.uci !== '0000') rep[c.uci] = c; });
-    $('#build-head').text(mine ? 'Tocca a te: scegli la mossa del tuo repertorio' : 'Tocca all\'avversario: copri le sue risposte più giocate');
+    $('#build-head').text(mine ? tr("Tocca a te: scegli la mossa del tuo repertorio") : tr("Tocca all'avversario: copri le sue risposte più giocate"));
     bd.nav.setBase(mine ? Object.keys(rep).map(function(u) { return moveArrow(u, 'green'); }) : []);
     let row = function(u, san, mark, bar, count) {
         return '<div class="exp-move" onclick="bd.nav.go(\'' + u + '\')" onmouseenter="bd.nav.hover(\'' + u + '\')" onmouseleave="bd.nav.hover()">' +
             '<span class="exp-san">' + escHtml(san) + ' ' + mark + '</span>' + bar + '<span class="exp-count">' + count + '</span></div>';
     };
-    let ok = '<span class="db-ok" title="Nel repertorio">✓</span>';
+    let ok = ('<span class="db-ok" title="' + tr("Nel repertorio") + '">✓</span>');
     if (!d || d.error || !d.moves.length) {
-        let msg = !d ? 'Interrogo il database…' : (d.error ? pxErr(d.error) : 'Nessuna partita nel database da questa posizione.');
+        let msg = !d ? tr("Interrogo il database…") : (d.error ? pxErr(d.error) : tr("Nessuna partita nel database da questa posizione."));
         $('#build-cov').empty(); $('#build-meta').empty();
-        $('#build-moves').html(Object.keys(rep).map(function(u) { return row(u, rep[u].san, ok, '<span class="exp-bar-wrap"></span>', 'nel repertorio'); }).join('') +
+        $('#build-moves').html(Object.keys(rep).map(function(u) { return row(u, rep[u].san, ok, '<span class="exp-bar-wrap"></span>', tr("nel repertorio")); }).join('') +
             '<div class="empty-msg">' + msg + '</div>');
         return;
     }
@@ -434,36 +434,36 @@ function bdRender() {
         seen[u] = true;
         if (rep[u]) covered += m.games;
         else if (!mine && pct >= thr) todo++;
-        let mark = rep[u] ? ok : ((!mine && pct >= thr) ? '<span class="db-gap" title="Da coprire">⚠</span>' : '');
+        let mark = rep[u] ? ok : ((!mine && pct >= thr) ? ('<span class="db-gap" title="' + tr("Da coprire") + '">⚠</span>') : '');
         return row(u, m.san, mark, pxBar(m), fmtGames(m.games) + ' · ' + Math.round(pct) + '%');
     }).join('');
     // mosse del repertorio che il database non conosce (rare o novita'): in cima
     let extra = Object.keys(rep).filter(function(u) { return !seen[u]; })
-        .map(function(u) { return row(u, rep[u].san, ok, '<span class="exp-bar-wrap"></span>', 'poco giocata'); }).join('');
+        .map(function(u) { return row(u, rep[u].san, ok, '<span class="exp-bar-wrap"></span>', tr("poco giocata")); }).join('');
     let cov = '';
     if (!mine) {
         let p = Math.round(100 * covered / tot);
         cov = '<div class="db-cov"><span class="db-cov-n" style="color:' + (p >= 90 ? 'var(--accent-green)' : (p >= 70 ? 'var(--accent-orange)' : 'var(--accent-red)')) + '">' + p +
-            '%</span> delle partite qui è coperto' + (todo ? ' · ' + todo + (todo === 1 ? ' risposta' : ' risposte') + ' da coprire (⚠)' : ' · risposte sopra soglia tutte coperte') + '</div>';
+            ('%</span> ' + tr("delle partite qui è coperto")) + (todo ? ' · ' + todo + (todo === 1 ? (' ' + tr("risposta")) : (' ' + tr("risposte"))) + ' da coprire (⚠)' : (' · ' + tr("risposte sopra soglia tutte coperte"))) + '</div>';
     }
     $('#build-cov').html(cov);
     $('#build-moves').html(extra + rows);
-    $('#build-meta').html(fmtGames(d.total) + ' partite' + (d.opening ? ' · ' + escHtml(d.opening) : '') + ' · barra: vittorie Bianco / patte / vittorie Nero');
+    $('#build-meta').html(fmtGames(d.total) + (' ' + tr("partite")) + (d.opening ? ' · ' + escHtml(d.opening) : '') + (' · ' + tr("barra: vittorie Bianco / patte / vittorie Nero")));
 }
 function bdSave() {
     let path = bd.nav.path.slice();
-    if (!path.length) { $('#build-status').text('Gioca almeno una mossa.').css('color', 'var(--accent-red)'); return; }
-    let course = ($('#build-course').val() || '').trim() || 'Il mio repertorio';
+    if (!path.length) { $('#build-status').text(tr("Gioca almeno una mossa.")).css('color', 'var(--accent-red)'); return; }
+    let course = ($('#build-course').val() || '').trim() || tr("Il mio repertorio");
     lsSet('buildCourse', course);
     let opening = '';   // il nome della posizione con nome piu' vicina lungo la linea (non tutte ne hanno uno)
     for (let i = path.length; i >= 0 && !opening; i--) opening = bd.names[path.slice(0, i).join(' ')] || '';
-    $('#build-status').text('Salvataggio…').css('color', 'var(--text-faint)');
+    $('#build-status').text((tr("Salvataggio") + '…')).css('color', 'var(--text-faint)');
     pxPost('/api/save_variation', {
-        title: (opening || 'Linea') + ' · ' + pxTail(path), course: course, chapter: opening.split(':')[0].trim() || 'Generale',
+        title: (opening || tr("Linea")) + ' · ' + pxTail(path), course: course, chapter: opening.split(':')[0].trim() || 'Generale',
         perspective: bd.color, moves: path.map(function(u) { return { uci: u, comment: '' }; }), extend: true
     }).done(function(r) {
         $('#build-status').text('');
-        showToast(r.extended ? 'Linea allungata in «' + course + '».' : 'Linea salvata in «' + course + '».', 'success');
+        showToast(r.extended ? tr("Linea allungata in «") + course + '».' : tr("Linea salvata in «") + course + '».', 'success');
         loadDueVariations();
         // torna al bivio dell'avversario piu' vicino: la prossima risposta da coprire
         for (let i = path.length - 1; i >= 0; i--) {
@@ -499,7 +499,7 @@ function openSparring() {
     }, 20);
 }
 function spStartLabel() {
-    $('#spar-start').html(sp.startPath.length ? escHtml(pxSans(sp.startPath)) + ' · <span class="sfn-clear" role="button" tabindex="0" onclick="sp.startPath = []; spStartLabel()">dall\'inizio</span>' : 'Posizione iniziale');
+    $('#spar-start').html(sp.startPath.length ? escHtml(pxSans(sp.startPath)) + (' · <span class="sfn-clear" role="button" tabindex="0" onclick="sp.startPath = []; spStartLabel()">' + tr("dall'inizio") + '</span>') : tr("Posizione iniziale"));
 }
 function spStatus(html, state) { $('#spar-status').html(html).attr('class', 'px-status' + (state ? ' is-' + state : '')); }
 function spLog(kind, html) { $('#spar-log').append('<div class="px-log px-log-' + kind + '">' + html + '</div>'); }
@@ -528,7 +528,7 @@ function spStart() {
 }
 function spNext() {
     if (!sp.active) return;
-    if (sp.game.game_over()) { spEnd(sp.game.in_checkmate() ? 'Scacco matto.' : 'Partita patta.'); return; }
+    if (sp.game.game_over()) { spEnd(sp.game.in_checkmate() ? tr("Scacco matto.") : tr("Partita patta.")); return; }
     let my = ++sp.req, mine = turnColor(sp.game) === sp.color;
     pxPost('/api/tree', { path: sp.path, perspective: sp.color }).done(function(t) {
         if (my !== sp.req || !sp.active) return;
@@ -539,9 +539,9 @@ function spNext() {
 function spUserTurn() {
     if (sp.inBook && !sp.rep.length) {
         sp.inBook = false; sp.bookEnd = sp.path.length;
-        spLog('info', sp.path.length > sp.startPath.length ? 'Qui finisce la tua preparazione: da adesso giochi libero.' : 'Il tuo repertorio non copre questa posizione: giochi libero.');
+        spLog('info', sp.path.length > sp.startPath.length ? tr("Qui finisce la tua preparazione: da adesso giochi libero.") : tr("Il tuo repertorio non copre questa posizione: giochi libero."));
     }
-    spStatus('Tocca a te' + (sp.rep.length ? ' · nel repertorio' : ''), null);
+    spStatus(tr("Tocca a te") + (sp.rep.length ? (' · ' + tr("nel repertorio")) : ''), null);
     cgMovable(sp.board, sp.game, sp.color);
 }
 function spOnMove(orig, dest) {
@@ -557,9 +557,9 @@ function spOnMove(orig, dest) {
         sp.board.setAutoShapes(sp.rep.map(function(c) { return moveArrow(c.uci, 'green'); }));
         if (!sp.errAt[fen]) {
             sp.errAt[fen] = true; sp.errors++;
-            spLog('bad', '<b class="px-bad">' + escHtml(pxLabel(ply, mv.san)) + '</b> è fuori repertorio: qui giochi ' + sp.rep.map(function(c) { return '<b class="db-ok">' + escHtml(pxLabel(ply, c.san)) + '</b>'; }).join(' o ') + '.');
+            spLog('bad', '<b class="px-bad">' + escHtml(pxLabel(ply, mv.san)) + ('</b> ' + tr("è fuori repertorio: qui giochi") + ' ') + sp.rep.map(function(c) { return '<b class="db-ok">' + escHtml(pxLabel(ply, c.san)) + '</b>'; }).join((' ' + tr("o") + ' ')) + '.');
         }
-        spStatus('Fuori repertorio: gioca la tua mossa (freccia verde)', 'bad');
+        spStatus(tr("Fuori repertorio: gioca la tua mossa (freccia verde)"), 'bad');
         cgMovable(sp.board, sp.game, sp.color);
         return;
     }
@@ -572,14 +572,14 @@ function spOnMove(orig, dest) {
     spNext();
 }
 function spOppTurn(my) {
-    spStatus('L\'avversario pensa…', 'muted');
+    spStatus((tr("L'avversario pensa") + '…'), 'muted');
     $.get('/api/explorer', { db: 'lichess', fen: sp.game.fen(), speeds: $('#spar-speeds').val(), ratings: $('#spar-ratings').val() })
         .done(function(d) {
             if (my !== sp.req || !sp.active) return;
             if (d.error) { spEnd(pxErr(d.error), true); return; }
             let tot = d.moves.reduce(function(a, m) { return a + m.games; }, 0);
             if (tot < SPAR_MIN_GAMES) {
-                spEnd('Il database finisce qui' + (tot ? ' (solo ' + tot + (tot === 1 ? ' partita' : ' partite') + ')' : '') + ': da questa posizione non ci sono abbastanza partite vere.');
+                spEnd(tr("Il database finisce qui") + (tot ? (' (' + tr("solo") + ' ') + tot + (tot === 1 ? (' ' + tr("partita")) : (' ' + tr("partite"))) + ')' : '') + (': ' + tr("da questa posizione non ci sono abbastanza partite vere.")));
                 return;
             }
             let r = Math.random() * tot, m = d.moves[0];   // scelta pesata: come giocano davvero a questo livello
@@ -599,7 +599,7 @@ function spOppTurn(my) {
                 spNext();
             }, 350);
         })
-        .fail(function() { if (my === sp.req && sp.active) spEnd('Server non raggiungibile.', true); });
+        .fail(function() { if (my === sp.req && sp.active) spEnd(tr("Server non raggiungibile."), true); });
 }
 function spEnd(reason, isError) {
     if (!sp.active) return;
@@ -607,20 +607,20 @@ function spEnd(reason, isError) {
     cgMovable(sp.board, sp.game, null);
     spStatus(reason, isError ? 'bad' : 'info');
     let played = sp.path.length - sp.startPath.length;
-    let book = sp.bookEnd == null ? 'sempre nel repertorio' : (sp.bookEnd > sp.startPath.length ? 'nel repertorio fino alla mossa ' + (Math.floor(sp.bookEnd / 2) + 1) : 'fuori dal repertorio');
-    let html = '<div class="panel-box"><div class="panel-title">Com\'è andata</div><div class="px-sum-row">' + Math.ceil(played / 2) + ' mosse · ' + book + ' · ' +
-        sp.errors + (sp.errors === 1 ? ' errore' : ' errori') + '</div>';
+    let book = sp.bookEnd == null ? tr("sempre nel repertorio") : (sp.bookEnd > sp.startPath.length ? (tr("nel repertorio fino alla mossa") + ' ') + (Math.floor(sp.bookEnd / 2) + 1) : tr("fuori dal repertorio"));
+    let html = ('<div class="panel-box"><div class="panel-title">' + tr("Com'è andata") + '</div><div class="px-sum-row">') + Math.ceil(played / 2) + (' ' + tr("mosse") + ' · ') + book + ' · ' +
+        sp.errors + (sp.errors === 1 ? (' ' + tr("errore")) : (' ' + tr("errori"))) + '</div>';
     if (sp.holes.length) {
-        html += '<div class="px-sum-h">Risposte da preparare</div>' + sp.holes.map(function(h, i) {
-            return '<div class="px-item"><div class="px-item-main"><b class="db-gap">' + escHtml(h.move) + '</b> · ' + h.pct + '% delle partite a questo livello</div>' +
-                '<button class="btn-delete px-act" onclick="pxPrepare(sp.holes[' + i + '], sp.color, \'sparring\')" title="Prepara la risposta nell\'editor"><i class="ico i-plus"></i> Prepara</button></div>';
+        html += ('<div class="px-sum-h">' + tr("Risposte da preparare") + '</div>') + sp.holes.map(function(h, i) {
+            return '<div class="px-item"><div class="px-item-main"><b class="db-gap">' + escHtml(h.move) + '</b> · ' + h.pct + (tr("% delle partite a questo livello") + '</div>') +
+                '<button class="btn-delete px-act" onclick="pxPrepare(sp.holes[' + i + ('], sp.color, \'sparring\')" title="' + tr("Prepara la risposta nell'editor") + '"><i class="ico i-plus"></i> ' + tr("Prepara") + '</button></div>');
         }).join('');
     }
-    html += '<div class="px-save-row"><button class="btn" onclick="spStart()">Rigioca</button><button class="btn btn-read" onclick="spSaveLine()">Salva come linea</button></div></div>';
+    html += ('<div class="px-save-row"><button class="btn" onclick="spStart()">' + tr("Rigioca") + '</button><button class="btn btn-read" onclick="spSaveLine()">' + tr("Salva come linea") + '</button></div></div>');
     $('#spar-summary').html(html);
 }
 function spSaveLine() {
-    openEditor(null, { moves: sp.path, perspective: sp.color, course: 'Il mio repertorio', title: 'Sparring · ' + pxTail(sp.path), back: 'sparring' });
+    openEditor(null, { moves: sp.path, perspective: sp.color, course: tr("Il mio repertorio"), title: (tr("Sparring") + ' · ') + pxTail(sp.path), back: 'sparring' });
 }
 
 // =====================================================================================
@@ -640,19 +640,20 @@ function openEndgames() {
     }, 20);
 }
 function egLoadList(cb) { $.get('/api/endgames', function(r) { eg.list = r.endgames; egRenderList(); if (cb) cb(); }); }
+function egTitle(e) { return e.builtin ? tr(e.title) : e.title; }
 function egTodo(e) { return srsState(e).cls !== 'srs-ok'; }   // nuova o da ripassare
 function egRenderList() {
     let todo = eg.list.filter(egTodo), rest = eg.list.filter(function(e) { return !egTodo(e); });
     $('#end-list').html(todo.concat(rest).map(function(e) {
         let st = srsState(e);
-        let when = st.cls === 'srs-new' ? 'nuova' : (st.cls === 'srs-due' ? 'da ripassare' : 'tra ' + intervalLabel(Math.max(0, (new Date(e.srs.next_review) - Date.now()) / 86400000)));
+        let when = st.cls === 'srs-new' ? tr("nuova") : (st.cls === 'srs-due' ? tr("da ripassare") : (tr("tra") + ' ') + intervalLabel(Math.max(0, (new Date(e.srs.next_review) - Date.now()) / 86400000)));
         return '<div class="px-item px-item-row' + (eg.cur && eg.cur.id === e.id ? ' is-active' : '') + '" role="button" tabindex="0" onclick="eg.queue = []; egStart(\'' + e.id + '\')">' +
-            '<span class="srs-dot ' + st.cls + '" title="' + st.lab + '"></span><div class="px-item-main">' + escHtml(e.title) +
-            '<span class="row-meta">' + (e.goal === 'win' ? 'vinci' : 'patta') + ' · ' + when + '</span></div>' +
-            '<button class="btn-delete" onclick="event.stopPropagation(); egDelete(\'' + e.id + '\')" title="Elimina la posizione" aria-label="Elimina la posizione"><i class="ico i-x"></i></button></div>';
-    }).join('') || '<div class="empty-msg">Nessuna posizione.</div>');
-    $('#end-due-n').text(todo.length ? todo.length + ' da fare' : '');
-    $('#end-due-btn').toggle(todo.length > 0).text('Allena quelle da fare (' + todo.length + ')');
+            '<span class="srs-dot ' + st.cls + '" title="' + st.lab + '"></span><div class="px-item-main">' + escHtml(egTitle(e)) +
+            '<span class="row-meta">' + (e.goal === 'win' ? tr("vinci") : tr("patta")) + ' · ' + when + '</span></div>' +
+            '<button class="btn-delete" onclick="event.stopPropagation(); egDelete(\'' + e.id + ('\')" title="' + tr("Elimina la posizione") + '" aria-label="' + tr("Elimina la posizione") + '"><i class="ico i-x"></i></button></div>');
+    }).join('') || ('<div class="empty-msg">' + tr("Nessuna posizione.") + '</div>'));
+    $('#end-due-n').text(todo.length ? todo.length + (' ' + tr("da fare")) : '');
+    $('#end-due-btn').toggle(todo.length > 0).text((tr("Allena quelle da fare") + ' (') + todo.length + ')');
 }
 function egStatus(text, state) { $('#end-status').text(text).attr('class', 'px-status' + (state ? ' is-' + state : '')); }
 function tbFetch(fen) {
@@ -666,7 +667,7 @@ function tbFetch(fen) {
 }
 function egNetErr(e) {
     eg.busy = false;
-    egStatus(e && e.message === '429' ? 'La tablebase chiede di aspettare: riprova tra un minuto.' : 'Tablebase non raggiungibile (sei offline?).', 'bad');
+    egStatus(e && e.message === '429' ? tr("La tablebase chiede di aspettare: riprova tra un minuto.") : tr("Tablebase non raggiungibile (sei offline?)."), 'bad');
 }
 function egStartDue() {
     eg.queue = eg.list.filter(egTodo).map(function(e) { return e.id; });
@@ -681,19 +682,19 @@ function egStart(id) {
     cgPosition(eg.board, eg.game, null, false);
     cgMovable(eg.board, eg.game, null);
     eg.board.setAutoShapes([]);
-    $('#end-title').text(e.title);
-    $('#end-goal').html((e.goal === 'win' ? 'Obiettivo: <b>vincere</b>' : 'Obiettivo: <b>tenere la patta</b> per ' + EG_DRAW_MOVES + ' mosse') +
-        ' · giochi col ' + (eg.userColor === 'white' ? 'Bianco' : 'Nero'));
+    $('#end-title').text(egTitle(e));
+    $('#end-goal').html((e.goal === 'win' ? (tr("Obiettivo") + ': <b>' + tr("vincere") + '</b>') : (tr("Obiettivo") + ': <b>' + tr("tenere la patta") + '</b> ' + tr("per") + ' ') + EG_DRAW_MOVES + (' ' + tr("mosse"))) +
+        (' · ' + tr("giochi col") + ' ') + (eg.userColor === 'white' ? tr("Bianco") : tr("Nero")));
     $('#end-after').empty(); $('#end-moves').hide().empty();
     egRenderList();
-    egStatus('Interrogo la tablebase…', 'muted');
+    egStatus((tr("Interrogo la tablebase") + '…'), 'muted');
     tbFetch(eg.game.fen()).then(function(d) { if (eg.cur === e && eg.active) { eg.tb = d; egUserTurn(); } }).catch(egNetErr);
 }
 function egRestart() { if (eg.cur) egStart(eg.cur.id); }
 function egFlip() { if (eg.board) eg.board.toggleOrientation(); }
 function egUserTurn() {
     eg.busy = false;
-    egStatus(eg.cur.goal === 'win' ? 'Tocca a te: vinci' : 'Tocca a te: tieni la patta', null);
+    egStatus(eg.cur.goal === 'win' ? tr("Tocca a te: vinci") : tr("Tocca a te: tieni la patta"), null);
     cgMovable(eg.board, eg.game, eg.userColor);
 }
 function egRenderMoves() {
@@ -724,8 +725,8 @@ function egOnMove(orig, dest) {
         playSound('error');
         cgPosition(eg.board, eg.game, eg.last, false);
         if (!eg.errAt[fen]) { eg.errAt[fen] = true; eg.mistakes++; }
-        egStatus(eg.cur.goal === 'win' ? 'Con ' + mv.san + ' non vinci più' + (cat === 'draw' || cat === 'blessed-loss' ? ': diventa patta' : '') + '. Riprova.'
-                                       : 'Con ' + mv.san + ' perdi. Riprova.', 'bad');
+        egStatus(eg.cur.goal === 'win' ? (tr("Con") + ' ') + mv.san + (' ' + tr("non vinci più")) + (cat === 'draw' || cat === 'blessed-loss' ? (': ' + tr("diventa patta")) : '') + ('. ' + tr("Riprova."))
+                                       : (tr("Con") + ' ') + mv.san + (' ' + tr("perdi. Riprova.")), 'bad');
         cgMovable(eg.board, eg.game, eg.userColor);
         return;
     }
@@ -756,14 +757,14 @@ function egOnMove(orig, dest) {
 }
 function egCheckEnd() {
     let g = eg.game, win = eg.cur.goal === 'win';
-    if (g.in_checkmate()) { egFinish(turnColor(g) !== eg.userColor, 'Scacco matto!'); return true; }
+    if (g.in_checkmate()) { egFinish(turnColor(g) !== eg.userColor, tr("Scacco matto!")); return true; }
     if (g.in_draw()) {
-        let why = g.in_stalemate() ? 'Stallo' : (g.insufficient_material() ? 'Materiale insufficiente' : (g.in_threefold_repetition() ? 'Tre volte la stessa posizione' : 'Regola delle 50 mosse'));
-        if (win) { eg.mistakes++; egFinish(false, why + ': è patta.'); }
-        else egFinish(true, why + ': patta tenuta.');
+        let why = g.in_stalemate() ? tr("Stallo") : (g.insufficient_material() ? tr("Materiale insufficiente") : (g.in_threefold_repetition() ? tr("Tre volte la stessa posizione") : tr("Regola delle 50 mosse")));
+        if (win) { eg.mistakes++; egFinish(false, why + (': ' + tr("è patta."))); }
+        else egFinish(true, why + (': ' + tr("patta tenuta.")));
         return true;
     }
-    if (!win && eg.userMoves >= EG_DRAW_MOVES) { egFinish(true, 'Patta tenuta per ' + EG_DRAW_MOVES + ' mosse.'); return true; }
+    if (!win && eg.userMoves >= EG_DRAW_MOVES) { egFinish(true, (tr("Patta tenuta per") + ' ') + EG_DRAW_MOVES + (' ' + tr("mosse."))); return true; }
     return false;
 }
 function egFinish(success, text) {
@@ -775,9 +776,9 @@ function egFinish(success, text) {
     pxPost('/api/endgames/review', { id: e.id, quality: q }).done(function(r) {
         e.srs = r.srs; e.stats = r.stats;
         egRenderList();
-        let nextBtn = eg.queue.length ? '<button class="btn" onclick="egStart(eg.queue.shift())">Prossima posizione<span class="kbd">Spazio</span></button>' : '';
-        $('#end-after').html('<div class="review-recent">' + (success ? (eg.mistakes ? eg.mistakes + (eg.mistakes === 1 ? ' errore' : ' errori') : 'Nessun errore') : 'Non riuscito') +
-            ' · prossimo ripasso tra ' + intervalLabel(r.srs.interval) + '</div><div class="px-save-row">' + nextBtn + '<button class="btn btn-read" onclick="egRestart()">Rigioca</button></div>');
+        let nextBtn = eg.queue.length ? ('<button class="btn" onclick="egStart(eg.queue.shift())">' + tr("Prossima posizione") + '<span class="kbd">' + tr("Spazio") + '</span></button>') : '';
+        $('#end-after').html('<div class="review-recent">' + (success ? (eg.mistakes ? eg.mistakes + (eg.mistakes === 1 ? (' ' + tr("errore")) : (' ' + tr("errori"))) : tr("Nessun errore")) : tr("Non riuscito")) +
+            (' · ' + tr("prossimo ripasso tra") + ' ') + intervalLabel(r.srs.interval) + '</div><div class="px-save-row">' + nextBtn + ('<button class="btn btn-read" onclick="egRestart()">' + tr("Rigioca") + '</button></div>'));
     });
 }
 function egHint() {
@@ -785,31 +786,31 @@ function egHint() {
     let fen = eg.game.fen(), best = eg.tb.moves[0];
     if (!eg.errAt[fen]) { eg.errAt[fen] = true; eg.mistakes++; }
     eg.board.setAutoShapes([moveArrow(best.uci, 'yellow')]);
-    egStatus('Suggerimento: ' + best.san + ' (conta come errore)', 'warn');
+    egStatus((tr("Suggerimento") + ': ') + best.san + (' (' + tr("conta come errore") + ')'), 'warn');
 }
 function egDelete(id) {
-    uiConfirm('Eliminare questa posizione dagli allenamenti?', { danger: true, okText: 'Elimina' }).then(function(ok) {
+    uiConfirm(tr("Eliminare questa posizione dagli allenamenti?"), { danger: true, okText: tr("Elimina") }).then(function(ok) {
         if (!ok) return;
         pxPost('/api/endgames/delete', { id: id }).done(function() {
-            if (eg.cur && eg.cur.id === id) { eg.cur = null; eg.active = false; $('#end-title').text('Scegli una posizione'); $('#end-goal, #end-after').empty(); egStatus(''); }
+            if (eg.cur && eg.cur.id === id) { eg.cur = null; eg.active = false; $('#end-title').text(tr("Scegli una posizione")); $('#end-goal, #end-after').empty(); egStatus(''); }
             egLoadList();
         });
     });
 }
 function egAdd() {
     let fen = $('#end-fen').val().trim();
-    if (!fen) { showToast('Incolla un FEN.', 'error'); return; }
-    if (!new Chess().load(fen)) { showToast('FEN non valido.', 'error'); return; }
+    if (!fen) { showToast(tr("Incolla un FEN."), 'error'); return; }
+    if (!new Chess().load(fen)) { showToast(tr("FEN non valido."), 'error'); return; }
     tbFetch(fen).then(function(d) {
         let goal = d.category === 'win' ? 'win' : (['draw', 'cursed-win', 'blessed-loss'].indexOf(d.category) >= 0 ? 'draw' : null);
-        if (!goal) { showToast(d.category === 'loss' || d.category === 'maybe-loss' ? 'Chi ha il tratto perde: cambia il tratto nel FEN.' : 'La tablebase non conosce questa posizione.', 'error'); return; }
+        if (!goal) { showToast(d.category === 'loss' || d.category === 'maybe-loss' ? tr("Chi ha il tratto perde: cambia il tratto nel FEN.") : tr("La tablebase non conosce questa posizione."), 'error'); return; }
         pxPost('/api/endgames/add', { fen: fen, title: $('#end-name').val().trim(), goal: goal }).done(function(r) {
-            showToast('Posizione aggiunta: ' + (goal === 'win' ? 'si gioca per vincere.' : 'si gioca per la patta.'), 'success');
+            showToast((tr("Posizione aggiunta") + ': ') + (goal === 'win' ? tr("si gioca per vincere.") : tr("si gioca per la patta.")), 'success');
             $('#end-fen, #end-name').val('');
             egLoadList(function() { eg.queue = []; egStart(r.id); });
         });
     }).catch(function(e) {
-        showToast(e.message === 'bad' ? 'La tablebase non accetta questa posizione (al massimo 7 pezzi).' : 'Tablebase non raggiungibile.', 'error');
+        showToast(e.message === 'bad' ? tr("La tablebase non accetta questa posizione (al massimo 7 pezzi).") : tr("Tablebase non raggiungibile."), 'error');
     });
 }
 
@@ -855,18 +856,18 @@ $(document).on('keydown', function(e) {
 });
 function showDataDir() {
     $.get('/api/data_dir', function(r) {
-        uiHtmlModal('Cartella dei dati',
-            '<p>Corsi, ripassi, partite e impostazioni stanno in:</p><p><b class="px-url">' + escHtml(r.path) + '</b></p>' +
-            '<p class="panel-hint">Per portarli su un altro computer copia i file di questa cartella (repertoire.json, personal.json, lichess_token.txt). ' +
-            'Se prima usavi la versione col codice, copia qui i file che avevi accanto ad app.py.</p>',
-            [{ label: 'Chiudi', cls: 'btn-read' }, { label: 'Apri la cartella', fn: function() { pxPost('/api/data_dir'); } }]);
+        uiHtmlModal(tr("Cartella dei dati"),
+            ('<p>' + tr("Corsi, ripassi, partite e impostazioni stanno in") + ':</p><p><b class="px-url">') + escHtml(r.path) + '</b></p>' +
+            ('<p class="panel-hint">' + tr("Per portarli su un altro computer copia i file di questa cartella (repertoire.json, personal.json, lichess_token.txt).") + ' ') +
+            (tr("Se prima usavi la versione col codice, copia qui i file che avevi accanto ad app.py.") + '</p>'),
+            [{ label: tr("Chiudi"), cls: 'btn-read' }, { label: tr("Apri la cartella"), fn: function() { pxPost('/api/data_dir'); } }]);
     });
 }
 function quitApp() {
-    uiConfirm('Chiudere openrepertoire? I dati sono già salvati: per riaprirla avvia di nuovo l\'app.', { title: 'Chiudi l\'app', okText: 'Chiudi l\'app' }).then(function(ok) {
+    uiConfirm(tr("Chiudere openrepertoire? I dati sono già salvati: per riaprirla avvia di nuovo l'app."), { title: tr("Chiudi l'app"), okText: tr("Chiudi l'app") }).then(function(ok) {
         if (!ok) return;
         pxPost('/api/quit').always(function() {
-            document.body.innerHTML = '<div class="app-closed"><h1>openrepertoire è chiusa</h1><p>Puoi chiudere questa scheda.</p></div>';
+            document.body.innerHTML = ('<div class="app-closed"><h1>' + tr("openrepertoire è chiusa") + '</h1><p>' + tr("Puoi chiudere questa scheda.") + '</p></div>');
         });
     });
 }
@@ -889,29 +890,29 @@ function uiHtmlModal(title, html, buttons) {
     setTimeout(function() { act.find('.btn').last().focus(); }, 30);
 }
 function showPhone() {
-    $.get('/api/lan', phoneModal).fail(function() { showToast('Le impostazioni del telefono si cambiano dal computer.', 'error'); });
+    $.get('/api/lan', phoneModal).fail(function() { showToast(tr("Le impostazioni del telefono si cambiano dal computer."), 'error'); });
 }
 function phoneSet(body) { pxPost('/api/lan', body).done(phoneModal); }
 function phoneModal(s) {
     if (!s.enabled) {
-        uiHtmlModal('Usa dal telefono',
-            '<p>Apri l\'app dal telefono o dal tablet, sulla stessa rete Wi-Fi del computer. Per entrare serve un PIN; i dati restano su questo computer, che deve essere acceso con l\'app aperta.</p>',
-            [{ label: 'Chiudi', cls: 'btn-read' }, { label: 'Attiva', fn: function() { phoneSet({ enabled: true }); } }]);
+        uiHtmlModal(tr("Usa dal telefono"),
+            ('<p>' + tr("Apri l'app dal telefono o dal tablet, sulla stessa rete Wi-Fi del computer. Per entrare serve un PIN; i dati restano su questo computer, che deve essere acceso con l'app aperta.") + '</p>'),
+            [{ label: tr("Chiudi"), cls: 'btn-read' }, { label: tr("Attiva"), fn: function() { phoneSet({ enabled: true }); } }]);
         return;
     }
-    let urls = (s.urls || []).map(function(u) { return '<b class="px-url">' + escHtml(u) + '</b>'; }).join('<span class="px-or">oppure</span>');
+    let urls = (s.urls || []).map(function(u) { return '<b class="px-url">' + escHtml(u) + '</b>'; }).join(('<span class="px-or">' + tr("oppure") + '</span>'));
     let warn = s.running ? '' : '<div class="px-warn">' + (s.error === 'no_network'
-        ? 'Il computer non è collegato a nessuna rete: collegalo al Wi-Fi e riapri questa finestra.'
-        : 'L\'accesso dalla rete non si è aperto' + (s.error ? ' (' + escHtml(s.error) + ')' : '') + ': riprova riaprendo questa finestra.') + '</div>';
-    uiHtmlModal('Usa dal telefono', warn +
-        (s.running && s.urls && s.urls.length ? '<div id="phone-qr" class="px-qr" role="img" aria-label="Codice QR con l\'indirizzo"></div>' : '') +
-        '<ol class="px-steps"><li>Telefono e computer sulla stessa rete Wi-Fi.</li>' +
-        '<li>Inquadra il codice con la fotocamera del telefono, oppure apri ' + (urls || 'l\'indirizzo del computer') + '</li>' +
-        '<li>Inserisci il PIN <b class="px-pin">' + escHtml(s.pin || '') + '</b></li></ol>' +
-        '<p class="panel-hint">La prima volta il computer può chiederti se l\'app accetta connessioni in arrivo: rispondi Consenti. Sul telefono, Condividi → Aggiungi alla schermata Home la apre a tutto schermo come un\'app. Fuori casa funziona con una rete privata come Tailscale (gratuita), installata su computer e telefono.</p>',
-        [{ label: 'Disattiva', cls: 'btn-read', fn: function() { phoneSet({ enabled: false }); } },
-         { label: 'Nuovo PIN', cls: 'btn-read', fn: function() { phoneSet({ new_pin: true }); } },
-         { label: 'Chiudi' }]);
+        ? tr("Il computer non è collegato a nessuna rete: collegalo al Wi-Fi e riapri questa finestra.")
+        : tr("L'accesso dalla rete non si è aperto") + (s.error ? ' (' + escHtml(s.error) + ')' : '') + (': ' + tr("riprova riaprendo questa finestra."))) + '</div>';
+    uiHtmlModal(tr("Usa dal telefono"), warn +
+        (s.running && s.urls && s.urls.length ? ('<div id="phone-qr" class="px-qr" role="img" aria-label="' + tr("Codice QR con l'indirizzo") + '"></div>') : '') +
+        ('<ol class="px-steps"><li>' + tr("Telefono e computer sulla stessa rete Wi-Fi.") + '</li>') +
+        ('<li>' + tr("Inquadra il codice con la fotocamera del telefono, oppure apri") + ' ') + (urls || tr("l'indirizzo del computer")) + '</li>' +
+        ('<li>' + tr("Inserisci il PIN") + ' <b class="px-pin">') + escHtml(s.pin || '') + '</b></li></ol>' +
+        ('<p class="panel-hint">' + tr("La prima volta il computer può chiederti se l'app accetta connessioni in arrivo: rispondi Consenti. Sul telefono, Condividi → Aggiungi alla schermata Home la apre a tutto schermo come un'app. Fuori casa funziona con una rete privata come Tailscale (gratuita), installata su computer e telefono.") + '</p>'),
+        [{ label: tr("Disattiva"), cls: 'btn-read', fn: function() { phoneSet({ enabled: false }); } },
+         { label: tr("Nuovo PIN"), cls: 'btn-read', fn: function() { phoneSet({ new_pin: true }); } },
+         { label: tr("Chiudi") }]);
     if (s.running && s.urls && s.urls.length) pxQr(document.getElementById('phone-qr'), s.urls[0]);
 }
 // Codice QR (static/js/qrcode.js, MIT): si carica solo quando serve
